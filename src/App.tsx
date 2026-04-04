@@ -47,7 +47,6 @@ function App() {
 
   const handleStart = useCallback((config: SimulationConfig) => {
     setActiveConfig(config);
-    // In ignite mode, config is saved for when the user clicks the globe
   }, []);
 
   const handleStartScenario = useCallback(
@@ -78,25 +77,25 @@ function App() {
 
   return (
     <div className="h-screen w-screen relative">
-      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={setViewer}>
-        {ignitionPoint && (
+      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={setViewer} />
+
+      {ignitionPoint && (
+        <>
+          <FireOverlay
+            state={currentState}
+            config={activeConfig}
+            centerLat={ignitionPoint.lat}
+            centerLng={ignitionPoint.lng}
+            viewer={viewer}
+          />
           <FireParticles
             state={currentState}
             config={activeConfig}
             centerLat={ignitionPoint.lat}
             centerLng={ignitionPoint.lng}
+            viewer={viewer}
           />
-        )}
-      </GlobeView>
-
-      {ignitionPoint && (
-        <FireOverlay
-          state={currentState}
-          config={activeConfig}
-          centerLat={ignitionPoint.lat}
-          centerLng={ignitionPoint.lng}
-          viewer={viewer}
-        />
+        </>
       )}
 
       <ControlPanel

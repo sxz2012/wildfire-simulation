@@ -14,8 +14,7 @@
   "dependencies": {
     "cesium": "^1.140.0",
     "react": "^19.2.4",
-    "react-dom": "^19.2.4",
-    "resium": "^1.20.0"
+    "react-dom": "^19.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",

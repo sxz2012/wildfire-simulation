@@ -1,35 +1,47 @@
-import { Viewer, Globe } from "resium";
+import { useEffect, useRef } from "react";
 import {
+  Viewer as CesiumViewer,
   Ion,
   createGooglePhotorealistic3DTileset,
-  Terrain,
   Cartesian3,
   Cartographic,
   Math as CesiumMath,
   ScreenSpaceEventType,
-  ScreenSpaceEventHandler as CesiumScreenSpaceEventHandler,
+  ScreenSpaceEventHandler,
   Cartesian2,
 } from "cesium";
-import { useEffect, useRef } from "react";
-import type { CesiumComponentRef } from "resium";
-import type { Viewer as CesiumViewer } from "cesium";
+import "cesium/Build/Cesium/Widgets/widgets.css";
 
-// User must provide their own API keys
 Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? "";
 
 interface GlobeViewProps {
   onIgnite?: (lat: number, lng: number) => void;
-  children?: React.ReactNode;
   flyTo?: { lat: number; lng: number; altitude: number } | null;
   onViewerReady?: (viewer: CesiumViewer) => void;
 }
 
-export default function GlobeView({ onIgnite, children, flyTo, onViewerReady }: GlobeViewProps) {
-  const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
+export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const viewerRef = useRef<CesiumViewer | null>(null);
+  const onIgniteRef = useRef(onIgnite);
+  onIgniteRef.current = onIgnite;
 
+  // Create viewer once
   useEffect(() => {
-    const viewer = viewerRef.current?.cesiumElement;
-    if (!viewer) return;
+    if (!containerRef.current || viewerRef.current) return;
+
+    const viewer = new CesiumViewer(containerRef.current, {
+      timeline: false,
+      animation: false,
+      homeButton: false,
+      baseLayerPicker: false,
+      navigationHelpButton: false,
+      sceneModePicker: false,
+      geocoder: false,
+    });
+
+    viewer.scene.globe.depthTestAgainstTerrain = true;
+    viewerRef.current = viewer;
 
     // Add Google Photorealistic 3D Tiles
     const addTileset = async () => {
@@ -46,57 +58,41 @@ export default function GlobeView({ onIgnite, children, flyTo, onViewerReady }: 
     };
     addTileset();
 
-    // Set initial camera to overview of California
+    // Initial camera position — California overview
     viewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(-119.5, 36.7, 500000),
     });
 
-    if (onViewerReady) onViewerReady(viewer);
-  }, [onViewerReady]);
-
-  // Click-to-ignite handler
-  useEffect(() => {
-    const viewer = viewerRef.current?.cesiumElement;
-    if (!viewer || !onIgnite) return;
-
-    const handler = new CesiumScreenSpaceEventHandler(viewer.scene.canvas);
+    // Click-to-ignite handler
+    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
     handler.setInputAction((event: { position: Cartesian2 }) => {
+      if (!onIgniteRef.current) return;
       const cartesian = viewer.scene.pickPosition(event.position);
       if (!cartesian) return;
       const carto = Cartographic.fromCartesian(cartesian);
-      onIgnite(
+      onIgniteRef.current(
         CesiumMath.toDegrees(carto.latitude),
         CesiumMath.toDegrees(carto.longitude),
       );
     }, ScreenSpaceEventType.LEFT_CLICK);
 
-    return () => handler.destroy();
-  }, [onIgnite]);
+    if (onViewerReady) onViewerReady(viewer);
 
-  // Fly camera to location when flyTo changes
+    return () => {
+      handler.destroy();
+      viewer.destroy();
+      viewerRef.current = null;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fly camera when flyTo changes
   useEffect(() => {
-    const viewer = viewerRef.current?.cesiumElement;
+    const viewer = viewerRef.current;
     if (!viewer || !flyTo) return;
     viewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(flyTo.lng, flyTo.lat, flyTo.altitude),
     });
   }, [flyTo]);
 
-  return (
-    <Viewer
-      ref={viewerRef}
-      full
-      timeline={false}
-      animation={false}
-      homeButton={false}
-      baseLayerPicker={false}
-      navigationHelpButton={false}
-      sceneModePicker={false}
-      geocoder={false}
-      terrain={Terrain.fromWorldTerrain()}
-    >
-      <Globe depthTestAgainstTerrain />
-      {children}
-    </Viewer>
-  );
+  return <div ref={containerRef} className="w-full h-full" />;
 }

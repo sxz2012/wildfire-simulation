@@ -1,6 +1,11 @@
-import { useMemo } from "react";
-import { Entity, BillboardGraphics } from "resium";
-import { Cartesian3, Color, VerticalOrigin } from "cesium";
+import { useEffect, useRef, useMemo } from "react";
+import {
+  Cartesian3,
+  Color,
+  VerticalOrigin,
+  BillboardCollection,
+} from "cesium";
+import type { Viewer as CesiumViewer } from "cesium";
 import {
   CellState,
   type SimulationState,
@@ -12,6 +17,7 @@ interface FireParticlesProps {
   config: SimulationConfig;
   centerLat: number;
   centerLng: number;
+  viewer: CesiumViewer | null;
 }
 
 export default function FireParticles({
@@ -19,7 +25,10 @@ export default function FireParticles({
   config,
   centerLat,
   centerLng,
+  viewer,
 }: FireParticlesProps) {
+  const collectionRef = useRef<BillboardCollection | null>(null);
+
   // Create a small canvas-based fire icon
   const fireImage = useMemo(() => {
     const canvas = document.createElement("canvas");
@@ -35,13 +44,20 @@ export default function FireParticles({
     return canvas;
   }, []);
 
-  const emitterPositions = useMemo(() => {
-    if (!state) return [];
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+
+    // Remove previous collection
+    if (collectionRef.current) {
+      viewer.scene.primitives.remove(collectionRef.current);
+      collectionRef.current = null;
+    }
+
+    if (!state) return;
 
     const { gridSize, cellSizeMeters } = config;
     const metersPerDegreeLat = 111320;
-    const metersPerDegreeLng =
-      111320 * Math.cos((centerLat * Math.PI) / 180);
+    const metersPerDegreeLng = 111320 * Math.cos((centerLat * Math.PI) / 180);
     const halfGrid = gridSize / 2;
     const cellLat = cellSizeMeters / metersPerDegreeLat;
     const cellLng = cellSizeMeters / metersPerDegreeLng;
@@ -52,7 +68,6 @@ export default function FireParticles({
       for (let col = 1; col < gridSize - 1; col++) {
         if (state.grid[row * gridSize + col] !== CellState.Burning) continue;
 
-        // Check if on fire front (has at least one unburned neighbor)
         const hasUnburnedNeighbor = [
           state.grid[(row - 1) * gridSize + col],
           state.grid[(row + 1) * gridSize + col],
@@ -69,27 +84,36 @@ export default function FireParticles({
     }
 
     // Sample max 100 positions for performance
-    if (frontCells.length > 100) {
-      const step = Math.ceil(frontCells.length / 100);
-      return frontCells.filter((_, i) => i % step === 0);
+    let positions = frontCells;
+    if (positions.length > 100) {
+      const step = Math.ceil(positions.length / 100);
+      positions = positions.filter((_, i) => i % step === 0);
     }
-    return frontCells;
-  }, [state, config, centerLat, centerLng]);
 
-  return (
-    <>
-      {emitterPositions.map((pos, i) => (
-        <Entity key={i} position={pos}>
-          <BillboardGraphics
-            image={fireImage}
-            width={20}
-            height={20}
-            verticalOrigin={VerticalOrigin.BOTTOM}
-            color={Color.WHITE}
-            scale={1.5}
-          />
-        </Entity>
-      ))}
-    </>
-  );
+    if (positions.length === 0) return;
+
+    const billboards = viewer.scene.primitives.add(new BillboardCollection());
+    collectionRef.current = billboards;
+
+    for (const pos of positions) {
+      billboards.add({
+        position: pos,
+        image: fireImage,
+        width: 20,
+        height: 20,
+        verticalOrigin: VerticalOrigin.BOTTOM,
+        color: Color.WHITE,
+        scale: 1.5,
+      });
+    }
+
+    return () => {
+      if (collectionRef.current && viewer && !viewer.isDestroyed()) {
+        viewer.scene.primitives.remove(collectionRef.current);
+        collectionRef.current = null;
+      }
+    };
+  }, [state, config, centerLat, centerLng, viewer, fireImage]);
+
+  return null;
 }
