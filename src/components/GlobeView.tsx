@@ -3,6 +3,7 @@ import {
   Viewer as CesiumViewer,
   Ion,
   createGooglePhotorealistic3DTileset,
+  createWorldTerrainAsync,
   Cartesian3,
   Cartographic,
   Math as CesiumMath,
@@ -43,8 +44,15 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
     viewer.scene.globe.depthTestAgainstTerrain = true;
     viewerRef.current = viewer;
 
-    // Add Google Photorealistic 3D Tiles
-    const addTileset = async () => {
+    const setup = async () => {
+      // Add world terrain (elevation data)
+      try {
+        viewer.scene.terrainProvider = await createWorldTerrainAsync();
+      } catch (e) {
+        console.error("Failed to load world terrain:", e);
+      }
+
+      // Add Google Photorealistic 3D Tiles
       try {
         const tileset = await createGooglePhotorealistic3DTileset(
           import.meta.env.VITE_GOOGLE_MAPS_API_KEY
@@ -56,7 +64,7 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
     };
-    addTileset();
+    setup();
 
     // Initial camera position — California overview
     viewer.camera.flyTo({
