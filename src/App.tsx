@@ -8,6 +8,7 @@ import InfoTooltip from "./components/InfoTooltip";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
 import type { Scenario } from "./scenarios";
+import type { Viewer as CesiumViewer } from "cesium";
 
 function App() {
   const { history, isRunning, startSimulation, reset } = useSimulation();
@@ -24,6 +25,7 @@ function App() {
   } | null>(null);
   const [activeConfig, setActiveConfig] =
     useState<SimulationConfig>(DEFAULT_CONFIG);
+  const [viewer, setViewer] = useState<CesiumViewer | null>(null);
   const [tooltip, setTooltip] = useState({
     visible: false,
     x: 0,
@@ -76,24 +78,26 @@ function App() {
 
   return (
     <div className="h-screen w-screen relative">
-      <GlobeView onIgnite={handleIgnite} flyTo={flyTo}>
+      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={setViewer}>
         {ignitionPoint && (
-          <>
-            <FireOverlay
-              state={currentState}
-              config={activeConfig}
-              centerLat={ignitionPoint.lat}
-              centerLng={ignitionPoint.lng}
-            />
-            <FireParticles
-              state={currentState}
-              config={activeConfig}
-              centerLat={ignitionPoint.lat}
-              centerLng={ignitionPoint.lng}
-            />
-          </>
+          <FireParticles
+            state={currentState}
+            config={activeConfig}
+            centerLat={ignitionPoint.lat}
+            centerLng={ignitionPoint.lng}
+          />
         )}
       </GlobeView>
+
+      {ignitionPoint && (
+        <FireOverlay
+          state={currentState}
+          config={activeConfig}
+          centerLat={ignitionPoint.lat}
+          centerLng={ignitionPoint.lng}
+          viewer={viewer}
+        />
+      )}
 
       <ControlPanel
         onStart={handleStart}

@@ -21,9 +21,10 @@ interface GlobeViewProps {
   onIgnite?: (lat: number, lng: number) => void;
   children?: React.ReactNode;
   flyTo?: { lat: number; lng: number; altitude: number } | null;
+  onViewerReady?: (viewer: CesiumViewer) => void;
 }
 
-export default function GlobeView({ onIgnite, children, flyTo }: GlobeViewProps) {
+export default function GlobeView({ onIgnite, children, flyTo, onViewerReady }: GlobeViewProps) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
 
   useEffect(() => {
@@ -49,7 +50,9 @@ export default function GlobeView({ onIgnite, children, flyTo }: GlobeViewProps)
     viewer.camera.flyTo({
       destination: Cartesian3.fromDegrees(-119.5, 36.7, 500000),
     });
-  }, []);
+
+    if (onViewerReady) onViewerReady(viewer);
+  }, [onViewerReady]);
 
   // Click-to-ignite handler
   useEffect(() => {
