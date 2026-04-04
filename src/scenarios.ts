@@ -21,7 +21,7 @@ export const SCENARIOS: Scenario[] = [
       windDirection: 270,
       humidity: 20,
     },
-    igniteOffset: { row: 100, col: 100 },
+    igniteOffset: { row: 50, col: 50 },
   },
   {
     name: "Rocky Mountain Forest",
@@ -35,7 +35,7 @@ export const SCENARIOS: Scenario[] = [
       windDirection: 180,
       humidity: 35,
     },
-    igniteOffset: { row: 150, col: 100 },
+    igniteOffset: { row: 70, col: 50 },
   },
   {
     name: "Australian Bushland",
@@ -49,7 +49,7 @@ export const SCENARIOS: Scenario[] = [
       windDirection: 315,
       humidity: 15,
     },
-    igniteOffset: { row: 120, col: 120 },
+    igniteOffset: { row: 60, col: 60 },
   },
   {
     name: "Mediterranean Hillside",
@@ -63,7 +63,7 @@ export const SCENARIOS: Scenario[] = [
       windDirection: 340,
       humidity: 25,
     },
-    igniteOffset: { row: 100, col: 80 },
+    igniteOffset: { row: 50, col: 40 },
   },
   {
     name: "Canyon Fire",
@@ -77,6 +77,6 @@ export const SCENARIOS: Scenario[] = [
       windDirection: 180,
       humidity: 20,
     },
-    igniteOffset: { row: 160, col: 100 },
+    igniteOffset: { row: 75, col: 50 },
   },
 ];

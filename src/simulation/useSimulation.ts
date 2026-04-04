@@ -24,7 +24,7 @@ export function useSimulation(): UseSimulationReturn {
       config: SimulationConfig,
       igniteRow: number,
       igniteCol: number,
-      maxSteps = 500
+      maxSteps = 300
     ) => {
       workerRef.current?.terminate();
 
@@ -37,15 +37,32 @@ export function useSimulation(): UseSimulationReturn {
       setHistory([]);
 
       worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
-        if (e.data.type === "complete" && e.data.history) {
-          const states: SimulationState[] = e.data.history.map((s) => ({
-            grid: new Uint8Array(s.grid),
-            timestep: s.timestep,
-          }));
+        if (e.data.type === "complete" && e.data.gridBuffer) {
+          const { gridBuffer, historyLength, gridSize } = e.data;
+          const fullBuffer = new Uint8Array(gridBuffer);
+          const gridCells = gridSize! * gridSize!;
+
+          const states: SimulationState[] = [];
+          for (let i = 0; i < historyLength!; i++) {
+            states.push({
+              grid: fullBuffer.slice(i * gridCells, (i + 1) * gridCells),
+              timestep: i,
+            });
+          }
+
           setHistory(states);
           setIsRunning(false);
           worker.terminate();
+        } else if (e.data.type === "error") {
+          console.error("Simulation worker error:", e.data.error);
+          setIsRunning(false);
+          worker.terminate();
         }
+      };
+
+      worker.onerror = (err) => {
+        console.error("Worker failed to load:", err);
+        setIsRunning(false);
       };
 
       worker.postMessage({ type: "run", config, igniteRow, igniteCol, maxSteps });

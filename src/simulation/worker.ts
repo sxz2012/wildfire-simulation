@@ -10,25 +10,48 @@ export interface WorkerRequest {
 }
 
 export interface WorkerResponse {
-  type: "progress" | "complete";
+  type: "complete" | "error";
   step: number;
-  history?: { grid: number[]; timestep: number }[];
+  /** Flat buffer: all grid snapshots concatenated */
+  gridBuffer?: ArrayBuffer;
+  /** Number of timesteps in the history */
+  historyLength?: number;
+  /** Grid size (cells per side) for slicing the buffer */
+  gridSize?: number;
+  error?: string;
 }
 
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
-  const { config, igniteRow, igniteCol, maxSteps } = e.data;
+  try {
+    const { config, igniteRow, igniteCol, maxSteps } = e.data;
 
-  const result = runSimulation(config, igniteRow, igniteCol, () => 0, maxSteps);
+    const result = runSimulation(config, igniteRow, igniteCol, () => 0, maxSteps);
 
-  const serializableHistory = result.history.map((s) => ({
-    grid: Array.from(s.grid),
-    timestep: s.timestep,
-  }));
+    // Pack all snapshots into a single ArrayBuffer for zero-copy transfer
+    const gridCells = config.gridSize * config.gridSize;
+    const totalBytes = result.history.length * gridCells;
+    const buffer = new Uint8Array(totalBytes);
 
-  const response: WorkerResponse = {
-    type: "complete",
-    step: result.history.length,
-    history: serializableHistory,
-  };
-  self.postMessage(response);
+    for (let i = 0; i < result.history.length; i++) {
+      buffer.set(result.history[i].grid, i * gridCells);
+    }
+
+    const response: WorkerResponse = {
+      type: "complete",
+      step: result.history.length,
+      gridBuffer: buffer.buffer,
+      historyLength: result.history.length,
+      gridSize: config.gridSize,
+    };
+
+    // Transfer the buffer (zero-copy, no serialization overhead)
+    self.postMessage(response, { transfer: [buffer.buffer] });
+  } catch (err) {
+    const response: WorkerResponse = {
+      type: "error",
+      step: 0,
+      error: err instanceof Error ? err.message : String(err),
+    };
+    self.postMessage(response);
+  }
 };
