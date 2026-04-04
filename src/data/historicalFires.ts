@@ -38,5 +38,15 @@ export const HISTORICAL_FIRE_LIST = [
 export async function loadHistoricalFire(id: string): Promise<HistoricalFire> {
   const loader = fireModules[id];
   if (!loader) throw new Error(`Unknown fire: ${id}`);
-  return loader();
+  const fire = await loader();
+
+  // Add a "before fire" empty frame so playback starts with a clean map
+  if (fire.frames.length > 0 && fire.frames[0].hotspots.length > 0) {
+    const firstDate = new Date(fire.frames[0].date + "T00:00:00Z");
+    const dayBefore = new Date(firstDate.getTime() - 86400000);
+    const beforeDate = dayBefore.toISOString().split("T")[0];
+    fire.frames.unshift({ date: beforeDate, hotspots: [] });
+  }
+
+  return fire;
 }

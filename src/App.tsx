@@ -6,6 +6,7 @@ import FireOverlay from "./components/FireOverlay";
 import FireParticles from "./components/FireParticles";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import InfoTooltip from "./components/InfoTooltip";
+import Legend from "./components/Legend";
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
@@ -169,6 +170,11 @@ function App() {
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
         historicalDates={historicalDates}
+      />
+
+      <Legend
+        mode={appMode === "historical" ? "historical" : "simulation"}
+        visible={totalSteps > 0}
       />
 
       <InfoTooltip {...tooltip} />
