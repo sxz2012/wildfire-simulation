@@ -1,7 +1,9 @@
+import GlobeView from "./components/GlobeView";
+
 function App() {
   return (
-    <div className="h-screen w-screen bg-black text-white flex items-center justify-center">
-      <p>Wildfire Visualization</p>
+    <div className="h-screen w-screen relative">
+      <GlobeView />
     </div>
   );
 }
