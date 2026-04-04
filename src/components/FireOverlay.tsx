@@ -13,6 +13,7 @@ import type { Viewer as CesiumViewer } from "cesium";
 
 interface FireOverlayProps {
   state: SimulationState | null;
+  previousState: SimulationState | null; // state from ~5 steps ago for "recently burned" detection
   config: SimulationConfig;
   centerLat: number;
   centerLng: number;
@@ -21,6 +22,7 @@ interface FireOverlayProps {
 
 export default function FireOverlay({
   state,
+  previousState,
   config,
   centerLat,
   centerLng,
@@ -59,19 +61,33 @@ export default function FireOverlay({
 
     for (let row = 0; row < gridSize; row++) {
       for (let col = 0; col < gridSize; col++) {
-        const cellState = state.grid[row * gridSize + col];
-        const pixelIndex = (row * gridSize + col) * 4;
+        const idx = row * gridSize + col;
+        const cellState = state.grid[idx];
+        const pixelIndex = idx * 4;
 
         if (cellState === CellState.Burning) {
-          data[pixelIndex] = 255; // R
-          data[pixelIndex + 1] = 140; // G
-          data[pixelIndex + 2] = 0; // B
-          data[pixelIndex + 3] = 180; // A
+          // Bright orange — actively burning
+          data[pixelIndex] = 255;
+          data[pixelIndex + 1] = 165;
+          data[pixelIndex + 2] = 0;
+          data[pixelIndex + 3] = 200;
         } else if (cellState === CellState.Burned) {
-          data[pixelIndex] = 30; // R
-          data[pixelIndex + 1] = 30; // G
-          data[pixelIndex + 2] = 30; // B
-          data[pixelIndex + 3] = 140; // A
+          // Check if recently burned (was Burning 5 steps ago)
+          const wasRecentlyBurning =
+            previousState && previousState.grid[idx] === CellState.Burning;
+          if (wasRecentlyBurning) {
+            // Dark red — recently burned
+            data[pixelIndex] = 180;
+            data[pixelIndex + 1] = 30;
+            data[pixelIndex + 2] = 30;
+            data[pixelIndex + 3] = 180;
+          } else {
+            // Charcoal — fully burned out
+            data[pixelIndex] = 50;
+            data[pixelIndex + 1] = 50;
+            data[pixelIndex + 2] = 50;
+            data[pixelIndex + 3] = 160;
+          }
         } else {
           data[pixelIndex + 3] = 0; // Transparent
         }

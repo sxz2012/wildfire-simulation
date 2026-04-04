@@ -19,9 +19,10 @@ export default function TimelineBar({
 
   const formatTime = (step: number) => {
     const totalMinutes = step * timestepMinutes;
-    const hours = Math.floor(totalMinutes / 60);
+    const day = Math.floor(totalMinutes / 1440) + 1;
+    const hours = Math.floor((totalMinutes % 1440) / 60);
     const minutes = totalMinutes % 60;
-    return `T+${hours}h ${minutes.toString().padStart(2, "0")}m`;
+    return `D${day} ${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
 
   const advance = useCallback(() => {

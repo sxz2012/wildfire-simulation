@@ -5,6 +5,7 @@ import TimelineBar from "./components/TimelineBar";
 import FireOverlay from "./components/FireOverlay";
 import FireParticles from "./components/FireParticles";
 import InfoTooltip from "./components/InfoTooltip";
+import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
 import type { Scenario } from "./scenarios";
@@ -38,6 +39,7 @@ function App() {
   const handleIgnite = useCallback(
     (lat: number, lng: number) => {
       setIgnitionPoint({ lat, lng });
+      setFlyTo({ lat, lng, altitude: 15000 });
       const center = Math.floor(activeConfig.gridSize / 2);
       startSimulation(activeConfig, center, center);
       setCurrentStep(0);
@@ -74,6 +76,7 @@ function App() {
   }, [reset]);
 
   const currentState = history[currentStep] ?? null;
+  const previousState = history[Math.max(0, currentStep - 5)] ?? null;
 
   return (
     <div className="h-screen w-screen relative">
@@ -83,6 +86,7 @@ function App() {
         <>
           <FireOverlay
             state={currentState}
+            previousState={previousState}
             config={activeConfig}
             centerLat={ignitionPoint.lat}
             centerLng={ignitionPoint.lng}
@@ -112,6 +116,12 @@ function App() {
         currentStep={currentStep}
         onStepChange={setCurrentStep}
         timestepMinutes={activeConfig.timestepMinutes}
+      />
+
+      <TimeInfoPanel
+        currentStep={currentStep}
+        timestepMinutes={activeConfig.timestepMinutes}
+        visible={history.length > 0}
       />
 
       <InfoTooltip {...tooltip} />
