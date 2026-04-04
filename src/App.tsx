@@ -107,7 +107,7 @@ function App() {
     setActiveConfig(config);
   }, []);
 
-  const handleWeatherSourceChange = useCallback((source: "live" | "seasonal", season?: Season) => {
+  const handleWeatherSourceChange = useCallback((source: "live" | "seasonal" | "custom", season?: Season) => {
     weatherSourceRef.current = { source, season };
     if (source === "seasonal" && season) {
       const weather = getSeasonalWeather(0, season);
