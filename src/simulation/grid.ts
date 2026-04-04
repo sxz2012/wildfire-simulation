@@ -46,7 +46,9 @@ export function createGrid(
   config: SimulationConfig,
   centerLat: number,
   centerLng: number,
-  elevationFn: (lat: number, lng: number) => number
+  elevationFn: (lat: number, lng: number) => number,
+  /** Optional pre-computed fuel types from satellite imagery sampling */
+  fuelMap?: FuelType[]
 ): GridCell[] {
   const { gridSize, cellSizeMeters } = config;
   const grid: GridCell[] = new Array(gridSize * gridSize);
@@ -55,24 +57,27 @@ export function createGrid(
   const metersPerDegreeLng = 111320 * Math.cos((centerLat * Math.PI) / 180);
 
   const halfGrid = gridSize / 2;
-  const maxRadius = halfGrid * 0.9; // Circular boundary at 90% of half-grid
+  const maxRadius = halfGrid * 0.9;
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
       const offsetRow = row - halfGrid;
       const offsetCol = col - halfGrid;
+      const idx = row * gridSize + col;
 
       const lat = centerLat + (offsetRow * cellSizeMeters) / metersPerDegreeLat;
       const lng =
         centerLng + (offsetCol * cellSizeMeters) / metersPerDegreeLng;
 
-      // Circular boundary — cells outside the radius are "burned" (non-burnable)
       const distFromCenter = Math.sqrt(offsetRow * offsetRow + offsetCol * offsetCol);
       const isOutside = distFromCenter > maxRadius;
 
-      grid[row * gridSize + col] = {
+      // Use satellite-sampled fuel if available, otherwise procedural
+      const fuel = fuelMap ? fuelMap[idx] : assignFuel(lat, lng);
+
+      grid[idx] = {
         state: isOutside ? CellState.Burned : CellState.Unburned,
-        fuel: assignFuel(lat, lng),
+        fuel,
         elevation: elevationFn(lat, lng),
         burnTimer: 0,
         lat,

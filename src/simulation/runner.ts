@@ -1,5 +1,6 @@
 import {
   CellState,
+  type FuelType,
   type SimulationConfig,
   type SimulationResult,
   type SimulationState,
@@ -21,9 +22,12 @@ export function runSimulation(
   igniteRow: number,
   igniteCol: number,
   elevationFn: (lat: number, lng: number) => number,
-  maxSteps: number
+  maxSteps: number,
+  centerLat = 0,
+  centerLng = 0,
+  fuelMap?: FuelType[]
 ): SimulationResult {
-  let grid = createGrid(config, 0, 0, elevationFn);
+  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap);
   igniteCell(grid, igniteRow, igniteCol, config.gridSize);
 
   const history: SimulationState[] = [

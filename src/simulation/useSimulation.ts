@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from "react";
-import type { SimulationConfig, SimulationState } from "./types";
+import type { SimulationConfig, SimulationState, FuelType } from "./types";
 import type { WorkerResponse } from "./worker";
 
 interface UseSimulationReturn {
@@ -9,6 +9,9 @@ interface UseSimulationReturn {
     config: SimulationConfig,
     igniteRow: number,
     igniteCol: number,
+    centerLat: number,
+    centerLng: number,
+    fuelMap?: FuelType[],
     maxSteps?: number
   ) => void;
   reset: () => void;
@@ -24,6 +27,9 @@ export function useSimulation(): UseSimulationReturn {
       config: SimulationConfig,
       igniteRow: number,
       igniteCol: number,
+      centerLat: number,
+      centerLng: number,
+      fuelMap?: FuelType[],
       maxSteps = 300
     ) => {
       workerRef.current?.terminate();
@@ -65,7 +71,16 @@ export function useSimulation(): UseSimulationReturn {
         setIsRunning(false);
       };
 
-      worker.postMessage({ type: "run", config, igniteRow, igniteCol, maxSteps });
+      worker.postMessage({
+        type: "run",
+        config,
+        igniteRow,
+        igniteCol,
+        maxSteps,
+        centerLat,
+        centerLng,
+        fuelMap,
+      });
     },
     []
   );

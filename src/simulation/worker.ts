@@ -1,5 +1,5 @@
 import { runSimulation } from "./runner";
-import type { SimulationConfig } from "./types";
+import type { SimulationConfig, FuelType } from "./types";
 
 export interface WorkerRequest {
   type: "run";
@@ -7,27 +7,30 @@ export interface WorkerRequest {
   igniteRow: number;
   igniteCol: number;
   maxSteps: number;
+  centerLat: number;
+  centerLng: number;
+  /** Optional fuel map from satellite imagery sampling */
+  fuelMap?: FuelType[];
 }
 
 export interface WorkerResponse {
   type: "complete" | "error";
   step: number;
-  /** Flat buffer: all grid snapshots concatenated */
   gridBuffer?: ArrayBuffer;
-  /** Number of timesteps in the history */
   historyLength?: number;
-  /** Grid size (cells per side) for slicing the buffer */
   gridSize?: number;
   error?: string;
 }
 
 self.onmessage = (e: MessageEvent<WorkerRequest>) => {
   try {
-    const { config, igniteRow, igniteCol, maxSteps } = e.data;
+    const { config, igniteRow, igniteCol, maxSteps, centerLat, centerLng, fuelMap } = e.data;
 
-    const result = runSimulation(config, igniteRow, igniteCol, () => 0, maxSteps);
+    const result = runSimulation(
+      config, igniteRow, igniteCol, () => 0, maxSteps,
+      centerLat, centerLng, fuelMap
+    );
 
-    // Pack all snapshots into a single ArrayBuffer for zero-copy transfer
     const gridCells = config.gridSize * config.gridSize;
     const totalBytes = result.history.length * gridCells;
     const buffer = new Uint8Array(totalBytes);
@@ -44,7 +47,6 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       gridSize: config.gridSize,
     };
 
-    // Transfer the buffer (zero-copy, no serialization overhead)
     self.postMessage(response, { transfer: [buffer.buffer] });
   } catch (err) {
     const response: WorkerResponse = {
