@@ -26,8 +26,8 @@ export function computeSpreadRate(params: SpreadParams): number {
   const { slopeAngle, windAlignment, windStrength = 0.5, humidity, fuel } = params;
   const fuelProps = FUEL_PROPERTIES[fuel];
 
-  // Base spread rate (low — wind is the main driver)
-  const R0 = fuelProps.spreadRate * 0.15;
+  // Base spread rate
+  const R0 = fuelProps.spreadRate * 0.35;
 
   // Slope factor
   const phiSlope = Math.max(-0.3, Math.min(0.6, slopeAngle * 0.02));
