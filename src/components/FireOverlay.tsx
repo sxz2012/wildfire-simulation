@@ -70,7 +70,7 @@ export default function FireOverlay({
           data[pixelIndex] = 255;
           data[pixelIndex + 1] = 140;
           data[pixelIndex + 2] = 0;
-          data[pixelIndex + 3] = 230;
+          data[pixelIndex + 3] = 160;
         } else if (cellState === CellState.Burned) {
           // Check if recently burned (was Burning 5 steps ago)
           const wasRecentlyBurning =
@@ -80,13 +80,13 @@ export default function FireOverlay({
             data[pixelIndex] = 140;
             data[pixelIndex + 1] = 20;
             data[pixelIndex + 2] = 20;
-            data[pixelIndex + 3] = 230;
+            data[pixelIndex + 3] = 160;
           } else {
-            // Near-black — clearly burned out
+            // Dark — burned out, terrain still faintly visible
             data[pixelIndex] = 15;
             data[pixelIndex + 1] = 15;
             data[pixelIndex + 2] = 15;
-            data[pixelIndex + 3] = 230;
+            data[pixelIndex + 3] = 160;
           }
         } else {
           data[pixelIndex + 3] = 0; // Transparent
