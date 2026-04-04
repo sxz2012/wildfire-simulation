@@ -4,6 +4,11 @@ import {
   createGooglePhotorealistic3DTileset,
   Terrain,
   Cartesian3,
+  Cartographic,
+  Math as CesiumMath,
+  ScreenSpaceEventType,
+  ScreenSpaceEventHandler as CesiumScreenSpaceEventHandler,
+  Cartesian2,
 } from "cesium";
 import { useEffect, useRef } from "react";
 import type { CesiumComponentRef } from "resium";
@@ -12,7 +17,11 @@ import type { Viewer as CesiumViewer } from "cesium";
 // User must provide their own API keys
 Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? "";
 
-export default function GlobeView() {
+interface GlobeViewProps {
+  onIgnite?: (lat: number, lng: number) => void;
+}
+
+export default function GlobeView({ onIgnite }: GlobeViewProps) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
 
   useEffect(() => {
@@ -39,6 +48,25 @@ export default function GlobeView() {
       destination: Cartesian3.fromDegrees(-119.5, 36.7, 500000),
     });
   }, []);
+
+  // Click-to-ignite handler
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer || !onIgnite) return;
+
+    const handler = new CesiumScreenSpaceEventHandler(viewer.scene.canvas);
+    handler.setInputAction((event: { position: Cartesian2 }) => {
+      const cartesian = viewer.scene.pickPosition(event.position);
+      if (!cartesian) return;
+      const carto = Cartographic.fromCartesian(cartesian);
+      onIgnite(
+        CesiumMath.toDegrees(carto.latitude),
+        CesiumMath.toDegrees(carto.longitude),
+      );
+    }, ScreenSpaceEventType.LEFT_CLICK);
+
+    return () => handler.destroy();
+  }, [onIgnite]);
 
   return (
     <Viewer
