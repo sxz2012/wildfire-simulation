@@ -137,7 +137,11 @@ export default function ControlPanel({
               <span className="text-sm text-gray-300">Choose a historical fire</span>
               <select
                 value={selectedFire}
-                onChange={(e) => setSelectedFire(Number(e.target.value))}
+                onChange={(e) => {
+                  const idx = Number(e.target.value);
+                  setSelectedFire(idx);
+                  onStartHistorical(HISTORICAL_FIRE_LIST[idx].id);
+                }}
                 className="bg-gray-700 rounded px-2 py-1 text-sm"
               >
                 {HISTORICAL_FIRE_LIST.map((f, i) => (
