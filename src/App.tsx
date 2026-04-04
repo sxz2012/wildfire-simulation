@@ -30,7 +30,7 @@ function App() {
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
   const [autoPlay, setAutoPlay] = useState(false);
   const [weatherInfo, setWeatherInfo] = useState<string>("");
-  const weatherSourceRef = useRef<{ source: "live" | "seasonal"; season?: Season }>({ source: "live" });
+  const weatherSourceRef = useRef<{ source: "live" | "seasonal" | "custom"; season?: Season }>({ source: "live" });
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
