@@ -104,7 +104,11 @@ function App() {
 
   return (
     <div className="h-screen w-screen relative">
-      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={handleViewerReady} />
+      <GlobeView
+        onIgnite={isRunning || history.length > 0 ? undefined : handleIgnite}
+        flyTo={flyTo}
+        onViewerReady={handleViewerReady}
+      />
 
       {ignitionPoint && (
         <>
