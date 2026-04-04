@@ -68,25 +68,25 @@ export default function FireOverlay({
         if (cellState === CellState.Burning) {
           // Bright orange — actively burning
           data[pixelIndex] = 255;
-          data[pixelIndex + 1] = 165;
+          data[pixelIndex + 1] = 140;
           data[pixelIndex + 2] = 0;
-          data[pixelIndex + 3] = 200;
+          data[pixelIndex + 3] = 230;
         } else if (cellState === CellState.Burned) {
           // Check if recently burned (was Burning 5 steps ago)
           const wasRecentlyBurning =
             previousState && previousState.grid[idx] === CellState.Burning;
           if (wasRecentlyBurning) {
             // Dark red — recently burned
-            data[pixelIndex] = 180;
-            data[pixelIndex + 1] = 30;
-            data[pixelIndex + 2] = 30;
-            data[pixelIndex + 3] = 180;
+            data[pixelIndex] = 140;
+            data[pixelIndex + 1] = 20;
+            data[pixelIndex + 2] = 20;
+            data[pixelIndex + 3] = 230;
           } else {
-            // Charcoal — fully burned out
-            data[pixelIndex] = 50;
-            data[pixelIndex + 1] = 50;
-            data[pixelIndex + 2] = 50;
-            data[pixelIndex + 3] = 160;
+            // Near-black — clearly burned out
+            data[pixelIndex] = 15;
+            data[pixelIndex + 1] = 15;
+            data[pixelIndex + 2] = 15;
+            data[pixelIndex + 3] = 230;
           }
         } else {
           data[pixelIndex + 3] = 0; // Transparent
