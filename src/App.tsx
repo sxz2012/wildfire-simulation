@@ -34,8 +34,8 @@ function App() {
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
 
-  // Unified fire data — used for both historical and simulation
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
+  const [autoPlay, setAutoPlay] = useState(false);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -47,6 +47,7 @@ function App() {
     setIgnitionPoint(null);
     setActiveFire(null);
     setAppMode("idle");
+    setAutoPlay(false);
     setSimKey((k) => k + 1);
   }, [reset]);
 
@@ -83,6 +84,7 @@ function App() {
     async (fireId: string) => {
       fullReset();
       setAppMode("historical");
+      setAutoPlay(true);
       const fire = await loadHistoricalFire(fireId);
       setActiveFire(fire);
       setFlyTo({ ...fire.location, _t: Date.now() });
@@ -145,6 +147,7 @@ function App() {
         onStepChange={setCurrentStep}
         timestepMinutes={activeConfig.timestepMinutes}
         dateLabels={dateLabels}
+        autoPlay={autoPlay}
       />
 
       <TimeInfoPanel

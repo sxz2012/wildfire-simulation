@@ -6,6 +6,7 @@ interface TimelineBarProps {
   onStepChange: (step: number) => void;
   timestepMinutes: number;
   dateLabels?: string[];
+  autoPlay?: boolean;
 }
 
 export default function TimelineBar({
@@ -14,6 +15,7 @@ export default function TimelineBar({
   onStepChange,
   timestepMinutes,
   dateLabels,
+  autoPlay,
 }: TimelineBarProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -54,8 +56,12 @@ export default function TimelineBar({
   }, [currentStep, totalSteps]);
 
   useEffect(() => {
-    setIsPlaying(false);
-  }, [totalSteps]);
+    if (autoPlay && totalSteps > 1) {
+      setIsPlaying(true);
+    } else {
+      setIsPlaying(false);
+    }
+  }, [totalSteps, autoPlay]);
 
   if (totalSteps === 0) return null;
 
