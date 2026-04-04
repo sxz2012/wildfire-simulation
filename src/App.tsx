@@ -23,6 +23,7 @@ function App() {
     lat: number;
     lng: number;
     altitude: number;
+    _t: number;
   } | null>(null);
   const [activeConfig, setActiveConfig] =
     useState<SimulationConfig>(DEFAULT_CONFIG);
@@ -58,7 +59,7 @@ function App() {
       setCurrentStep(0);
       setSimKey((k) => k + 1);
       setIgnitionPoint({ lat, lng });
-      setFlyTo({ lat, lng, altitude: 15000 });
+      setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
       const center = Math.floor(activeConfig.gridSize / 2);
       startSimulation(activeConfig, center, center);
     },
@@ -79,7 +80,7 @@ function App() {
         lat: scenario.location.lat,
         lng: scenario.location.lng,
       });
-      setFlyTo({ ...scenario.location });
+      setFlyTo({ ...scenario.location, _t: Date.now() });
       setActiveConfig(scenario.config);
       startSimulation(
         scenario.config,
