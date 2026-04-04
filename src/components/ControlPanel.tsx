@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FuelType, DEFAULT_CONFIG, type SimulationConfig } from "../simulation/types";
+import { DEFAULT_CONFIG, type SimulationConfig } from "../simulation/types";
 import { HISTORICAL_FIRE_LIST } from "../data/historicalFires";
 
 interface ControlPanelProps {
@@ -115,27 +115,10 @@ export default function ControlPanel({
                 min={0} max={100}
                 onChange={(v) => update({ humidity: v })}
               />
-              <div>
-                <label
-                  className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
-                  style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
-                >
-                  Vegetation
-                </label>
-                <select
-                  value={config.defaultFuel}
-                  onChange={(e) => update({ defaultFuel: e.target.value as FuelType })}
-                  className="fire-select w-full"
-                >
-                  <option value={FuelType.Grass}>Grassland</option>
-                  <option value={FuelType.Shrub}>Shrubland</option>
-                  <option value={FuelType.Forest}>Forest</option>
-                </select>
-              </div>
             </div>
 
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              Click anywhere on the globe to ignite. Fire spread model calibrated against NASA FIRMS satellite data.
+              Click anywhere on the globe to ignite. Vegetation is auto-assigned based on terrain. Fire model calibrated against NASA FIRMS data.
             </p>
           </>
         )}

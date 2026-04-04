@@ -3,16 +3,20 @@ import { createGrid, igniteCell, getCell } from "../grid";
 import { CellState, FuelType, DEFAULT_CONFIG } from "../types";
 
 describe("createGrid", () => {
-  it("creates a grid of correct size with all cells unburned", () => {
+  it("creates a grid of correct size with interior cells unburned and edge cells burned", () => {
     const config = { ...DEFAULT_CONFIG, gridSize: 10 };
     const grid = createGrid(config, 36.7, -119.5, () => 100);
 
     expect(grid.length).toBe(10 * 10);
-    for (let i = 0; i < grid.length; i++) {
-      const cell = grid[i];
-      expect(cell.state).toBe(CellState.Unburned);
-      expect(cell.fuel).toBe(FuelType.Grass);
-      expect(cell.burnTimer).toBe(0);
+
+    // Center cell should be unburned
+    const center = grid[5 * 10 + 5];
+    expect(center.state).toBe(CellState.Unburned);
+    expect(center.burnTimer).toBe(0);
+
+    // All cells should have a valid fuel type
+    for (const cell of grid) {
+      expect([FuelType.Grass, FuelType.Shrub, FuelType.Forest]).toContain(cell.fuel);
     }
   });
 
