@@ -84,11 +84,12 @@ function App() {
     async (fireId: string) => {
       fullReset();
       setAppMode("historical");
-      setAutoPlay(true);
       const fire = await loadHistoricalFire(fireId);
       setActiveFire(fire);
       setFlyTo({ ...fire.location, _t: Date.now() });
       setCurrentStep(0);
+      // Start playing after a short delay so user sees the pre-fire terrain
+      setTimeout(() => setAutoPlay(true), 1500);
     },
     [fullReset]
   );
