@@ -10,7 +10,6 @@ import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
-import type { Scenario } from "./scenarios";
 import type { Viewer as CesiumViewer } from "cesium";
 
 type AppMode = "idle" | "simulation" | "historical";
@@ -82,25 +81,6 @@ function App() {
     setActiveConfig(config);
   }, []);
 
-  const handleStartScenario = useCallback(
-    (scenario: Scenario) => {
-      fullReset();
-      setAppMode("simulation");
-      setIgnitionPoint({
-        lat: scenario.location.lat,
-        lng: scenario.location.lng,
-      });
-      setFlyTo({ ...scenario.location, _t: Date.now() });
-      setActiveConfig(scenario.config);
-      startSimulation(
-        scenario.config,
-        scenario.igniteOffset.row,
-        scenario.igniteOffset.col
-      );
-    },
-    [startSimulation, fullReset]
-  );
-
   const handleStartHistorical = useCallback(
     async (fireId: string) => {
       fullReset();
@@ -169,7 +149,6 @@ function App() {
 
       <ControlPanel
         onStart={handleStart}
-        onStartScenario={handleStartScenario}
         onStartHistorical={handleStartHistorical}
         onReset={fullReset}
         isRunning={isRunning}
