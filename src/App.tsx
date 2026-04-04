@@ -5,6 +5,7 @@ import TimelineBar from "./components/TimelineBar";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
 import Legend from "./components/Legend";
+import ImpactPanel from "./components/ImpactPanel";
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
@@ -190,6 +191,12 @@ function App() {
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
         historicalDates={isHistorical ? dateLabels : undefined}
+      />
+
+      <ImpactPanel
+        fire={activeFire}
+        currentFrame={currentStep}
+        visible={totalSteps > 0}
       />
 
       <Legend
