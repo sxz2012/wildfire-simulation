@@ -1,15 +1,13 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import GlobeView from "./components/GlobeView";
 import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
-import FireOverlay from "./components/FireOverlay";
-import FireParticles from "./components/FireParticles";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
-import InfoTooltip from "./components/InfoTooltip";
 import Legend from "./components/Legend";
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
+import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
 import type { Viewer as CesiumViewer } from "cesium";
@@ -35,37 +33,35 @@ function App() {
     useState<SimulationConfig>(DEFAULT_CONFIG);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
-  const [historicalFire, setHistoricalFire] = useState<HistoricalFire | null>(null);
-  const [tooltip] = useState({
-    visible: false,
-    x: 0,
-    y: 0,
-    cellState: "",
-    elevation: 0,
-    fuel: "",
-  });
+
+  // Unified fire data — used for both historical and simulation
+  const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
   }, []);
 
-  const clearFireLayers = useCallback(() => {
-    const viewer = viewerRef.current;
-    if (!viewer || viewer.isDestroyed()) return;
-    while (viewer.imageryLayers.length > 1) {
-      viewer.imageryLayers.remove(viewer.imageryLayers.get(viewer.imageryLayers.length - 1));
-    }
-  }, []);
-
   const fullReset = useCallback(() => {
-    clearFireLayers();
     reset();
     setCurrentStep(0);
     setIgnitionPoint(null);
-    setHistoricalFire(null);
+    setActiveFire(null);
     setAppMode("idle");
     setSimKey((k) => k + 1);
-  }, [reset, clearFireLayers]);
+  }, [reset]);
+
+  // Convert simulation history to fire frames when simulation completes
+  useEffect(() => {
+    if (appMode === "simulation" && history.length > 0 && ignitionPoint) {
+      const fire = convertSimulationToFire(
+        history,
+        activeConfig,
+        ignitionPoint.lat,
+        ignitionPoint.lng
+      );
+      setActiveFire(fire);
+    }
+  }, [history, appMode, activeConfig, ignitionPoint]);
 
   const handleIgnite = useCallback(
     (lat: number, lng: number) => {
@@ -88,25 +84,21 @@ function App() {
       fullReset();
       setAppMode("historical");
       const fire = await loadHistoricalFire(fireId);
-      setHistoricalFire(fire);
+      setActiveFire(fire);
       setFlyTo({ ...fire.location, _t: Date.now() });
       setCurrentStep(0);
     },
     [fullReset]
   );
 
-  const currentState = history[currentStep] ?? null;
-  const previousState = history[Math.max(0, currentStep - 5)] ?? null;
+  const totalSteps = activeFire ? activeFire.frames.length : 0;
 
-  const totalSteps =
-    appMode === "historical" && historicalFire
-      ? historicalFire.frames.length
-      : history.length;
+  const dateLabels = activeFire
+    ? activeFire.frames.map((f) => f.date)
+    : undefined;
 
-  const historicalDates =
-    appMode === "historical" && historicalFire
-      ? historicalFire.frames.map((f) => f.date)
-      : undefined;
+  // For simulation mode, dateLabels are like "Day 1, 00:00" — use them directly in timeline
+  const isHistorical = appMode === "historical";
 
   return (
     <div className="h-screen w-screen relative">
@@ -116,42 +108,19 @@ function App() {
         onViewerReady={handleViewerReady}
       />
 
-      {/* Simulation fire overlay */}
-      {appMode === "simulation" && ignitionPoint && (
-        <>
-          <FireOverlay
-            key={`overlay-${simKey}`}
-            state={currentState}
-            previousState={previousState}
-            config={activeConfig}
-            centerLat={ignitionPoint.lat}
-            centerLng={ignitionPoint.lng}
-            viewer={viewerRef.current}
-          />
-          <FireParticles
-            key={`particles-${simKey}`}
-            state={currentState}
-            config={activeConfig}
-            centerLat={ignitionPoint.lat}
-            centerLng={ignitionPoint.lng}
-            viewer={viewerRef.current}
-          />
-        </>
-      )}
-
-      {/* Historical fire overlay */}
-      {appMode === "historical" && historicalFire && (
+      {/* Unified fire overlay for both modes */}
+      {activeFire && (
         <>
           <HistoricalFireOverlay
-            key={`historical-${simKey}`}
-            fire={historicalFire}
+            key={`fire-${simKey}`}
+            fire={activeFire}
             currentFrame={currentStep}
             viewer={viewerRef.current}
           />
           <FireEffects
             key={`effects-${simKey}-${currentStep}`}
             activePositions={
-              historicalFire.frames[currentStep]?.hotspots.map((h) => ({
+              activeFire.frames[currentStep]?.hotspots.map((h) => ({
                 lat: h.lat,
                 lng: h.lng,
               })) ?? []
@@ -175,22 +144,20 @@ function App() {
         currentStep={currentStep}
         onStepChange={setCurrentStep}
         timestepMinutes={activeConfig.timestepMinutes}
-        dateLabels={historicalDates}
+        dateLabels={dateLabels}
       />
 
       <TimeInfoPanel
         currentStep={currentStep}
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
-        historicalDates={historicalDates}
+        historicalDates={isHistorical ? dateLabels : undefined}
       />
 
       <Legend
-        mode={appMode === "historical" ? "historical" : "simulation"}
+        mode={isHistorical ? "historical" : "simulation"}
         visible={totalSteps > 0}
       />
-
-      <InfoTooltip {...tooltip} />
     </div>
   );
 }
