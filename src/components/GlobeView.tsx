@@ -19,9 +19,11 @@ Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? "";
 
 interface GlobeViewProps {
   onIgnite?: (lat: number, lng: number) => void;
+  children?: React.ReactNode;
+  flyTo?: { lat: number; lng: number; altitude: number } | null;
 }
 
-export default function GlobeView({ onIgnite }: GlobeViewProps) {
+export default function GlobeView({ onIgnite, children, flyTo }: GlobeViewProps) {
   const viewerRef = useRef<CesiumComponentRef<CesiumViewer>>(null);
 
   useEffect(() => {
@@ -68,6 +70,15 @@ export default function GlobeView({ onIgnite }: GlobeViewProps) {
     return () => handler.destroy();
   }, [onIgnite]);
 
+  // Fly camera to location when flyTo changes
+  useEffect(() => {
+    const viewer = viewerRef.current?.cesiumElement;
+    if (!viewer || !flyTo) return;
+    viewer.camera.flyTo({
+      destination: Cartesian3.fromDegrees(flyTo.lng, flyTo.lat, flyTo.altitude),
+    });
+  }, [flyTo]);
+
   return (
     <Viewer
       ref={viewerRef}
@@ -82,6 +93,7 @@ export default function GlobeView({ onIgnite }: GlobeViewProps) {
       terrain={Terrain.fromWorldTerrain()}
     >
       <Globe depthTestAgainstTerrain />
+      {children}
     </Viewer>
   );
 }
