@@ -30,7 +30,7 @@ export function useSimulation(): UseSimulationReturn {
       centerLat: number,
       centerLng: number,
       fuelMap?: FuelType[],
-      maxSteps = 150
+      maxSteps = 500
     ) => {
       workerRef.current?.terminate();
 
