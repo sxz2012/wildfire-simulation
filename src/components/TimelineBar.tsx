@@ -1,10 +1,12 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface TimelineBarProps {
   totalSteps: number;
   currentStep: number;
   onStepChange: (step: number) => void;
   timestepMinutes: number;
+  /** Optional date labels for historical mode */
+  dateLabels?: string[];
 }
 
 export default function TimelineBar({
@@ -12,12 +14,21 @@ export default function TimelineBar({
   currentStep,
   onStepChange,
   timestepMinutes,
+  dateLabels,
 }: TimelineBarProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const stepRef = useRef(currentStep);
+  stepRef.current = currentStep;
+
+  const totalStepsRef = useRef(totalSteps);
+  totalStepsRef.current = totalSteps;
 
   const formatTime = (step: number) => {
+    if (dateLabels && dateLabels[step]) {
+      const d = new Date(dateLabels[step] + "T00:00:00Z");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+    }
     const totalMinutes = step * timestepMinutes;
     const day = Math.floor(totalMinutes / 1440) + 1;
     const hours = Math.floor((totalMinutes % 1440) / 60);
@@ -25,18 +36,32 @@ export default function TimelineBar({
     return `D${day} ${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
   };
 
-  const advance = useCallback(() => {
-    onStepChange(Math.min(currentStep + 1, totalSteps - 1));
-  }, [currentStep, totalSteps, onStepChange]);
-
   useEffect(() => {
-    if (isPlaying && currentStep < totalSteps - 1) {
-      intervalRef.current = setInterval(advance, 200 / speed);
-    } else {
-      if (currentStep >= totalSteps - 1) setIsPlaying(false);
+    if (!isPlaying) return;
+
+    const intervalId = setInterval(() => {
+      const next = stepRef.current + 1;
+      if (next >= totalStepsRef.current) {
+        setIsPlaying(false);
+        return;
+      }
+      onStepChange(next);
+    }, 500 / speed);
+
+    return () => clearInterval(intervalId);
+  }, [isPlaying, speed, onStepChange]);
+
+  // Auto-pause when reaching end
+  useEffect(() => {
+    if (currentStep >= totalSteps - 1) {
+      setIsPlaying(false);
     }
-    return () => clearInterval(intervalRef.current);
-  }, [isPlaying, speed, advance, currentStep, totalSteps]);
+  }, [currentStep, totalSteps]);
+
+  // Reset playing state when totalSteps changes (new simulation loaded)
+  useEffect(() => {
+    setIsPlaying(false);
+  }, [totalSteps]);
 
   if (totalSteps === 0) return null;
 
@@ -45,7 +70,15 @@ export default function TimelineBar({
   return (
     <div className="absolute bottom-0 left-0 right-0 z-50 bg-gray-900/90 backdrop-blur text-white px-4 py-3 flex items-center gap-4">
       <button
-        onClick={() => setIsPlaying(!isPlaying)}
+        onClick={() => {
+          if (currentStep >= totalSteps - 1) {
+            // Restart from beginning
+            onStepChange(0);
+            setIsPlaying(true);
+          } else {
+            setIsPlaying(!isPlaying);
+          }
+        }}
         className="w-10 h-10 flex items-center justify-center bg-orange-600 hover:bg-orange-500 rounded-full text-lg"
       >
         {isPlaying ? "\u23F8" : "\u25B6"}
@@ -63,7 +96,7 @@ export default function TimelineBar({
         className="flex-1 accent-orange-500"
       />
 
-      <span className="text-sm font-mono w-28 text-center">
+      <span className="text-sm font-mono w-32 text-center">
         {formatTime(currentStep)}
       </span>
 

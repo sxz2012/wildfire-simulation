@@ -182,6 +182,7 @@ function App() {
         currentStep={currentStep}
         onStepChange={setCurrentStep}
         timestepMinutes={activeConfig.timestepMinutes}
+        dateLabels={historicalDates}
       />
 
       <TimeInfoPanel
