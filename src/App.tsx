@@ -4,17 +4,22 @@ import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
 import FireOverlay from "./components/FireOverlay";
 import FireParticles from "./components/FireParticles";
+import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import InfoTooltip from "./components/InfoTooltip";
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
+import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
 import type { Scenario } from "./scenarios";
 import type { Viewer as CesiumViewer } from "cesium";
+
+type AppMode = "idle" | "simulation" | "historical";
 
 function App() {
   const { history, isRunning, startSimulation, reset } = useSimulation();
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
+  const [appMode, setAppMode] = useState<AppMode>("idle");
   const [ignitionPoint, setIgnitionPoint] = useState<{
     lat: number;
     lng: number;
@@ -29,6 +34,7 @@ function App() {
     useState<SimulationConfig>(DEFAULT_CONFIG);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
+  const [historicalFire, setHistoricalFire] = useState<HistoricalFire | null>(null);
   const [tooltip] = useState({
     visible: false,
     x: 0,
@@ -42,28 +48,34 @@ function App() {
     viewerRef.current = viewer;
   }, []);
 
-  // Remove all fire overlay imagery layers from the viewer
   const clearFireLayers = useCallback(() => {
     const viewer = viewerRef.current;
     if (!viewer || viewer.isDestroyed()) return;
-    // Remove all imagery layers except the base layer (index 0)
     while (viewer.imageryLayers.length > 1) {
       viewer.imageryLayers.remove(viewer.imageryLayers.get(viewer.imageryLayers.length - 1));
     }
   }, []);
 
+  const fullReset = useCallback(() => {
+    clearFireLayers();
+    reset();
+    setCurrentStep(0);
+    setIgnitionPoint(null);
+    setHistoricalFire(null);
+    setAppMode("idle");
+    setSimKey((k) => k + 1);
+  }, [reset, clearFireLayers]);
+
   const handleIgnite = useCallback(
     (lat: number, lng: number) => {
-      clearFireLayers();
-      reset();
-      setCurrentStep(0);
-      setSimKey((k) => k + 1);
+      fullReset();
+      setAppMode("simulation");
       setIgnitionPoint({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
       const center = Math.floor(activeConfig.gridSize / 2);
       startSimulation(activeConfig, center, center);
     },
-    [activeConfig, startSimulation, reset, clearFireLayers]
+    [activeConfig, startSimulation, fullReset]
   );
 
   const handleStart = useCallback((config: SimulationConfig) => {
@@ -72,10 +84,8 @@ function App() {
 
   const handleStartScenario = useCallback(
     (scenario: Scenario) => {
-      clearFireLayers();
-      reset();
-      setCurrentStep(0);
-      setSimKey((k) => k + 1);
+      fullReset();
+      setAppMode("simulation");
       setIgnitionPoint({
         lat: scenario.location.lat,
         lng: scenario.location.lng,
@@ -88,29 +98,44 @@ function App() {
         scenario.igniteOffset.col
       );
     },
-    [startSimulation, reset, clearFireLayers]
+    [startSimulation, fullReset]
   );
 
-  const handleReset = useCallback(() => {
-    clearFireLayers();
-    reset();
-    setCurrentStep(0);
-    setIgnitionPoint(null);
-    setSimKey((k) => k + 1);
-  }, [reset, clearFireLayers]);
+  const handleStartHistorical = useCallback(
+    async (fireId: string) => {
+      fullReset();
+      setAppMode("historical");
+      const fire = await loadHistoricalFire(fireId);
+      setHistoricalFire(fire);
+      setFlyTo({ ...fire.location, _t: Date.now() });
+      setCurrentStep(0);
+    },
+    [fullReset]
+  );
 
   const currentState = history[currentStep] ?? null;
   const previousState = history[Math.max(0, currentStep - 5)] ?? null;
 
+  const totalSteps =
+    appMode === "historical" && historicalFire
+      ? historicalFire.frames.length
+      : history.length;
+
+  const historicalDates =
+    appMode === "historical" && historicalFire
+      ? historicalFire.frames.map((f) => f.date)
+      : undefined;
+
   return (
     <div className="h-screen w-screen relative">
       <GlobeView
-        onIgnite={isRunning || history.length > 0 ? undefined : handleIgnite}
+        onIgnite={appMode !== "idle" ? undefined : handleIgnite}
         flyTo={flyTo}
         onViewerReady={handleViewerReady}
       />
 
-      {ignitionPoint && (
+      {/* Simulation fire overlay */}
+      {appMode === "simulation" && ignitionPoint && (
         <>
           <FireOverlay
             key={`overlay-${simKey}`}
@@ -132,17 +157,28 @@ function App() {
         </>
       )}
 
+      {/* Historical fire overlay */}
+      {appMode === "historical" && historicalFire && (
+        <HistoricalFireOverlay
+          key={`historical-${simKey}`}
+          fire={historicalFire}
+          currentFrame={currentStep}
+          viewer={viewerRef.current}
+        />
+      )}
+
       <ControlPanel
         onStart={handleStart}
         onStartScenario={handleStartScenario}
-        onReset={handleReset}
+        onStartHistorical={handleStartHistorical}
+        onReset={fullReset}
         isRunning={isRunning}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
       />
 
       <TimelineBar
-        totalSteps={history.length}
+        totalSteps={totalSteps}
         currentStep={currentStep}
         onStepChange={setCurrentStep}
         timestepMinutes={activeConfig.timestepMinutes}
@@ -151,7 +187,8 @@ function App() {
       <TimeInfoPanel
         currentStep={currentStep}
         timestepMinutes={activeConfig.timestepMinutes}
-        visible={history.length > 0}
+        visible={totalSteps > 0}
+        historicalDates={historicalDates}
       />
 
       <InfoTooltip {...tooltip} />
