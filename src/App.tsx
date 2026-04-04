@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import GlobeView from "./components/GlobeView";
 import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
@@ -26,7 +26,8 @@ function App() {
   } | null>(null);
   const [activeConfig, setActiveConfig] =
     useState<SimulationConfig>(DEFAULT_CONFIG);
-  const [viewer, setViewer] = useState<CesiumViewer | null>(null);
+  const viewerRef = useRef<CesiumViewer | null>(null);
+  const [simKey, setSimKey] = useState(0);
   const [tooltip] = useState({
     visible: false,
     x: 0,
@@ -36,20 +37,32 @@ function App() {
     fuel: "",
   });
 
+  const handleViewerReady = useCallback((viewer: CesiumViewer) => {
+    viewerRef.current = viewer;
+  }, []);
+
+  // Remove all fire overlay imagery layers from the viewer
+  const clearFireLayers = useCallback(() => {
+    const viewer = viewerRef.current;
+    if (!viewer || viewer.isDestroyed()) return;
+    // Remove all imagery layers except the base layer (index 0)
+    while (viewer.imageryLayers.length > 1) {
+      viewer.imageryLayers.remove(viewer.imageryLayers.get(viewer.imageryLayers.length - 1));
+    }
+  }, []);
+
   const handleIgnite = useCallback(
     (lat: number, lng: number) => {
+      clearFireLayers();
       reset();
-      setIgnitionPoint(null);
       setCurrentStep(0);
-
-      requestAnimationFrame(() => {
-        setIgnitionPoint({ lat, lng });
-        setFlyTo({ lat, lng, altitude: 15000 });
-        const center = Math.floor(activeConfig.gridSize / 2);
-        startSimulation(activeConfig, center, center);
-      });
+      setSimKey((k) => k + 1);
+      setIgnitionPoint({ lat, lng });
+      setFlyTo({ lat, lng, altitude: 15000 });
+      const center = Math.floor(activeConfig.gridSize / 2);
+      startSimulation(activeConfig, center, center);
     },
-    [activeConfig, startSimulation, reset]
+    [activeConfig, startSimulation, reset, clearFireLayers]
   );
 
   const handleStart = useCallback((config: SimulationConfig) => {
@@ -58,58 +71,58 @@ function App() {
 
   const handleStartScenario = useCallback(
     (scenario: Scenario) => {
-      // Clear previous simulation — unmounts FireOverlay to clean up imagery layer
+      clearFireLayers();
       reset();
-      setIgnitionPoint(null);
       setCurrentStep(0);
-
-      // Start new scenario on next frame so FireOverlay unmounts first
-      requestAnimationFrame(() => {
-        setIgnitionPoint({
-          lat: scenario.location.lat,
-          lng: scenario.location.lng,
-        });
-        setFlyTo({ ...scenario.location });
-        setActiveConfig(scenario.config);
-        startSimulation(
-          scenario.config,
-          scenario.igniteOffset.row,
-          scenario.igniteOffset.col
-        );
+      setSimKey((k) => k + 1);
+      setIgnitionPoint({
+        lat: scenario.location.lat,
+        lng: scenario.location.lng,
       });
+      setFlyTo({ ...scenario.location });
+      setActiveConfig(scenario.config);
+      startSimulation(
+        scenario.config,
+        scenario.igniteOffset.row,
+        scenario.igniteOffset.col
+      );
     },
-    [startSimulation, reset]
+    [startSimulation, reset, clearFireLayers]
   );
 
   const handleReset = useCallback(() => {
+    clearFireLayers();
     reset();
     setCurrentStep(0);
     setIgnitionPoint(null);
-  }, [reset]);
+    setSimKey((k) => k + 1);
+  }, [reset, clearFireLayers]);
 
   const currentState = history[currentStep] ?? null;
   const previousState = history[Math.max(0, currentStep - 5)] ?? null;
 
   return (
     <div className="h-screen w-screen relative">
-      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={setViewer} />
+      <GlobeView onIgnite={handleIgnite} flyTo={flyTo} onViewerReady={handleViewerReady} />
 
       {ignitionPoint && (
         <>
           <FireOverlay
+            key={`overlay-${simKey}`}
             state={currentState}
             previousState={previousState}
             config={activeConfig}
             centerLat={ignitionPoint.lat}
             centerLng={ignitionPoint.lng}
-            viewer={viewer}
+            viewer={viewerRef.current}
           />
           <FireParticles
+            key={`particles-${simKey}`}
             state={currentState}
             config={activeConfig}
             centerLat={ignitionPoint.lat}
             centerLng={ignitionPoint.lng}
-            viewer={viewer}
+            viewer={viewerRef.current}
           />
         </>
       )}
