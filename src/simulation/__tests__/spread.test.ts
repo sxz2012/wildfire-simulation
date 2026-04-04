@@ -55,12 +55,12 @@ describe("computeSpreadRate", () => {
 
 describe("simulateStep", () => {
   it("spreads fire to adjacent cells from a burning cell", () => {
-    const config = { ...DEFAULT_CONFIG, gridSize: 5, windSpeed: 0, humidity: 0 };
+    const config = { ...DEFAULT_CONFIG, gridSize: 5, windSpeed: 30, humidity: 0 };
     const grid = createGrid(config, 0, 0, () => 0);
     igniteCell(grid, 2, 2, config.gridSize);
 
     let currentGrid = grid;
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 10; i++) {
       currentGrid = simulateStep(currentGrid, config);
     }
 

@@ -57,7 +57,6 @@ export function createGrid(
   const metersPerDegreeLng = 111320 * Math.cos((centerLat * Math.PI) / 180);
 
   const halfGrid = gridSize / 2;
-  const maxRadius = halfGrid * 0.9;
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
@@ -69,14 +68,10 @@ export function createGrid(
       const lng =
         centerLng + (offsetCol * cellSizeMeters) / metersPerDegreeLng;
 
-      const distFromCenter = Math.sqrt(offsetRow * offsetRow + offsetCol * offsetCol);
-      const isOutside = distFromCenter > maxRadius;
-
-      // Use satellite-sampled fuel if available, otherwise procedural
       const fuel = fuelMap ? fuelMap[idx] : assignFuel(lat, lng);
 
       grid[idx] = {
-        state: isOutside ? CellState.Burned : CellState.Unburned,
+        state: CellState.Unburned,
         fuel,
         elevation: elevationFn(lat, lng),
         burnTimer: 0,

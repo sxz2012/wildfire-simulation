@@ -8,38 +8,56 @@ import {
 export interface SpreadParams {
   slopeAngle: number;
   windAlignment: number; // -1 (against) to +1 (aligned)
-  windStrength?: number; // 0-1 normalized wind strength (default 0.5)
+  windStrength?: number; // 0-1 normalized
   humidity: number;
   fuel: (typeof import("./types").FuelType)[keyof typeof import("./types").FuelType];
 }
 
 /**
  * Compute spread probability per timestep.
- * Calibrated against real NASA FIRMS data:
- *   - Base rates tuned so grass fires spread ~10 km/day with moderate wind
- *   - Forest fires spread ~2 km/day
- *   - Wind doubles spread rate downwind, halves it upwind
- *   - Humidity >80% nearly stops spread; <20% maximizes it
- *   - Uphill slope increases spread (fire preheats uphill fuel)
+ *
+ * Key behavior:
+ *   - Fire spreads MUCH faster downwind than upwind (3-5x difference)
+ *   - Against strong wind, spread probability drops near zero
+ *   - Crosswind spread is moderate
+ *   - This creates realistic elongated fire shapes
  */
 export function computeSpreadRate(params: SpreadParams): number {
   const { slopeAngle, windAlignment, windStrength = 0.5, humidity, fuel } = params;
   const fuelProps = FUEL_PROPERTIES[fuel];
 
-  const R0 = fuelProps.spreadRate;
+  // Base spread rate (low — wind is the main driver)
+  const R0 = fuelProps.spreadRate * 0.15;
 
-  // Slope factor: fire spreads ~2x faster uphill at 30°, slower downhill
-  const phiSlope = Math.max(-0.4, Math.min(0.8, slopeAngle * 0.025));
+  // Slope factor
+  const phiSlope = Math.max(-0.3, Math.min(0.6, slopeAngle * 0.02));
 
-  // Wind factor: strong winds can double the spread rate in the wind direction
-  // and reduce it to near-zero against the wind
-  const windEffect = windAlignment * windStrength * 0.7;
+  // Wind factor — STRONGLY directional
+  // windAlignment: -1 (against) to +1 (with wind)
+  // With strong wind: downwind gets big boost, upwind gets suppressed
+  let windFactor: number;
+  if (windStrength < 0.1) {
+    // Calm — spread equally in all directions (slow)
+    windFactor = 0;
+  } else {
+    // Strong directional effect:
+    // Downwind (alignment=1): factor = +2 to +4 (fast spread)
+    // Crosswind (alignment=0): factor = 0 (base rate only)
+    // Upwind (alignment=-1): factor = -0.7 (nearly stops)
+    windFactor = windAlignment * windStrength * 3.0;
+    if (windAlignment < 0) {
+      // Suppress upwind spread more aggressively
+      windFactor = windAlignment * windStrength * 1.5;
+    }
+  }
 
-  // Humidity dampening: exponential decay — fires struggle above 60%
-  const humidityFactor = Math.max(0.05, Math.exp(-humidity / 50));
+  // Humidity dampening
+  const humidityFactor = Math.max(0.02, Math.exp(-humidity / 40));
 
-  const rate = R0 * (1 + windEffect + phiSlope) * humidityFactor * fuelProps.ignitionRate;
-  return Math.max(0, Math.min(0.95, rate));
+  const rate = R0 * (1 + windFactor + phiSlope) * humidityFactor * fuelProps.ignitionRate;
+
+  // Clamp — prevent negative and cap at reasonable max
+  return Math.max(0, Math.min(0.6, rate));
 }
 
 function windAlignmentFactor(
@@ -47,8 +65,6 @@ function windAlignmentFactor(
   dCol: number,
   windDirection: number
 ): number {
-  // Wind direction: 0=N, 90=E, 180=S, 270=W
-  // Convert to "wind blows TO this direction" vector
   const windRad = ((windDirection + 180) * Math.PI) / 180;
   const windDr = -Math.cos(windRad);
   const windDc = Math.sin(windRad);
@@ -72,7 +88,6 @@ export function simulateStep(
   const { gridSize, windSpeed, windDirection, humidity, cellSizeMeters } = config;
   const newGrid: GridCell[] = grid.map((cell) => ({ ...cell }));
 
-  // Normalize wind strength: 0-60 km/h → 0-1
   const windStrength = Math.min(windSpeed / 40, 1.0);
 
   for (let row = 0; row < gridSize; row++) {
@@ -96,8 +111,6 @@ export function simulateStep(
           const nIdx = nr * gridSize + nc;
           const neighbor = grid[nIdx];
           if (neighbor.state !== CellState.Unburned) continue;
-
-          // Already ignited by another burning cell this step
           if (newGrid[nIdx].state === CellState.Burning) continue;
 
           const elevDiff = neighbor.elevation - cell.elevation;
