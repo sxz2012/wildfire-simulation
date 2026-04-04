@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
 
 /* ─── Fire Dashboard Theme ─── */
 :root {
@@ -20,7 +20,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* ─── Glass Panel Base ─── */
 .fire-panel {
   background: var(--panel-bg);
   backdrop-filter: blur(20px) saturate(1.2);
@@ -31,7 +30,6 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* ─── Custom Range Slider ─── */
 input[type="range"].fire-slider {
   -webkit-appearance: none;
   appearance: none;
@@ -69,7 +67,6 @@ input[type="range"].fire-slider::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* Timeline scrubber — wider track */
 input[type="range"].fire-timeline {
   -webkit-appearance: none;
   appearance: none;
@@ -101,7 +98,6 @@ input[type="range"].fire-timeline::-moz-range-thumb {
   cursor: pointer;
 }
 
-/* ─── Custom Select ─── */
 select.fire-select {
   background-color: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(245, 158, 11, 0.15);
@@ -120,7 +116,6 @@ select.fire-select:focus {
   border-color: var(--panel-border-hover);
 }
 
-/* ─── Scrollbar ─── */
 .fire-panel::-webkit-scrollbar {
   width: 4px;
 }
