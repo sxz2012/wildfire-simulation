@@ -3,7 +3,7 @@ import { DEFAULT_CONFIG, type SimulationConfig } from "../simulation/types";
 import { HISTORICAL_FIRE_LIST } from "../data/historicalFires";
 import { SEASONS, type Season } from "../services/weather";
 
-type WeatherSource = "live" | "seasonal";
+type WeatherSource = "live" | "seasonal" | "custom";
 
 interface ControlPanelProps {
   onStart: (config: SimulationConfig) => void;
@@ -13,7 +13,6 @@ interface ControlPanelProps {
   isRunning: boolean;
   collapsed: boolean;
   onToggleCollapse: () => void;
-  /** Current weather data label to display */
   weatherInfo?: string;
 }
 
@@ -60,17 +59,13 @@ export default function ControlPanel({
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" />
-            <h2
-              className="text-sm font-bold tracking-[0.15em] uppercase"
-              style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
-            >
+            <h2 className="text-sm font-bold tracking-[0.15em] uppercase"
+              style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}>
               Wildfire Ops
             </h2>
           </div>
-          <button
-            onClick={onToggleCollapse}
-            className="text-gray-500 hover:text-amber-400 transition-colors p-1 cursor-pointer"
-          >
+          <button onClick={onToggleCollapse}
+            className="text-gray-500 hover:text-amber-400 transition-colors p-1 cursor-pointer">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M15 18l-6-6 6-6"/>
             </svg>
@@ -82,16 +77,11 @@ export default function ControlPanel({
       <div className="px-5 pt-4">
         <div className="flex bg-white/5 rounded-lg p-0.5">
           {(["historical", "ignite"] as const).map((m) => (
-            <button
-              key={m}
-              onClick={() => setMode(m)}
+            <button key={m} onClick={() => setMode(m)}
               className={`flex-1 py-2 rounded-md text-xs font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
-                mode === m
-                  ? "bg-amber-500/20 text-amber-400 shadow-[inset_0_0_12px_rgba(245,158,11,0.1)]"
-                  : "text-gray-500 hover:text-gray-300"
+                mode === m ? "bg-amber-500/20 text-amber-400" : "text-gray-500 hover:text-gray-300"
               }`}
-              style={{ fontFamily: "'JetBrains Mono', monospace" }}
-            >
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}>
               {m === "historical" ? "Historical" : "Simulate"}
             </button>
           ))}
@@ -102,73 +92,62 @@ export default function ControlPanel({
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
         {mode === "ignite" && (
           <>
-            {/* Weather Source */}
             <div>
-              <label className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
-                style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
-                Weather Conditions
-              </label>
+              <SectionLabel>Weather Source</SectionLabel>
               <div className="flex bg-white/5 rounded-lg p-0.5 mb-3">
-                {(["live", "seasonal"] as const).map((ws) => (
-                  <button
-                    key={ws}
+                {(["live", "seasonal", "custom"] as const).map((ws) => (
+                  <button key={ws}
                     onClick={() => {
                       setWeatherSource(ws);
                       onWeatherSourceChange(ws, ws === "seasonal" ? selectedSeason : undefined);
                     }}
-                    className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
-                      weatherSource === ws
-                        ? "bg-amber-500/15 text-amber-400"
-                        : "text-gray-500 hover:text-gray-300"
+                    className={`flex-1 py-1.5 rounded-md text-[9px] font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+                      weatherSource === ws ? "bg-amber-500/15 text-amber-400" : "text-gray-500 hover:text-gray-300"
                     }`}
-                    style={{ fontFamily: "'JetBrains Mono', monospace" }}
-                  >
-                    {ws === "live" ? "Live Weather" : "Seasonal"}
+                    style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    {ws === "live" ? "Live" : ws === "seasonal" ? "Seasonal" : "Custom"}
                   </button>
                 ))}
               </div>
 
               {weatherSource === "seasonal" && (
-                <select
-                  value={selectedSeason}
+                <select value={selectedSeason}
                   onChange={(e) => {
                     const s = e.target.value as Season;
                     setSelectedSeason(s);
                     onWeatherSourceChange("seasonal", s);
                   }}
-                  className="fire-select w-full mb-2"
-                >
+                  className="fire-select w-full mb-2">
                   {SEASONS.map((s) => (
                     <option key={s.value} value={s.value}>{s.label}</option>
                   ))}
                 </select>
               )}
 
-              {weatherInfo && (
-                <div className="bg-white/[0.03] rounded-lg px-3 py-2 border border-white/[0.04]">
-                  <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
+              {weatherSource !== "custom" && weatherInfo && (
+                <div className="bg-white/[0.03] rounded-lg px-3 py-2.5 border border-white/[0.04]">
+                  <p className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
+                </div>
+              )}
+
+              {weatherSource === "custom" && (
+                <div className="flex flex-col gap-3">
+                  <SliderField label="Wind Speed" value={config.windSpeed} unit="km/h" min={0} max={60}
+                    onChange={(v) => update({ windSpeed: v })} />
+                  <SliderField label="Wind Direction" value={config.windDirection} unit="°" min={0} max={360}
+                    onChange={(v) => update({ windDirection: v })} />
+                  <SliderField label="Humidity" value={config.humidity} unit="%" min={0} max={100}
+                    onChange={(v) => update({ humidity: v })} />
                 </div>
               )}
             </div>
 
-            {/* Manual Override Sliders */}
-            <div>
-              <label className="block text-[11px] font-medium tracking-wider uppercase mb-2"
-                style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
-                Override Parameters
-              </label>
-              <div className="flex flex-col gap-3">
-                <SliderField label="Wind Speed" value={config.windSpeed} unit="km/h" min={0} max={60}
-                  onChange={(v) => update({ windSpeed: v })} />
-                <SliderField label="Wind Direction" value={config.windDirection} unit="°" min={0} max={360}
-                  onChange={(v) => update({ windDirection: v })} />
-                <SliderField label="Humidity" value={config.humidity} unit="%" min={0} max={100}
-                  onChange={(v) => update({ humidity: v })} />
-              </div>
-            </div>
-
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              Click on the globe to ignite. Vegetation auto-sampled from satellite imagery. Weather from Open-Meteo API.
+              {weatherSource === "live"
+                ? "Click on the globe to ignite. Live weather will be fetched for that location."
+                : weatherSource === "seasonal"
+                ? "Click on the globe to ignite. Typical seasonal conditions will be applied."
+                : "Click on the globe to ignite with your custom weather parameters."}
             </p>
           </>
         )}
@@ -176,19 +155,14 @@ export default function ControlPanel({
         {mode === "historical" && (
           <>
             <div>
-              <label className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
-                style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
-                Select Fire Event
-              </label>
-              <select
-                value={selectedFire}
+              <SectionLabel>Select Fire Event</SectionLabel>
+              <select value={selectedFire}
                 onChange={(e) => {
                   const idx = Number(e.target.value);
                   setSelectedFire(idx);
                   onStartHistorical(HISTORICAL_FIRE_LIST[idx].id);
                 }}
-                className="fire-select w-full"
-              >
+                className="fire-select w-full">
                 {HISTORICAL_FIRE_LIST.map((f, i) => (
                   <option key={i} value={i}>{f.name}</option>
                 ))}
@@ -221,21 +195,15 @@ export default function ControlPanel({
       {/* Actions */}
       <div className="px-5 pb-4 pt-2 border-t border-white/[0.04] flex gap-2">
         {mode === "ignite" ? (
-          <button
-            onClick={() => onStart(config)}
-            disabled={isRunning}
+          <button onClick={() => onStart(config)} disabled={isRunning}
             className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
-              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer"
-          >
+              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer">
             {isRunning ? "Simulating..." : "Click Globe to Ignite"}
           </button>
         ) : (
-          <button
-            onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)}
-            disabled={isRunning}
+          <button onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)} disabled={isRunning}
             className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
-              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer"
-          >
+              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer">
             {isRunning ? "Loading..." : "Replay Fire"}
           </button>
         )}
@@ -246,6 +214,15 @@ export default function ControlPanel({
         </button>
       </div>
     </div>
+  );
+}
+
+function SectionLabel({ children }: { children: string }) {
+  return (
+    <label className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
+      style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
+      {children}
+    </label>
   );
 }
 
