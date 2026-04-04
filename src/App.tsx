@@ -26,7 +26,7 @@ function App() {
   const [activeConfig, setActiveConfig] =
     useState<SimulationConfig>(DEFAULT_CONFIG);
   const [viewer, setViewer] = useState<CesiumViewer | null>(null);
-  const [tooltip, setTooltip] = useState({
+  const [tooltip] = useState({
     visible: false,
     x: 0,
     y: 0,

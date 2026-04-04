@@ -1,14 +1,16 @@
-export enum CellState {
-  Unburned = 0,
-  Burning = 1,
-  Burned = 2,
-}
+export const CellState = {
+  Unburned: 0,
+  Burning: 1,
+  Burned: 2,
+} as const;
+export type CellState = (typeof CellState)[keyof typeof CellState];
 
-export enum FuelType {
-  Grass = "grass",
-  Shrub = "shrub",
-  Forest = "forest",
-}
+export const FuelType = {
+  Grass: "grass",
+  Shrub: "shrub",
+  Forest: "forest",
+} as const;
+export type FuelType = (typeof FuelType)[keyof typeof FuelType];
 
 export interface GridCell {
   state: CellState;

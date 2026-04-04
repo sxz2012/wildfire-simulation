@@ -1,6 +1,5 @@
 import {
   CellState,
-  FuelType,
   FUEL_PROPERTIES,
   type GridCell,
   type SimulationConfig,

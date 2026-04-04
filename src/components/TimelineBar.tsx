@@ -15,7 +15,7 @@ export default function TimelineBar({
 }: TimelineBarProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
 
   const formatTime = (step: number) => {
     const totalMinutes = step * timestepMinutes;
