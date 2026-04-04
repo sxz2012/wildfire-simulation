@@ -30,111 +30,125 @@ export default function ControlPanel({
     return (
       <button
         onClick={onToggleCollapse}
-        className="absolute top-4 left-4 z-50 bg-gray-900/90 text-white px-3 py-2 rounded-lg hover:bg-gray-800 backdrop-blur"
+        className="fire-panel absolute top-4 left-4 z-50 text-amber-400 px-3 py-2.5 rounded-lg
+          hover:border-amber-400/40 transition-all duration-200 group cursor-pointer"
       >
-        Controls &rsaquo;
+        <span className="flex items-center gap-2 text-sm font-medium tracking-wide">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" opacity="0.3"/>
+            <path d="M13 7l5 5-5 5M6 12h12"/>
+          </svg>
+          PANEL
+        </span>
       </button>
     );
   }
 
   return (
-    <div className="absolute top-0 left-0 z-50 h-full w-80 bg-gray-900/90 backdrop-blur text-white p-4 flex flex-col gap-4 overflow-y-auto">
-      <div className="flex justify-between items-center">
-        <h2 className="text-lg font-bold">Wildfire Simulator</h2>
-        <button onClick={onToggleCollapse} className="text-gray-400 hover:text-white">
-          &lsaquo;
-        </button>
+    <div className="fire-panel absolute top-3 left-3 z-50 w-80 rounded-xl text-white flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
+      {/* Header */}
+      <div className="px-5 pt-4 pb-3 border-b border-amber-500/10">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-2.5">
+            <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" />
+            <h2
+              className="text-sm font-bold tracking-[0.15em] uppercase"
+              style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
+            >
+              Wildfire Ops
+            </h2>
+          </div>
+          <button
+            onClick={onToggleCollapse}
+            className="text-gray-500 hover:text-amber-400 transition-colors p-1 cursor-pointer"
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M15 18l-6-6 6-6"/>
+            </svg>
+          </button>
+        </div>
       </div>
 
       {/* Mode Toggle */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setMode("historical")}
-          className={`flex-1 py-1.5 rounded text-sm ${
-            mode === "historical" ? "bg-orange-600" : "bg-gray-700 hover:bg-gray-600"
-          }`}
-        >
-          Historical Fires
-        </button>
-        <button
-          onClick={() => setMode("ignite")}
-          className={`flex-1 py-1.5 rounded text-sm ${
-            mode === "ignite" ? "bg-orange-600" : "bg-gray-700 hover:bg-gray-600"
-          }`}
-        >
-          Simulate
-        </button>
+      <div className="px-5 pt-4">
+        <div className="flex bg-white/5 rounded-lg p-0.5">
+          {(["historical", "ignite"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setMode(m)}
+              className={`flex-1 py-2 rounded-md text-xs font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+                mode === m
+                  ? "bg-amber-500/20 text-amber-400 shadow-[inset_0_0_12px_rgba(245,158,11,0.1)]"
+                  : "text-gray-500 hover:text-gray-300"
+              }`}
+              style={{ fontFamily: "'JetBrains Mono', monospace" }}
+            >
+              {m === "historical" ? "Historical" : "Simulate"}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {mode === "ignite" && (
-        <>
-          <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-300">
-                Wind Speed: {config.windSpeed} km/h
-              </span>
-              <input
-                type="range" min={0} max={60}
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
+        {mode === "ignite" && (
+          <>
+            <div className="flex flex-col gap-4">
+              <SliderField
+                label="Wind Speed"
                 value={config.windSpeed}
-                onChange={(e) => update({ windSpeed: Number(e.target.value) })}
-                className="accent-orange-500"
+                unit="km/h"
+                min={0} max={60}
+                onChange={(v) => update({ windSpeed: v })}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-300">
-                Wind Direction: {config.windDirection}&deg;
-              </span>
-              <input
-                type="range" min={0} max={360}
+              <SliderField
+                label="Wind Direction"
                 value={config.windDirection}
-                onChange={(e) => update({ windDirection: Number(e.target.value) })}
-                className="accent-orange-500"
+                unit="°"
+                min={0} max={360}
+                onChange={(v) => update({ windDirection: v })}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-300">
-                Humidity: {config.humidity}%
-              </span>
-              <input
-                type="range" min={0} max={100}
+              <SliderField
+                label="Humidity"
                 value={config.humidity}
-                onChange={(e) => update({ humidity: Number(e.target.value) })}
-                className="accent-orange-500"
+                unit="%"
+                min={0} max={100}
+                onChange={(v) => update({ humidity: v })}
               />
-            </label>
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-300">Vegetation</span>
-              <select
-                value={config.defaultFuel}
-                onChange={(e) => update({ defaultFuel: e.target.value as FuelType })}
-                className="bg-gray-700 rounded px-2 py-1 text-sm"
-              >
-                <option value={FuelType.Grass}>Grass</option>
-                <option value={FuelType.Shrub}>Shrub</option>
-                <option value={FuelType.Forest}>Forest</option>
-              </select>
-            </label>
-          </div>
-          <div className="flex gap-2 mt-auto">
-            <button
-              onClick={() => onStart(config)}
-              disabled={isRunning}
-              className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 py-2 rounded font-medium"
-            >
-              {isRunning ? "Running..." : "Start"}
-            </button>
-            <button onClick={onReset} className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded font-medium">
-              Reset
-            </button>
-          </div>
-        </>
-      )}
+              <div>
+                <label
+                  className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
+                  style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
+                >
+                  Vegetation
+                </label>
+                <select
+                  value={config.defaultFuel}
+                  onChange={(e) => update({ defaultFuel: e.target.value as FuelType })}
+                  className="fire-select w-full"
+                >
+                  <option value={FuelType.Grass}>Grassland</option>
+                  <option value={FuelType.Shrub}>Shrubland</option>
+                  <option value={FuelType.Forest}>Forest</option>
+                </select>
+              </div>
+            </div>
 
-      {mode === "historical" && (
-        <>
-          <div className="flex flex-col gap-3">
-            <label className="flex flex-col gap-1">
-              <span className="text-sm text-gray-300">Choose a historical fire</span>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              Click anywhere on the globe to ignite. Fire spread model calibrated against NASA FIRMS satellite data.
+            </p>
+          </>
+        )}
+
+        {mode === "historical" && (
+          <>
+            <div>
+              <label
+                className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
+                style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
+              >
+                Select Fire Event
+              </label>
               <select
                 value={selectedFire}
                 onChange={(e) => {
@@ -142,34 +156,103 @@ export default function ControlPanel({
                   setSelectedFire(idx);
                   onStartHistorical(HISTORICAL_FIRE_LIST[idx].id);
                 }}
-                className="bg-gray-700 rounded px-2 py-1 text-sm"
+                className="fire-select w-full"
               >
                 {HISTORICAL_FIRE_LIST.map((f, i) => (
                   <option key={i} value={i}>{f.name}</option>
                 ))}
               </select>
-            </label>
-            <p className="text-sm text-gray-400 leading-relaxed">
-              {HISTORICAL_FIRE_LIST[selectedFire].description}
-            </p>
-            <p className="text-xs text-gray-500">
-              Data: NASA FIRMS satellite fire detections
-            </p>
-          </div>
-          <div className="flex gap-2 mt-auto">
-            <button
-              onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)}
-              disabled={isRunning}
-              className="flex-1 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 py-2 rounded font-medium"
-            >
-              {isRunning ? "Loading..." : "Replay Fire"}
-            </button>
-            <button onClick={onReset} className="flex-1 bg-gray-700 hover:bg-gray-600 py-2 rounded font-medium">
-              Reset
-            </button>
-          </div>
-        </>
-      )}
+            </div>
+
+            <div className="bg-white/[0.03] rounded-lg px-3.5 py-3 border border-white/[0.04] space-y-2">
+              <p className="text-[13px] text-gray-300 leading-relaxed">
+                {HISTORICAL_FIRE_LIST[selectedFire].description}
+              </p>
+              {"details" in HISTORICAL_FIRE_LIST[selectedFire] && (
+                <p className="text-[11px] text-gray-500 leading-relaxed border-t border-white/[0.04] pt-2">
+                  {(HISTORICAL_FIRE_LIST[selectedFire] as { details: string }).details}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                NASA FIRMS VIIRS/MODIS Satellite Data
+              </span>
+            </div>
+          </>
+        )}
+      </div>
+
+      {/* Actions */}
+      <div className="px-5 pb-4 pt-2 border-t border-white/[0.04] flex gap-2">
+        {mode === "ignite" ? (
+          <button
+            onClick={() => onStart(config)}
+            disabled={isRunning}
+            className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
+              disabled:opacity-40 disabled:hover:bg-amber-500/20 py-2.5 rounded-lg font-semibold text-sm
+              text-amber-400 transition-all duration-200 cursor-pointer"
+          >
+            {isRunning ? "Simulating..." : "Start Simulation"}
+          </button>
+        ) : (
+          <button
+            onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)}
+            disabled={isRunning}
+            className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
+              disabled:opacity-40 disabled:hover:bg-amber-500/20 py-2.5 rounded-lg font-semibold text-sm
+              text-amber-400 transition-all duration-200 cursor-pointer"
+          >
+            {isRunning ? "Loading..." : "Replay Fire"}
+          </button>
+        )}
+        <button
+          onClick={onReset}
+          className="px-4 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10
+            border border-white/[0.06] hover:border-white/10 transition-all duration-200 cursor-pointer"
+        >
+          Reset
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Slider Field Sub-component ─── */
+function SliderField({
+  label, value, unit, min, max, onChange
+}: {
+  label: string; value: number; unit: string; min: number; max: number;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <div>
+      <div className="flex justify-between items-baseline mb-1.5">
+        <label
+          className="text-[11px] font-medium tracking-wider uppercase"
+          style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
+        >
+          {label}
+        </label>
+        <span
+          className="text-[13px] font-semibold tabular-nums"
+          style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
+        >
+          {value}{unit}
+        </span>
+      </div>
+      <input
+        type="range"
+        min={min} max={max}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="fire-slider w-full"
+      />
     </div>
   );
 }

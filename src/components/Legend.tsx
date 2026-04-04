@@ -9,40 +9,43 @@ export default function Legend({ mode, visible }: LegendProps) {
   const items =
     mode === "historical"
       ? [
-          { color: "#FF4500", label: "Active fire (current day)" },
-          { color: "#CC2200", label: "Previously burned area" },
-          { color: "rgba(150,150,150,0.6)", label: "Smoke plume", shape: "blur" },
+          { color: "#FF4500", glow: "rgba(255,69,0,0.4)", label: "Active fire" },
+          { color: "#CC2200", glow: "rgba(204,34,0,0.3)", label: "Burned area" },
+          { color: "rgba(150,150,150,0.5)", glow: "rgba(150,150,150,0.3)", label: "Smoke" },
         ]
       : [
-          { color: "#FF8C00", label: "Actively burning" },
-          { color: "#8C1E1E", label: "Recently burned" },
-          { color: "#0F0F0F", label: "Burned out" },
+          { color: "#FF8C00", glow: "rgba(255,140,0,0.4)", label: "Burning" },
+          { color: "#CC2200", glow: "rgba(204,34,0,0.3)", label: "Recently burned" },
+          { color: "#1a1a1a", glow: "none", label: "Burned out" },
         ];
 
   return (
-    <div className="absolute bottom-16 right-4 z-50 bg-gray-900/90 backdrop-blur text-white px-4 py-3 rounded-lg text-xs">
-      <div className="text-gray-400 font-medium mb-2">Legend</div>
-      <div className="flex flex-col gap-1.5">
+    <div className="fire-panel absolute bottom-16 right-3 z-50 rounded-xl px-3.5 py-3 min-w-[150px]">
+      <div
+        className="text-[9px] font-semibold tracking-[0.2em] uppercase mb-2.5 pb-1.5 border-b border-white/[0.04]"
+        style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
+      >
+        Legend
+      </div>
+      <div className="flex flex-col gap-2">
         {items.map((item) => (
-          <div key={item.label} className="flex items-center gap-2">
+          <div key={item.label} className="flex items-center gap-2.5">
             <span
-              className="inline-block w-3 h-3 rounded-full flex-shrink-0"
+              className="inline-block w-2.5 h-2.5 rounded-full flex-shrink-0"
               style={{
                 backgroundColor: item.color,
-                boxShadow:
-                  item.shape === "blur"
-                    ? "0 0 4px 2px rgba(150,150,150,0.4)"
-                    : undefined,
+                boxShadow: item.glow !== "none" ? `0 0 6px ${item.glow}` : undefined,
               }}
             />
-            <span className="text-gray-300">{item.label}</span>
+            <span className="text-[11px] text-gray-400">{item.label}</span>
           </div>
         ))}
       </div>
-      <div className="text-gray-500 mt-2 border-t border-gray-700 pt-2">
-        {mode === "historical"
-          ? "Source: NASA FIRMS satellite data"
-          : "Simplified Rothermel fire model"}
+      <div
+        className="text-[9px] mt-2.5 pt-2 border-t border-white/[0.04]"
+        style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
+      >
+        {mode === "historical" ? "NASA FIRMS" : "Rothermel Model"}
       </div>
     </div>
   );

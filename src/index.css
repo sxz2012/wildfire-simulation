@@ -1,1 +1,133 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=DM+Sans:wght@400;500;600;700&display=swap');
+
+/* ─── Fire Dashboard Theme ─── */
+:root {
+  --fire-amber: #F59E0B;
+  --fire-orange: #EA580C;
+  --fire-red: #DC2626;
+  --fire-glow: rgba(245, 158, 11, 0.15);
+  --panel-bg: rgba(10, 10, 14, 0.85);
+  --panel-border: rgba(245, 158, 11, 0.2);
+  --panel-border-hover: rgba(245, 158, 11, 0.4);
+  --text-primary: #F5F5F4;
+  --text-secondary: #A8A29E;
+  --text-dim: #6B7280;
+}
+
+body {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ─── Glass Panel Base ─── */
+.fire-panel {
+  background: var(--panel-bg);
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  border: 1px solid var(--panel-border);
+  box-shadow:
+    0 0 30px rgba(0, 0, 0, 0.5),
+    inset 0 1px 0 rgba(255, 255, 255, 0.03);
+}
+
+/* ─── Custom Range Slider ─── */
+input[type="range"].fire-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"].fire-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--fire-amber);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+input[type="range"].fire-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 14px rgba(245, 158, 11, 0.7);
+}
+
+input[type="range"].fire-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border: none;
+  border-radius: 50%;
+  background: var(--fire-amber);
+  box-shadow: 0 0 8px rgba(245, 158, 11, 0.5);
+  cursor: pointer;
+}
+
+/* Timeline scrubber — wider track */
+input[type="range"].fire-timeline {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.3), rgba(234, 88, 12, 0.3));
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"].fire-timeline::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 22px;
+  border-radius: 3px;
+  background: var(--fire-amber);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+  cursor: pointer;
+}
+
+input[type="range"].fire-timeline::-moz-range-thumb {
+  width: 14px;
+  height: 22px;
+  border: none;
+  border-radius: 3px;
+  background: var(--fire-amber);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+  cursor: pointer;
+}
+
+/* ─── Custom Select ─── */
+select.fire-select {
+  background-color: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(245, 158, 11, 0.15);
+  border-radius: 6px;
+  padding: 8px 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s ease;
+}
+
+select.fire-select:hover,
+select.fire-select:focus {
+  border-color: var(--panel-border-hover);
+}
+
+/* ─── Scrollbar ─── */
+.fire-panel::-webkit-scrollbar {
+  width: 4px;
+}
+.fire-panel::-webkit-scrollbar-track {
+  background: transparent;
+}
+.fire-panel::-webkit-scrollbar-thumb {
+  background: rgba(245, 158, 11, 0.2);
+  border-radius: 2px;
+}
