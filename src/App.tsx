@@ -38,13 +38,18 @@ function App() {
 
   const handleIgnite = useCallback(
     (lat: number, lng: number) => {
-      setIgnitionPoint({ lat, lng });
-      setFlyTo({ lat, lng, altitude: 15000 });
-      const center = Math.floor(activeConfig.gridSize / 2);
-      startSimulation(activeConfig, center, center);
+      reset();
+      setIgnitionPoint(null);
       setCurrentStep(0);
+
+      requestAnimationFrame(() => {
+        setIgnitionPoint({ lat, lng });
+        setFlyTo({ lat, lng, altitude: 15000 });
+        const center = Math.floor(activeConfig.gridSize / 2);
+        startSimulation(activeConfig, center, center);
+      });
     },
-    [activeConfig, startSimulation]
+    [activeConfig, startSimulation, reset]
   );
 
   const handleStart = useCallback((config: SimulationConfig) => {
@@ -53,20 +58,27 @@ function App() {
 
   const handleStartScenario = useCallback(
     (scenario: Scenario) => {
-      setIgnitionPoint({
-        lat: scenario.location.lat,
-        lng: scenario.location.lng,
-      });
-      setFlyTo({ ...scenario.location });
-      setActiveConfig(scenario.config);
-      startSimulation(
-        scenario.config,
-        scenario.igniteOffset.row,
-        scenario.igniteOffset.col
-      );
+      // Clear previous simulation — unmounts FireOverlay to clean up imagery layer
+      reset();
+      setIgnitionPoint(null);
       setCurrentStep(0);
+
+      // Start new scenario on next frame so FireOverlay unmounts first
+      requestAnimationFrame(() => {
+        setIgnitionPoint({
+          lat: scenario.location.lat,
+          lng: scenario.location.lng,
+        });
+        setFlyTo({ ...scenario.location });
+        setActiveConfig(scenario.config);
+        startSimulation(
+          scenario.config,
+          scenario.igniteOffset.row,
+          scenario.igniteOffset.col
+        );
+      });
     },
-    [startSimulation]
+    [startSimulation, reset]
   );
 
   const handleReset = useCallback(() => {
