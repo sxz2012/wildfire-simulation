@@ -106,6 +106,8 @@ export default function FireOverlay({
     const provider = new SingleTileImageryProvider({
       url: canvas.toDataURL(),
       rectangle,
+      tileWidth: gridSize,
+      tileHeight: gridSize,
     });
 
     layerRef.current = viewer.imageryLayers.addImageryProvider(provider);
