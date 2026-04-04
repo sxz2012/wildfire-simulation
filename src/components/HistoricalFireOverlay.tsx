@@ -101,13 +101,16 @@ export default function HistoricalFireOverlay({
       const hotspots = framePositions[f];
 
       for (const h of hotspots) {
-        // Fire detection points
         points.add({
           position: h.position,
-          pixelSize: isCurrent ? 4 : 3,
+          pixelSize: isCurrent ? 6 : 5,
           color: isCurrent
             ? Color.fromCssColorString("#FF4500")
-            : Color.fromCssColorString("#1a0000").withAlpha(0.7),
+            : Color.fromCssColorString("#CC2200").withAlpha(0.9),
+          outlineColor: isCurrent
+            ? Color.fromCssColorString("#FF0000")
+            : Color.BLACK.withAlpha(0.7),
+          outlineWidth: 1,
           disableDepthTestDistance: Number.POSITIVE_INFINITY,
         });
       }

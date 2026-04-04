@@ -10,7 +10,7 @@ export default function Legend({ mode, visible }: LegendProps) {
     mode === "historical"
       ? [
           { color: "#FF4500", label: "Active fire (current day)" },
-          { color: "#8B0000", label: "Previously burned area" },
+          { color: "#CC2200", label: "Previously burned area" },
           { color: "rgba(150,150,150,0.6)", label: "Smoke plume", shape: "blur" },
         ]
       : [
