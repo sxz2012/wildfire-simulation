@@ -5,6 +5,7 @@ import TimelineBar from "./components/TimelineBar";
 import FireOverlay from "./components/FireOverlay";
 import FireParticles from "./components/FireParticles";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
+import FireEffects from "./components/FireEffects";
 import InfoTooltip from "./components/InfoTooltip";
 import Legend from "./components/Legend";
 import TimeInfoPanel from "./components/TimeInfoPanel";
@@ -140,12 +141,24 @@ function App() {
 
       {/* Historical fire overlay */}
       {appMode === "historical" && historicalFire && (
-        <HistoricalFireOverlay
-          key={`historical-${simKey}`}
-          fire={historicalFire}
-          currentFrame={currentStep}
-          viewer={viewerRef.current}
-        />
+        <>
+          <HistoricalFireOverlay
+            key={`historical-${simKey}`}
+            fire={historicalFire}
+            currentFrame={currentStep}
+            viewer={viewerRef.current}
+          />
+          <FireEffects
+            key={`effects-${simKey}-${currentStep}`}
+            activePositions={
+              historicalFire.frames[currentStep]?.hotspots.map((h) => ({
+                lat: h.lat,
+                lng: h.lng,
+              })) ?? []
+            }
+            viewer={viewerRef.current}
+          />
+        </>
       )}
 
       <ControlPanel
