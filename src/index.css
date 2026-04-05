@@ -104,7 +104,7 @@ select.fire-select {
   border-radius: 6px;
   padding: 8px 12px;
   color: var(--text-primary);
-  font-size: 13px;
+  font-size: 15px;
   font-family: 'DM Sans', system-ui, sans-serif;
   outline: none;
   cursor: pointer;

@@ -124,7 +124,8 @@ export async function loadHistoricalFire(id: string): Promise<HistoricalFire> {
 
   // Add a "before fire" empty frame so playback starts with a clean map
   if (fire.frames.length > 0 && fire.frames[0].hotspots.length > 0) {
-    const firstDate = new Date(fire.frames[0].date + "T00:00:00Z");
+    const raw = fire.frames[0].date;
+    const firstDate = new Date(raw.includes("T") ? raw + "Z" : raw + "T00:00:00Z");
     const dayBefore = new Date(firstDate.getTime() - 86400000);
     const beforeDate = dayBefore.toISOString().split("T")[0];
     fire.frames.unshift({ date: beforeDate, hotspots: [] });

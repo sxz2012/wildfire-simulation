@@ -98,7 +98,12 @@ function App() {
       }
 
       const center = Math.floor(config.gridSize / 2);
-      startSimulation(config, center, center, lat, lng, fuelMap);
+      startSimulation(config, center, center, lat, lng, fuelMap, {
+        tempMean: weather.temperature,
+        tempMax: weather.temperature + 5,
+        precipitation: 0,
+        cumulativePrecip: 0,
+      });
     },
     [fullReset, startSimulation]
   );

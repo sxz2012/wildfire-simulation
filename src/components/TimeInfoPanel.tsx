@@ -14,8 +14,9 @@ function formatDayTime(totalMinutes: number): string {
 
 function formatDate(dateStr: string): string {
   if (dateStr.startsWith("Day") || dateStr.startsWith("Before")) return dateStr;
-  const d = new Date(dateStr + "T00:00:00Z");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const d = new Date(dateStr.includes("T") ? dateStr + "Z" : dateStr + "T00:00:00Z");
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) +
+    " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
 }
 
 export default function TimeInfoPanel({
@@ -38,7 +39,7 @@ export default function TimeInfoPanel({
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/[0.04]">
         <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)] animate-pulse" />
         <span
-          className="text-[10px] font-semibold tracking-[0.2em] uppercase text-gray-400"
+          className="text-[12px] font-semibold tracking-[0.2em] uppercase text-gray-400"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           {isHistorical ? "Replay Active" : "Simulation"}
@@ -48,25 +49,25 @@ export default function TimeInfoPanel({
       <div className="space-y-2.5">
         <div>
           <div
-            className="text-[9px] font-medium tracking-[0.15em] uppercase mb-0.5"
+            className="text-[11px] font-medium tracking-[0.15em] uppercase mb-0.5"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
           >
             Origin
           </div>
-          <div className="text-sm text-gray-200" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
+          <div className="text-base text-gray-200" style={{ fontFamily: "'JetBrains Mono', monospace" }}>
             {startLabel}
           </div>
         </div>
 
         <div>
           <div
-            className="text-[9px] font-medium tracking-[0.15em] uppercase mb-0.5"
+            className="text-[11px] font-medium tracking-[0.15em] uppercase mb-0.5"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
           >
             Current
           </div>
           <div
-            className="text-sm font-bold"
+            className="text-base font-bold"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
           >
             {currentLabel}

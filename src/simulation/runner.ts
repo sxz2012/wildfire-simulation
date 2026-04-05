@@ -35,7 +35,7 @@ export function runSimulation(
   ];
 
   for (let step = 1; step <= maxSteps; step++) {
-    grid = simulateStep(grid, config);
+    grid = simulateStep(grid, config, step);
 
     history.push({
       grid: snapshotGrid(grid, config.gridSize),

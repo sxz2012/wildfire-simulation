@@ -28,8 +28,9 @@ export default function TimelineBar({
     if (dateLabels && dateLabels[step]) {
       const raw = dateLabels[step];
       if (raw.startsWith("Day") || raw.startsWith("Before")) return raw;
-      const d = new Date(raw + "T00:00:00Z");
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+      const d = new Date(raw.includes("T") ? raw + "Z" : raw + "T00:00:00Z");
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) +
+        " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
     }
     const totalMinutes = step * timestepMinutes;
     const day = Math.floor(totalMinutes / 1440) + 1;
@@ -133,7 +134,7 @@ export default function TimelineBar({
 
         {/* Date Display */}
         <span
-          className="text-xs font-medium w-36 text-center text-amber-400/90 flex-shrink-0"
+          className="text-sm font-medium w-36 text-center text-amber-400/90 flex-shrink-0"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           {formatTime(currentStep)}
@@ -145,7 +146,7 @@ export default function TimelineBar({
             <button
               key={s}
               onClick={() => setSpeed(s)}
-              className={`px-2 py-1 rounded text-[10px] font-semibold tracking-wide transition-all duration-150 cursor-pointer ${
+              className={`px-2 py-1 rounded text-[12px] font-semibold tracking-wide transition-all duration-150 cursor-pointer ${
                 speed === s
                   ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                   : "text-gray-500 hover:text-gray-300 border border-transparent"
@@ -159,7 +160,7 @@ export default function TimelineBar({
 
         {/* Frame Counter */}
         <span
-          className="text-[10px] text-gray-500 flex-shrink-0 tabular-nums"
+          className="text-[12px] text-gray-500 flex-shrink-0 tabular-nums"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           {currentStep + 1}/{totalSteps}

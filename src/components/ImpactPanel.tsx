@@ -126,7 +126,7 @@ export default function ImpactPanel({ fire, currentFrame, visible }: ImpactPanel
       {/* Header */}
       <div className="px-4 pt-3 pb-2 border-b border-amber-500/10">
         <h3
-          className="text-[10px] font-bold tracking-[0.2em] uppercase"
+          className="text-[12px] font-bold tracking-[0.2em] uppercase"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
         >
           Environmental Impact
@@ -144,7 +144,7 @@ export default function ImpactPanel({ fire, currentFrame, visible }: ImpactPanel
         {/* Daily Fire Activity Chart */}
         <div>
           <div
-            className="text-[9px] font-medium tracking-[0.15em] uppercase mb-1.5"
+            className="text-[11px] font-medium tracking-[0.15em] uppercase mb-1.5"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
           >
             Daily Fire Activity
@@ -159,7 +159,7 @@ export default function ImpactPanel({ fire, currentFrame, visible }: ImpactPanel
         {/* Emissions */}
         <div className="border-t border-white/[0.04] pt-3 space-y-2">
           <div
-            className="text-[9px] font-medium tracking-[0.15em] uppercase mb-1"
+            className="text-[11px] font-medium tracking-[0.15em] uppercase mb-1"
             style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
           >
             Estimated Emissions
@@ -182,13 +182,13 @@ export default function ImpactPanel({ fire, currentFrame, visible }: ImpactPanel
         <div>
           <div className="flex justify-between items-baseline mb-1">
             <span
-              className="text-[9px] font-medium tracking-wider uppercase"
+              className="text-[11px] font-medium tracking-wider uppercase"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
             >
               CO₂ vs Total
             </span>
             <span
-              className="text-[10px] tabular-nums"
+              className="text-[12px] tabular-nums"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
             >
               {Math.round((hotspotsToDate / Math.max(stats.totalHotspots, 1)) * 100)}%
@@ -208,7 +208,7 @@ export default function ImpactPanel({ fire, currentFrame, visible }: ImpactPanel
 
         {/* Source note */}
         <p
-          className="text-[8px] pt-1"
+          className="text-[10px] pt-1"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
         >
           Estimates based on VIIRS 375m pixel area &times; published emission factors (van der Werf et al.)
@@ -222,19 +222,19 @@ function StatRow({ label, value, sublabel }: { label: string; value: string; sub
   return (
     <div>
       <div
-        className="text-[9px] font-medium tracking-[0.15em] uppercase mb-0.5"
+        className="text-[11px] font-medium tracking-[0.15em] uppercase mb-0.5"
         style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
       >
         {label}
       </div>
       <div className="flex items-baseline gap-2">
         <span
-          className="text-lg font-bold"
+          className="text-xl font-bold"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}
         >
           {value}
         </span>
-        <span className="text-[10px] text-gray-500">{sublabel}</span>
+        <span className="text-[12px] text-gray-500">{sublabel}</span>
       </div>
     </div>
   );
@@ -248,19 +248,19 @@ function EmissionCard({ label, value, unit, color }: {
       <div className="flex items-center gap-1.5 mb-0.5">
         <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 4px ${color}40` }} />
         <span
-          className="text-[9px] font-medium tracking-wider uppercase"
+          className="text-[11px] font-medium tracking-wider uppercase"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}
         >
           {label}
         </span>
       </div>
       <div
-        className="text-sm font-bold"
+        className="text-base font-bold"
         style={{ fontFamily: "'JetBrains Mono', monospace", color }}
       >
         {value}
       </div>
-      <div className="text-[8px] text-gray-600">{unit}</div>
+      <div className="text-[10px] text-gray-600">{unit}</div>
     </div>
   );
 }

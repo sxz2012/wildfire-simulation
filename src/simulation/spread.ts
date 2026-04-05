@@ -4,74 +4,43 @@ import {
   type GridCell,
   type SimulationConfig,
 } from "./types";
+import { predictSpreadProbability, encodeFuelType } from "./mlModel";
 
 export interface SpreadParams {
   slopeAngle: number;
-  windAlignment: number; // -1 (against) to +1 (aligned)
-  windStrength?: number; // 0-1 normalized
+  windAlignment: number;
+  windStrength?: number;
   humidity: number;
   fuel: (typeof import("./types").FuelType)[keyof typeof import("./types").FuelType];
 }
 
 /**
- * Compute spread probability per timestep.
- *
- * Key behavior:
- *   - Fire spreads MUCH faster downwind than upwind (3-5x difference)
- *   - Against strong wind, spread probability drops near zero
- *   - Crosswind spread is moderate
- *   - This creates realistic elongated fire shapes
+ * Fallback spread rate calculation (used if ML model not loaded).
  */
 export function computeSpreadRate(params: SpreadParams): number {
   const { slopeAngle, windAlignment, windStrength = 0.5, humidity, fuel } = params;
   const fuelProps = FUEL_PROPERTIES[fuel];
-
-  // Base spread rate
   const R0 = fuelProps.spreadRate * 0.35;
-
-  // Slope factor
   const phiSlope = Math.max(-0.3, Math.min(0.6, slopeAngle * 0.02));
-
-  // Wind factor — STRONGLY directional
-  // windAlignment: -1 (against) to +1 (with wind)
-  // With strong wind: downwind gets big boost, upwind gets suppressed
   let windFactor: number;
   if (windStrength < 0.1) {
-    // Calm — spread equally in all directions (slow)
     windFactor = 0;
   } else {
-    // Strong directional effect:
-    // Downwind (alignment=1): factor = +2 to +4 (fast spread)
-    // Crosswind (alignment=0): factor = 0 (base rate only)
-    // Upwind (alignment=-1): factor = -0.7 (nearly stops)
-    windFactor = windAlignment * windStrength * 3.0;
-    if (windAlignment < 0) {
-      // Suppress upwind spread more aggressively
-      windFactor = windAlignment * windStrength * 1.5;
-    }
+    windFactor = windAlignment * windStrength * (windAlignment < 0 ? 1.5 : 3.0);
   }
-
-  // Humidity dampening
   const humidityFactor = Math.max(0.02, Math.exp(-humidity / 40));
-
   const rate = R0 * (1 + windFactor + phiSlope) * humidityFactor * fuelProps.ignitionRate;
-
-  // Clamp — prevent negative and cap at reasonable max
   return Math.max(0, Math.min(0.6, rate));
 }
 
 function windAlignmentFactor(
-  dRow: number,
-  dCol: number,
-  windDirection: number
+  dRow: number, dCol: number, windDirection: number
 ): number {
   const windRad = ((windDirection + 180) * Math.PI) / 180;
   const windDr = -Math.cos(windRad);
   const windDc = Math.sin(windRad);
-
   const len = Math.sqrt(dRow * dRow + dCol * dCol);
   if (len === 0) return 0;
-
   return (dRow * windDr + dCol * windDc) / len;
 }
 
@@ -81,13 +50,36 @@ const NEIGHBOR_OFFSETS = [
   [1, -1],  [1, 0],  [1, 1],
 ];
 
+/** Count burning neighbors within radius */
+function countBurningNeighbors(
+  grid: GridCell[], row: number, col: number, gridSize: number, radius: number
+): number {
+  let count = 0;
+  for (let dr = -radius; dr <= radius; dr++) {
+    for (let dc = -radius; dc <= radius; dc++) {
+      if (dr === 0 && dc === 0) continue;
+      const nr = row + dr;
+      const nc = col + dc;
+      if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) continue;
+      if (grid[nr * gridSize + nc].state === CellState.Burning) count++;
+    }
+  }
+  return count;
+}
+
+/**
+ * ML-enhanced simulation step.
+ * Uses XGBoost model to predict spread probability when available,
+ * falls back to Rothermel-based calculation otherwise.
+ */
 export function simulateStep(
   grid: GridCell[],
-  config: SimulationConfig
+  config: SimulationConfig,
+  stepNumber = 0,
+  useML = true
 ): GridCell[] {
-  const { gridSize, windSpeed, windDirection, humidity, cellSizeMeters } = config;
+  const { gridSize, windSpeed, windDirection, humidity, cellSizeMeters, timestepMinutes } = config;
   const newGrid: GridCell[] = grid.map((cell) => ({ ...cell }));
-
   const windStrength = Math.min(windSpeed / 40, 1.0);
 
   for (let row = 0; row < gridSize; row++) {
@@ -113,19 +105,61 @@ export function simulateStep(
           if (neighbor.state !== CellState.Unburned) continue;
           if (newGrid[nIdx].state === CellState.Burning) continue;
 
-          const elevDiff = neighbor.elevation - cell.elevation;
-          const dist = Math.sqrt(dr * dr + dc * dc) * cellSizeMeters;
-          const slopeAngle = (Math.atan2(elevDiff, dist) * 180) / Math.PI;
+          let rate: number;
 
-          const wAlign = windAlignmentFactor(dr, dc, windDirection);
+          if (useML) {
+            // ML model prediction
+            const hoursElapsed = stepNumber * timestepMinutes / 60;
+            const n1km = countBurningNeighbors(grid, nr, nc, gridSize, 2);
+            const n5km = countBurningNeighbors(grid, nr, nc, gridSize, 5);
+            const n10km = countBurningNeighbors(grid, nr, nc, gridSize, 10);
 
-          const rate = computeSpreadRate({
-            slopeAngle,
-            windAlignment: wAlign,
-            windStrength,
-            humidity,
-            fuel: neighbor.fuel,
-          });
+            const features = [
+              hoursElapsed,           // hours_since_start
+              neighbor.lat,           // latitude
+              neighbor.lng,           // longitude
+              15,                     // frp_mw (estimate for unburned cell)
+              300,                    // brightness_k (baseline)
+              50,                     // confidence
+              1,                      // is_daytime (assume day)
+              encodeFuelType(neighbor.fuel), // fuel_type_enc
+              (config as any).tempMean ?? 25,  // temp_mean_c
+              (config as any).tempMax ?? 35,   // temp_max_c
+              humidity,               // humidity_pct
+              windSpeed,              // wind_speed_kmh
+              windDirection,          // wind_direction_deg
+              (config as any).precipitation ?? 0, // precipitation_mm
+              (config as any).cumulativePrecip ?? 0, // cumulative_precip_mm
+              n1km,                   // neighbors_1km
+              n5km,                   // neighbors_5km
+              n10km,                  // neighbors_10km
+            ];
+
+            const mlProb = predictSpreadProbability(features);
+
+            // Apply directional wind modifier (ML model knows wind speed but not
+            // the direction relative to this specific neighbor)
+            const wAlign = windAlignmentFactor(dr, dc, windDirection);
+            const directionModifier = windStrength > 0.1
+              ? 0.3 + 0.7 * Math.max(0, (wAlign + 1) / 2)  // 0.3 upwind, 1.0 downwind
+              : 1.0;
+
+            rate = mlProb * directionModifier * 0.4; // Scale down for per-step probability
+          } else {
+            // Fallback: Rothermel-based
+            const elevDiff = neighbor.elevation - cell.elevation;
+            const dist = Math.sqrt(dr * dr + dc * dc) * cellSizeMeters;
+            const slopeAngle = (Math.atan2(elevDiff, dist) * 180) / Math.PI;
+            const wAlign = windAlignmentFactor(dr, dc, windDirection);
+
+            rate = computeSpreadRate({
+              slopeAngle,
+              windAlignment: wAlign,
+              windStrength,
+              humidity,
+              fuel: neighbor.fuel,
+            });
+          }
 
           if (Math.random() < rate) {
             newGrid[nIdx].state = CellState.Burning;

@@ -42,7 +42,7 @@ export default function ControlPanel({
         className="fire-panel absolute top-4 left-4 z-50 text-amber-400 px-3 py-2.5 rounded-lg
           hover:border-amber-400/40 transition-all duration-200 group cursor-pointer"
       >
-        <span className="flex items-center gap-2 text-sm font-medium tracking-wide">
+        <span className="flex items-center gap-2 text-base font-medium tracking-wide">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M13 7l5 5-5 5M6 12h12"/>
           </svg>
@@ -59,7 +59,7 @@ export default function ControlPanel({
         <div className="flex justify-between items-center">
           <div className="flex items-center gap-2.5">
             <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" />
-            <h2 className="text-sm font-bold tracking-[0.15em] uppercase"
+            <h2 className="text-base font-bold tracking-[0.15em] uppercase"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}>
               Wildfire Ops
             </h2>
@@ -78,7 +78,7 @@ export default function ControlPanel({
         <div className="flex bg-white/5 rounded-lg p-0.5">
           {(["historical", "ignite"] as const).map((m) => (
             <button key={m} onClick={() => setMode(m)}
-              className={`flex-1 py-2 rounded-md text-xs font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+              className={`flex-1 py-2 rounded-md text-sm font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
                 mode === m ? "bg-amber-500/20 text-amber-400" : "text-gray-500 hover:text-gray-300"
               }`}
               style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -101,7 +101,7 @@ export default function ControlPanel({
                       setWeatherSource(ws);
                       onWeatherSourceChange(ws, ws === "seasonal" ? selectedSeason : undefined);
                     }}
-                    className={`flex-1 py-1.5 rounded-md text-[9px] font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+                    className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
                       weatherSource === ws ? "bg-amber-500/15 text-amber-400" : "text-gray-500 hover:text-gray-300"
                     }`}
                     style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -126,7 +126,7 @@ export default function ControlPanel({
 
               {weatherSource !== "custom" && weatherInfo && (
                 <div className="bg-white/[0.03] rounded-lg px-3 py-2.5 border border-white/[0.04]">
-                  <p className="text-[11px] text-gray-300 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
+                  <p className="text-[15px] text-gray-300 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
                 </div>
               )}
 
@@ -142,7 +142,7 @@ export default function ControlPanel({
               )}
             </div>
 
-            <p className="text-[11px] text-gray-500 leading-relaxed">
+            <p className="text-[13px] text-gray-500 leading-relaxed">
               {weatherSource === "live"
                 ? "Click on the globe to ignite. Live weather will be fetched for that location."
                 : weatherSource === "seasonal"
@@ -170,17 +170,17 @@ export default function ControlPanel({
             </div>
 
             <div className="bg-white/[0.03] rounded-lg px-3.5 py-3 border border-white/[0.04] space-y-2">
-              <p className="text-[13px] text-gray-300 leading-relaxed">
+              <p className="text-[15px] text-gray-300 leading-relaxed">
                 {HISTORICAL_FIRE_LIST[selectedFire].description}
               </p>
               {"details" in HISTORICAL_FIRE_LIST[selectedFire] && (
-                <p className="text-[11px] text-gray-500 leading-relaxed border-t border-white/[0.04] pt-2">
+                <p className="text-[13px] text-gray-500 leading-relaxed border-t border-white/[0.04] pt-2">
                   {(HISTORICAL_FIRE_LIST[selectedFire] as { details: string }).details}
                 </p>
               )}
             </div>
 
-            <div className="flex items-center gap-2 text-[10px] text-gray-500">
+            <div className="flex items-center gap-2 text-[12px] text-gray-500">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
               </svg>
@@ -197,18 +197,18 @@ export default function ControlPanel({
         {mode === "ignite" ? (
           <button onClick={() => onStart(config)} disabled={isRunning}
             className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
-              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer">
+              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-base text-amber-400 transition-all duration-200 cursor-pointer">
             {isRunning ? "Simulating..." : "Click Globe to Ignite"}
           </button>
         ) : (
           <button onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)} disabled={isRunning}
             className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
-              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-sm text-amber-400 transition-all duration-200 cursor-pointer">
+              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-base text-amber-400 transition-all duration-200 cursor-pointer">
             {isRunning ? "Loading..." : "Replay Fire"}
           </button>
         )}
         <button onClick={onReset}
-          className="px-4 py-2.5 rounded-lg text-sm text-gray-400 hover:text-white bg-white/5 hover:bg-white/10
+          className="px-4 py-2.5 rounded-lg text-base text-gray-400 hover:text-white bg-white/5 hover:bg-white/10
             border border-white/[0.06] hover:border-white/10 transition-all duration-200 cursor-pointer">
           Reset
         </button>
@@ -219,7 +219,7 @@ export default function ControlPanel({
 
 function SectionLabel({ children }: { children: string }) {
   return (
-    <label className="block text-[11px] font-medium tracking-wider uppercase mb-1.5"
+    <label className="block text-[13px] font-medium tracking-wider uppercase mb-1.5"
       style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
       {children}
     </label>
@@ -232,11 +232,11 @@ function SliderField({ label, value, unit, min, max, onChange }: {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1">
-        <label className="text-[10px] font-medium tracking-wider uppercase"
+        <label className="text-[12px] font-medium tracking-wider uppercase"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
           {label}
         </label>
-        <span className="text-[12px] font-semibold tabular-nums"
+        <span className="text-[14px] font-semibold tabular-nums"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}>
           {value}{unit}
         </span>
