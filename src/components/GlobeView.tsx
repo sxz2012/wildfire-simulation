@@ -10,7 +10,7 @@ import {
   ScreenSpaceEventType,
   ScreenSpaceEventHandler,
   Cartesian2,
-  UrlTemplateImageryProvider,
+  IonImageryProvider,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -65,17 +65,14 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place names, roads, highways
-      // Use CartoDB Voyager labels (better rendering, less clipping than Toner)
+      // Add place names, roads, highways via Cesium Ion (Bing Maps labels)
+      // Ion asset 2 = Bing Maps Aerial with Labels — no tile clipping
       try {
-        const labelsProvider = new UrlTemplateImageryProvider({
-          url: "https://basemaps.cartocdn.com/rastertiles/voyager_only_labels/{z}/{x}/{y}@2x.png",
-          credit: "CartoDB / OpenStreetMap",
-        });
+        const labelsProvider = await IonImageryProvider.fromAssetId(2);
         const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 0.95;
+        labelsLayer.alpha = 0.7;
       } catch (e) {
-        console.error("Failed to load place labels:", e);
+        console.error("Failed to load Cesium Ion labels:", e);
       }
     };
     setup();
