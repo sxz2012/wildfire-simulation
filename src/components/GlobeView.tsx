@@ -65,14 +65,14 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place names, roads, highways via Cesium Ion (Bing Maps labels)
-      // Ion asset 2 = Bing Maps Aerial with Labels — no tile clipping
+      // Add place names, roads, highways via Cesium Ion
+      // Asset 4 = Bing Maps Road (transparent labels + roads overlay)
       try {
-        const labelsProvider = await IonImageryProvider.fromAssetId(2);
+        const labelsProvider = await IonImageryProvider.fromAssetId(4);
         const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 0.7;
+        labelsLayer.alpha = 0.6;
       } catch (e) {
-        console.error("Failed to load Cesium Ion labels:", e);
+        console.error("Failed to load labels:", e);
       }
     };
     setup();
