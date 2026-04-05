@@ -65,16 +65,26 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place name labels (CartoDB dark labels-only — visible on satellite)
+      // Add place names, roads, and highways (Stadia Stamen Toner labels)
       try {
         const labelsProvider = new UrlTemplateImageryProvider({
-          url: "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-          credit: "CartoDB",
+          url: "https://tiles.stadiamaps.com/tiles/stamen_toner_labels/{z}/{x}/{y}@2x.png",
+          credit: "Stadia Maps / Stamen / OpenStreetMap",
         });
         const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 0.9;
+        labelsLayer.alpha = 0.85;
       } catch (e) {
-        console.error("Failed to load place labels:", e);
+        // Fallback to CartoDB if Stadia is unavailable
+        try {
+          const fallback = new UrlTemplateImageryProvider({
+            url: "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
+            credit: "CartoDB",
+          });
+          const fallbackLayer = viewer.imageryLayers.addImageryProvider(fallback);
+          fallbackLayer.alpha = 0.9;
+        } catch (e2) {
+          console.error("Failed to load place labels:", e2);
+        }
       }
     };
     setup();
