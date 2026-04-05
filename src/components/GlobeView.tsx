@@ -10,8 +10,15 @@ import {
   ScreenSpaceEventType,
   ScreenSpaceEventHandler,
   Cartesian2,
-  UrlTemplateImageryProvider,
+  Color,
+  LabelStyle,
+  VerticalOrigin,
+  HorizontalOrigin,
+  HeightReference,
+  NearFarScalar,
+  DistanceDisplayCondition,
 } from "cesium";
+import { CITIES } from "../data/cities";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
 Ion.defaultAccessToken = import.meta.env.VITE_CESIUM_ION_TOKEN ?? "";
@@ -65,20 +72,49 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place names using CartoDB dark labels
-      // These have transparent background — only text renders
-      try {
-        const labelsProvider = new UrlTemplateImageryProvider({
-          url: "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
-          credit: "CartoDB / OpenStreetMap",
-          maximumLevel: 18,
-          tileWidth: 512,
-          tileHeight: 512,
+      // Add city/place labels as Cesium entities (no tile clipping)
+      for (const city of CITIES) {
+        const isMajor = city.population >= 1000000;
+        const isMedium = city.population >= 100000;
+
+        viewer.entities.add({
+          position: Cartesian3.fromDegrees(city.lng, city.lat, 0),
+          label: {
+            text: city.name,
+            font: isMajor ? "bold 15px DM Sans, sans-serif" : isMedium ? "bold 13px DM Sans, sans-serif" : "12px DM Sans, sans-serif",
+            fillColor: Color.WHITE,
+            outlineColor: Color.BLACK,
+            outlineWidth: isMajor ? 4 : 3,
+            style: LabelStyle.FILL_AND_OUTLINE,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+            horizontalOrigin: HorizontalOrigin.LEFT,
+            pixelOffset: new Cartesian2(6, -4),
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            scaleByDistance: new NearFarScalar(
+              isMajor ? 1000 : 500,
+              isMajor ? 1.2 : 1.0,
+              isMajor ? 8000000 : 3000000,
+              isMajor ? 0.4 : 0.0
+            ),
+            distanceDisplayCondition: new DistanceDisplayCondition(
+              0,
+              isMajor ? 8000000 : isMedium ? 2000000 : 500000
+            ),
+          },
+          point: {
+            pixelSize: isMajor ? 5 : 4,
+            color: Color.WHITE.withAlpha(0.9),
+            outlineColor: Color.BLACK.withAlpha(0.6),
+            outlineWidth: 1,
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            distanceDisplayCondition: new DistanceDisplayCondition(
+              0,
+              isMajor ? 8000000 : isMedium ? 2000000 : 500000
+            ),
+          },
         });
-        const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 1.0;
-      } catch (e) {
-        console.error("Failed to load labels:", e);
       }
     };
     setup();
