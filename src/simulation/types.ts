@@ -57,13 +57,13 @@ export const FUEL_PROPERTIES: Record<
   FuelType,
   { ignitionRate: number; burnDuration: number; spreadRate: number }
 > = {
-  [FuelType.Grass]: { ignitionRate: 0.55, burnDuration: 8, spreadRate: 0.65 },
-  [FuelType.Shrub]: { ignitionRate: 0.35, burnDuration: 16, spreadRate: 0.50 },
-  [FuelType.Forest]: { ignitionRate: 0.20, burnDuration: 32, spreadRate: 0.35 },
+  [FuelType.Grass]: { ignitionRate: 0.55, burnDuration: 20, spreadRate: 0.65 },
+  [FuelType.Shrub]: { ignitionRate: 0.35, burnDuration: 40, spreadRate: 0.50 },
+  [FuelType.Forest]: { ignitionRate: 0.20, burnDuration: 80, spreadRate: 0.35 },
 };
 
 export const DEFAULT_CONFIG: SimulationConfig = {
-  gridSize: 300,
+  gridSize: 400,
   cellSizeMeters: 50,
   windSpeed: 20,
   windDirection: 270,
