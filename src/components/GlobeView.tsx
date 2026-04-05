@@ -10,7 +10,7 @@ import {
   ScreenSpaceEventType,
   ScreenSpaceEventHandler,
   Cartesian2,
-  IonImageryProvider,
+  UrlTemplateImageryProvider,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -65,12 +65,18 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place names, roads, highways via Cesium Ion
-      // Asset 4 = Bing Maps Road (transparent labels + roads overlay)
+      // Add place names using CartoDB dark labels
+      // These have transparent background — only text renders
       try {
-        const labelsProvider = await IonImageryProvider.fromAssetId(4);
+        const labelsProvider = new UrlTemplateImageryProvider({
+          url: "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
+          credit: "CartoDB / OpenStreetMap",
+          maximumLevel: 18,
+          tileWidth: 512,
+          tileHeight: 512,
+        });
         const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 0.6;
+        labelsLayer.alpha = 1.0;
       } catch (e) {
         console.error("Failed to load labels:", e);
       }
