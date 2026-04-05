@@ -65,14 +65,14 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         console.error("Failed to load Google 3D Tiles:", e);
       }
 
-      // Add place name labels (CartoDB labels-only tiles)
+      // Add place name labels (CartoDB dark labels-only — visible on satellite)
       try {
         const labelsProvider = new UrlTemplateImageryProvider({
-          url: "https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
+          url: "https://basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}@2x.png",
           credit: "CartoDB",
         });
         const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
-        labelsLayer.alpha = 0.8;
+        labelsLayer.alpha = 0.9;
       } catch (e) {
         console.error("Failed to load place labels:", e);
       }
