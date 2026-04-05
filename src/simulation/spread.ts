@@ -144,7 +144,7 @@ export function simulateStep(
               ? 0.3 + 0.7 * Math.max(0, (wAlign + 1) / 2)  // 0.3 upwind, 1.0 downwind
               : 1.0;
 
-            rate = mlProb * directionModifier * 0.4; // Scale down for per-step probability
+            rate = mlProb * directionModifier * 0.12; // Scale down for per-step probability
           } else {
             // Fallback: Rothermel-based
             const elevDiff = neighbor.elevation - cell.elevation;

@@ -63,7 +63,7 @@ export const FUEL_PROPERTIES: Record<
 };
 
 export const DEFAULT_CONFIG: SimulationConfig = {
-  gridSize: 200,
+  gridSize: 300,
   cellSizeMeters: 50,
   windSpeed: 20,
   windDirection: 270,

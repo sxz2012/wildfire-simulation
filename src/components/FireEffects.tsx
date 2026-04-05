@@ -40,9 +40,9 @@ function createSmokeTexture(): HTMLCanvasElement {
   canvas.height = 32;
   const ctx = canvas.getContext("2d")!;
   const gradient = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
-  gradient.addColorStop(0, "rgba(120, 120, 120, 0.4)");
-  gradient.addColorStop(0.5, "rgba(100, 100, 100, 0.2)");
-  gradient.addColorStop(1, "rgba(80, 80, 80, 0)");
+  gradient.addColorStop(0, "rgba(50, 50, 50, 0.7)");
+  gradient.addColorStop(0.5, "rgba(40, 40, 40, 0.4)");
+  gradient.addColorStop(1, "rgba(30, 30, 30, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 32, 32);
   return canvas;
@@ -111,8 +111,8 @@ export default function FireEffects({
 
       const smokeSystem = new ParticleSystem({
         image: smokeTexture,
-        startColor: Color.fromCssColorString("#999999").withAlpha(0.3),
-        endColor: Color.fromCssColorString("#666666").withAlpha(0.0),
+        startColor: Color.fromCssColorString("#444444").withAlpha(0.6),
+        endColor: Color.fromCssColorString("#333333").withAlpha(0.0),
         startScale: 1.5,
         endScale: 6.0,
         minimumParticleLife: 2.0,

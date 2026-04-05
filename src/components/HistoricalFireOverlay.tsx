@@ -78,9 +78,9 @@ function createSmokeImage(): HTMLCanvasElement {
   canvas.height = 64;
   const ctx = canvas.getContext("2d")!;
   const gradient = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
-  gradient.addColorStop(0, "rgba(180, 180, 180, 0.35)");
-  gradient.addColorStop(0.4, "rgba(140, 140, 140, 0.2)");
-  gradient.addColorStop(1, "rgba(100, 100, 100, 0)");
+  gradient.addColorStop(0, "rgba(60, 60, 60, 0.7)");
+  gradient.addColorStop(0.4, "rgba(40, 40, 40, 0.45)");
+  gradient.addColorStop(1, "rgba(30, 30, 30, 0)");
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 64, 64);
   return canvas;
