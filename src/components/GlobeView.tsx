@@ -10,6 +10,7 @@ import {
   ScreenSpaceEventType,
   ScreenSpaceEventHandler,
   Cartesian2,
+  UrlTemplateImageryProvider,
 } from "cesium";
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
@@ -62,6 +63,18 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
         viewer.scene.primitives.add(tileset);
       } catch (e) {
         console.error("Failed to load Google 3D Tiles:", e);
+      }
+
+      // Add place name labels (CartoDB labels-only tiles)
+      try {
+        const labelsProvider = new UrlTemplateImageryProvider({
+          url: "https://basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}@2x.png",
+          credit: "CartoDB",
+        });
+        const labelsLayer = viewer.imageryLayers.addImageryProvider(labelsProvider);
+        labelsLayer.alpha = 0.8;
+      } catch (e) {
+        console.error("Failed to load place labels:", e);
       }
     };
     setup();
