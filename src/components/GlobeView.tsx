@@ -15,7 +15,6 @@ import {
   VerticalOrigin,
   HorizontalOrigin,
   HeightReference,
-  NearFarScalar,
   DistanceDisplayCondition,
 } from "cesium";
 import { CITIES } from "../data/cities";
