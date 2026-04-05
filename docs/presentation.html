@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wildfire Visualization — Data Sources & Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --amber: #F59E0B;
+    --orange: #EA580C;
+    --red: #DC2626;
+    --dark: #0a0a0e;
+    --panel: rgba(20, 20, 28, 0.95);
+    --border: rgba(245, 158, 11, 0.2);
+    --text: #F5F5F4;
+    --dim: #6B7280;
+  }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--dark);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  .slide {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 60px 80px;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .slide::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: radial-gradient(ellipse at 30% 50%, rgba(245, 158, 11, 0.03), transparent 60%);
+    pointer-events: none;
+  }
+
+  .slide-number {
+    position: absolute;
+    top: 30px;
+    right: 40px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 14px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  h1 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 48px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+
+  h2 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 32px;
+    font-weight: 700;
+    color: var(--amber);
+    margin-bottom: 30px;
+    letter-spacing: -0.01em;
+  }
+
+  h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--orange);
+    margin-bottom: 12px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .subtitle {
+    font-size: 22px;
+    color: #A8A29E;
+    margin-bottom: 40px;
+    line-height: 1.6;
+  }
+
+  .grid-2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+  }
+
+  .grid-3 {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 24px;
+    margin-top: 20px;
+  }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 28px;
+    position: relative;
+  }
+
+  .card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, var(--amber), var(--orange), transparent);
+    border-radius: 12px 12px 0 0;
+  }
+
+  .card p {
+    color: #A8A29E;
+    font-size: 15px;
+    line-height: 1.7;
+    margin-top: 8px;
+  }
+
+  .stat {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--amber);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .stat-card {
+    text-align: center;
+    padding: 32px 20px;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 16px;
+    font-size: 14px;
+  }
+
+  th {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.15em;
+    color: var(--dim);
+    text-align: left;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  td {
+    padding: 10px 16px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: #d4d4d4;
+  }
+
+  tr:hover td {
+    background: rgba(245, 158, 11, 0.03);
+  }
+
+  .tag {
+    display: inline-block;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 4px;
+    background: rgba(245, 158, 11, 0.15);
+    color: var(--amber);
+    letter-spacing: 0.05em;
+  }
+
+  .tag-green {
+    background: rgba(34, 197, 94, 0.15);
+    color: #22C55E;
+  }
+
+  .pipeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin: 30px 0;
+    flex-wrap: wrap;
+  }
+
+  .pipeline-step {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 22px;
+    text-align: center;
+    flex: 1;
+    min-width: 140px;
+  }
+
+  .pipeline-step .step-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--amber);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .pipeline-step .step-detail {
+    font-size: 13px;
+    color: #A8A29E;
+    margin-top: 6px;
+  }
+
+  .pipeline-arrow {
+    font-size: 24px;
+    color: var(--amber);
+    padding: 0 8px;
+    flex-shrink: 0;
+  }
+
+  .bar-chart {
+    display: flex;
+    align-items: flex-end;
+    gap: 4px;
+    height: 120px;
+    margin-top: 16px;
+    padding-top: 10px;
+  }
+
+  .bar {
+    flex: 1;
+    background: linear-gradient(to top, var(--amber), var(--orange));
+    border-radius: 3px 3px 0 0;
+    position: relative;
+    min-width: 20px;
+    transition: height 0.3s ease;
+  }
+
+  .bar-label {
+    position: absolute;
+    bottom: -22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 9px;
+    color: var(--dim);
+    white-space: nowrap;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .accent { color: var(--amber); }
+  .accent-orange { color: var(--orange); }
+  .accent-red { color: var(--red); }
+
+  .footer-note {
+    position: absolute;
+    bottom: 20px;
+    left: 80px;
+    font-size: 12px;
+    color: var(--dim);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  @media print {
+    .slide { page-break-after: always; min-height: auto; padding: 40px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SLIDE 1: Title -->
+<div class="slide">
+  <span class="slide-number">01 / 08</span>
+  <div style="max-width: 800px;">
+    <h1>Wildfire Spread<br>Visualization &<br>Prediction</h1>
+    <p class="subtitle">
+      A 3D interactive platform combining NASA satellite fire data, real-time weather,
+      and machine learning to visualize and predict wildfire spread behavior.
+    </p>
+    <div style="display: flex; gap: 12px; margin-top: 20px;">
+      <span class="tag">CesiumJS + Google 3D Tiles</span>
+      <span class="tag">NASA FIRMS</span>
+      <span class="tag">XGBoost ML</span>
+      <span class="tag">Open-Meteo</span>
+    </div>
+  </div>
+  <div class="footer-note">Wildfire Ops — Data Sources & Architecture</div>
+</div>
+
+<!-- SLIDE 2: Key Numbers -->
+<div class="slide">
+  <span class="slide-number">02 / 08</span>
+  <h2>By The Numbers</h2>
+  <div class="grid-3">
+    <div class="card stat-card">
+      <span class="stat">880K</span>
+      <span class="stat-label">Satellite Hotspot Detections</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat">30</span>
+      <span class="stat-label">Historical Fires Across 13 Countries</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat">88.2%</span>
+      <span class="stat-label">ML Model Accuracy</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat">0.948</span>
+      <span class="stat-label">AUC-ROC Score</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat">22</span>
+      <span class="stat-label">ML Features Per Detection</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat">7</span>
+      <span class="stat-label">External Data Sources</span>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 3: Data Sources Overview -->
+<div class="slide">
+  <span class="slide-number">03 / 08</span>
+  <h2>Data Sources</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Source</th>
+        <th>Provider</th>
+        <th>Data Type</th>
+        <th>Resolution</th>
+        <th>Cost</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong class="accent">Fire Hotspots</strong></td>
+        <td>NASA FIRMS</td>
+        <td>VIIRS satellite detections</td>
+        <td>375m</td>
+        <td><span class="tag-green tag">Free</span></td>
+      </tr>
+      <tr>
+        <td><strong class="accent">Historical Weather</strong></td>
+        <td>Open-Meteo Archive</td>
+        <td>Temperature, wind, humidity, rain</td>
+        <td>~11km</td>
+        <td><span class="tag-green tag">Free</span></td>
+      </tr>
+      <tr>
+        <td><strong class="accent">Live Weather</strong></td>
+        <td>Open-Meteo Forecast</td>
+        <td>Real-time conditions</td>
+        <td>~11km</td>
+        <td><span class="tag-green tag">Free</span></td>
+      </tr>
+      <tr>
+        <td><strong class="accent">Land Cover</strong></td>
+        <td>OpenLandMap / Copernicus</td>
+        <td>Vegetation classification</td>
+        <td>100m</td>
+        <td><span class="tag-green tag">Free</span></td>
+      </tr>
+      <tr>
+        <td><strong class="accent">3D Globe</strong></td>
+        <td>Google Maps / CesiumJS</td>
+        <td>Photorealistic 3D terrain</td>
+        <td>Varies</td>
+        <td><span class="tag">Free Tier</span></td>
+      </tr>
+      <tr>
+        <td><strong class="accent">Elevation</strong></td>
+        <td>Open-Meteo / Cesium Ion</td>
+        <td>Terrain height (SRTM)</td>
+        <td>~90m</td>
+        <td><span class="tag-green tag">Free</span></td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SLIDE 4: Data Pipeline -->
+<div class="slide">
+  <span class="slide-number">04 / 08</span>
+  <h2>Data Pipeline</h2>
+  <div class="pipeline">
+    <div class="pipeline-step">
+      <div class="step-title">NASA FIRMS</div>
+      <div class="step-detail">880K hotspot CSV records from 30 fires</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-title">+ Weather</div>
+      <div class="step-detail">Open-Meteo daily weather per fire event</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-title">+ Land Cover</div>
+      <div class="step-detail">Copernicus vegetation classification</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-title">+ Neighbors</div>
+      <div class="step-detail">Spatial density at 1/5/10 km</div>
+    </div>
+    <div class="pipeline-arrow">&rarr;</div>
+    <div class="pipeline-step">
+      <div class="step-title">Training CSV</div>
+      <div class="step-detail">251K balanced rows, 22 columns</div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top: 40px;">
+    <div class="card">
+      <h3>Input Features (18)</h3>
+      <p>
+        <strong>Weather:</strong> temperature, humidity, wind speed/direction, precipitation<br>
+        <strong>Detection:</strong> FRP, brightness, confidence, day/night<br>
+        <strong>Spatial:</strong> lat/lng, neighbors at 1km/5km/10km<br>
+        <strong>Context:</strong> hours since ignition, fuel type
+      </p>
+    </div>
+    <div class="card">
+      <h3>Prediction Targets (2)</h3>
+      <p>
+        <strong>fire_persists_1km:</strong> Does fire still burn within 1km in the next satellite pass? (71.8% positive rate)<br><br>
+        <strong>fire_spreads_5km:</strong> Does fire exist within 5km in the next observation? (89.5% positive rate)
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 5: ML Model Results -->
+<div class="slide">
+  <span class="slide-number">05 / 08</span>
+  <h2>Model Comparison</h2>
+
+  <table>
+    <thead>
+      <tr><th>Model</th><th>Accuracy</th><th>AUC-ROC</th><th>Status</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Logistic Regression</td>
+        <td>70.2%</td>
+        <td>0.699</td>
+        <td style="color: var(--dim);">Baseline</td>
+      </tr>
+      <tr>
+        <td>Gradient Boosting</td>
+        <td>85.4%</td>
+        <td>0.919</td>
+        <td style="color: var(--dim);">Good</td>
+      </tr>
+      <tr>
+        <td>Random Forest</td>
+        <td>86.9%</td>
+        <td>0.937</td>
+        <td style="color: var(--dim);">Better</td>
+      </tr>
+      <tr style="background: rgba(245,158,11,0.05);">
+        <td><strong class="accent">XGBoost</strong></td>
+        <td><strong class="accent">88.2%</strong></td>
+        <td><strong class="accent">0.948</strong></td>
+        <td><span class="tag">Selected</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div style="margin-top: 40px;">
+    <h3>Top Predictive Features</h3>
+    <div class="bar-chart" style="padding-bottom: 30px;">
+      <div class="bar" style="height: 100%;"><span class="bar-label">Precip</span></div>
+      <div class="bar" style="height: 83%;"><span class="bar-label">Cum. Precip</span></div>
+      <div class="bar" style="height: 47%;"><span class="bar-label">Daytime</span></div>
+      <div class="bar" style="height: 38%;"><span class="bar-label">Temp Max</span></div>
+      <div class="bar" style="height: 35%;"><span class="bar-label">Humidity</span></div>
+      <div class="bar" style="height: 34%;"><span class="bar-label">Wind Spd</span></div>
+      <div class="bar" style="height: 32%;"><span class="bar-label">Hours</span></div>
+      <div class="bar" style="height: 31%;"><span class="bar-label">Wind Dir</span></div>
+      <div class="bar" style="height: 28%;"><span class="bar-label">Longitude</span></div>
+      <div class="bar" style="height: 26%;"><span class="bar-label">Neighbors</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 6: Historical Fires -->
+<div class="slide">
+  <span class="slide-number">06 / 08</span>
+  <h2>30 Historical Fires</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>United States (15 fires)</h3>
+      <table>
+        <tbody>
+          <tr><td>Camp Fire 2018</td><td class="accent">85 fatalities</td></tr>
+          <tr><td>Dixie Fire 2021</td><td class="accent">963K acres</td></tr>
+          <tr><td>Maui Fire 2023</td><td class="accent">101 fatalities</td></tr>
+          <tr><td>Marshall Fire 2021</td><td class="accent">1,084 homes</td></tr>
+          <tr><td>Thomas Fire 2017</td><td class="accent">$2.2B damage</td></tr>
+          <tr><td>Park Fire 2024</td><td class="accent">430K acres</td></tr>
+          <tr><td>Caldor Fire 2021</td><td class="accent">Crossed Sierra</td></tr>
+          <tr><td>Creek Fire 2020</td><td class="accent">Pyro-Cb cloud</td></tr>
+          <tr><td colspan="2" style="color: var(--dim);">+ Tubbs, Woolsey, Mendocino, Kincade, Bootleg, Oak, McKinney, Hermits Peak, Hawaii Kilauea</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card">
+      <h3>Global (15 fires)</h3>
+      <table>
+        <tbody>
+          <tr><td>Australia 2020</td><td class="accent">46M acres</td></tr>
+          <tr><td>Siberia 2021</td><td class="accent">45M acres</td></tr>
+          <tr><td>Canada 2023</td><td class="accent">45M acres</td></tr>
+          <tr><td>Amazon 2019</td><td class="accent">80K fires</td></tr>
+          <tr><td>Chile 2024</td><td class="accent">131 fatalities</td></tr>
+          <tr><td>Greece 2023</td><td class="accent">Largest EU fire</td></tr>
+          <tr><td>Indonesia 2019</td><td class="accent">SE Asia haze</td></tr>
+          <tr><td colspan="2" style="color: var(--dim);">+ Portugal 2017, Sweden 2018, Bolivia 2019, Turkey 2021, Algeria 2021, Tenerife 2023</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 7: Architecture -->
+<div class="slide">
+  <span class="slide-number">07 / 08</span>
+  <h2>System Architecture</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>Frontend</h3>
+      <p>
+        <strong>React + TypeScript</strong> — UI components<br>
+        <strong>CesiumJS</strong> — 3D globe rendering<br>
+        <strong>Google 3D Tiles</strong> — Photorealistic terrain<br>
+        <strong>Tailwind CSS</strong> — Styling<br>
+        <strong>Vite</strong> — Build tooling<br>
+        <strong>Web Worker</strong> — Background simulation
+      </p>
+    </div>
+    <div class="card">
+      <h3>ML Pipeline</h3>
+      <p>
+        <strong>XGBoost</strong> — 300 decision trees<br>
+        <strong>scikit-learn</strong> — Model comparison<br>
+        <strong>Custom TS evaluator</strong> — Browser inference<br>
+        <strong>JSON export</strong> — 2.2MB model file<br>
+        <strong>Web Worker</strong> — Non-blocking prediction
+      </p>
+    </div>
+    <div class="card">
+      <h3>Visualization</h3>
+      <p>
+        <strong>Billboard flames</strong> — Canvas-drawn fire icons<br>
+        <strong>Particle systems</strong> — Animated smoke/fire<br>
+        <strong>Point primitives</strong> — Hotspot rendering<br>
+        <strong>Timeline scrubber</strong> — Playback control<br>
+        <strong>Impact panel</strong> — CO₂/PM2.5 estimates
+      </p>
+    </div>
+    <div class="card">
+      <h3>Data Services</h3>
+      <p>
+        <strong>NASA FIRMS API</strong> — Fire detections<br>
+        <strong>Open-Meteo API</strong> — Weather (live + archive)<br>
+        <strong>OpenLandMap WMS</strong> — Land cover<br>
+        <strong>Cesium Ion</strong> — Terrain elevation<br>
+        <strong>Satellite imagery sampling</strong> — Vegetation
+      </p>
+    </div>
+  </div>
+</div>
+
+<!-- SLIDE 8: Environmental Impact -->
+<div class="slide">
+  <span class="slide-number">08 / 08</span>
+  <h2>Environmental Impact Estimation</h2>
+  <p class="subtitle" style="margin-bottom: 30px;">
+    Emissions calculated per hotspot detection using published emission factors
+    (van der Werf et al., Global Fire Emissions Database).
+  </p>
+  <div class="grid-3">
+    <div class="card stat-card">
+      <span class="stat accent-red">CO₂</span>
+      <span class="stat-label">~15 tonnes per hectare burned</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat accent-orange">PM2.5</span>
+      <span class="stat-label">~0.4 tonnes per hectare burned</span>
+    </div>
+    <div class="card stat-card">
+      <span class="stat" style="color: #FBBF24;">CO</span>
+      <span class="stat-label">~1.2 tonnes per hectare burned</span>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 30px;">
+    <h3>Methodology</h3>
+    <p>
+      Each VIIRS satellite detection covers approximately <strong>14 hectares</strong> (375m × 375m pixel).
+      Emissions are estimated by multiplying detected area by fuel-type-specific emission factors.
+      Real-time estimates update as the timeline scrubs through the fire progression.
+      The "Car Years Equivalent" metric converts CO₂ to the number of average passenger vehicles
+      driven for one year (4.6 tonnes CO₂/car/year, EPA).
+    </p>
+  </div>
+  <div class="footer-note">All data sources are free and publicly accessible</div>
+</div>
+
+</body>
+</html>
