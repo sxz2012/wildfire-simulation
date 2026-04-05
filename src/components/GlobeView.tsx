@@ -73,46 +73,49 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
       }
 
       // Add city/place labels as Cesium entities (no tile clipping)
+      // Population tiers control visibility at different zoom levels
       for (const city of CITIES) {
-        const isMajor = city.population >= 1000000;
-        const isMedium = city.population >= 100000;
+        const pop = city.population;
+        let font: string, outlineWidth: number, maxDist: number, dotSize: number;
+
+        if (pop >= 5000000) {
+          font = "bold 16px DM Sans, sans-serif"; outlineWidth = 5; maxDist = 10000000; dotSize = 6;
+        } else if (pop >= 1000000) {
+          font = "bold 14px DM Sans, sans-serif"; outlineWidth = 4; maxDist = 5000000; dotSize = 5;
+        } else if (pop >= 300000) {
+          font = "bold 13px DM Sans, sans-serif"; outlineWidth = 3; maxDist = 2000000; dotSize = 4;
+        } else if (pop >= 100000) {
+          font = "13px DM Sans, sans-serif"; outlineWidth = 3; maxDist = 800000; dotSize = 3;
+        } else if (pop >= 50000) {
+          font = "12px DM Sans, sans-serif"; outlineWidth = 2; maxDist = 400000; dotSize = 3;
+        } else {
+          font = "11px DM Sans, sans-serif"; outlineWidth = 2; maxDist = 200000; dotSize = 2;
+        }
 
         viewer.entities.add({
           position: Cartesian3.fromDegrees(city.lng, city.lat, 0),
           label: {
             text: city.name,
-            font: isMajor ? "bold 15px DM Sans, sans-serif" : isMedium ? "bold 13px DM Sans, sans-serif" : "12px DM Sans, sans-serif",
+            font,
             fillColor: Color.WHITE,
             outlineColor: Color.BLACK,
-            outlineWidth: isMajor ? 4 : 3,
+            outlineWidth,
             style: LabelStyle.FILL_AND_OUTLINE,
             verticalOrigin: VerticalOrigin.BOTTOM,
             horizontalOrigin: HorizontalOrigin.LEFT,
             pixelOffset: new Cartesian2(6, -4),
             heightReference: HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            scaleByDistance: new NearFarScalar(
-              isMajor ? 1000 : 500,
-              isMajor ? 1.2 : 1.0,
-              isMajor ? 8000000 : 3000000,
-              isMajor ? 0.4 : 0.0
-            ),
-            distanceDisplayCondition: new DistanceDisplayCondition(
-              0,
-              isMajor ? 8000000 : isMedium ? 2000000 : 500000
-            ),
+            distanceDisplayCondition: new DistanceDisplayCondition(0, maxDist),
           },
           point: {
-            pixelSize: isMajor ? 5 : 4,
+            pixelSize: dotSize,
             color: Color.WHITE.withAlpha(0.9),
             outlineColor: Color.BLACK.withAlpha(0.6),
             outlineWidth: 1,
             heightReference: HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            distanceDisplayCondition: new DistanceDisplayCondition(
-              0,
-              isMajor ? 8000000 : isMedium ? 2000000 : 500000
-            ),
+            distanceDisplayCondition: new DistanceDisplayCondition(0, maxDist),
           },
         });
       }
