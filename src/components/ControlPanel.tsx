@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { DEFAULT_CONFIG, type SimulationConfig } from "../simulation/types";
-import { HISTORICAL_FIRE_LIST } from "../data/historicalFires";
+import { HISTORICAL_FIRE_LIST, type HistoricalFire } from "../data/historicalFires";
 import { SEASONS, type Season } from "../services/weather";
+import ImpactSection from "./ImpactSection";
 
 type WeatherSource = "live" | "seasonal" | "custom";
 
@@ -14,6 +15,9 @@ interface ControlPanelProps {
   collapsed: boolean;
   onToggleCollapse: () => void;
   weatherInfo?: string;
+  fire?: HistoricalFire | null;
+  currentFrame?: number;
+  showImpact?: boolean;
 }
 
 export default function ControlPanel({
@@ -25,6 +29,9 @@ export default function ControlPanel({
   collapsed,
   onToggleCollapse,
   weatherInfo,
+  fire,
+  currentFrame,
+  showImpact,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -53,7 +60,7 @@ export default function ControlPanel({
   }
 
   return (
-    <div className="fire-panel absolute top-3 left-3 z-50 w-80 rounded-xl text-white flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
+    <div className="fire-panel animate-enter-left absolute top-3 left-3 z-50 w-80 rounded-xl text-white flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
       {/* Header */}
       <div className="px-5 pt-4 pb-3 border-b border-amber-500/10">
         <div className="flex justify-between items-center">
@@ -101,7 +108,7 @@ export default function ControlPanel({
                       setWeatherSource(ws);
                       onWeatherSourceChange(ws, ws === "seasonal" ? selectedSeason : undefined);
                     }}
-                    className={`flex-1 py-1.5 rounded-md text-[11px] font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
+                    className={`flex-1 py-1.5 rounded-md text-label font-semibold tracking-wide uppercase transition-all duration-200 cursor-pointer ${
                       weatherSource === ws ? "bg-amber-500/15 text-amber-400" : "text-gray-500 hover:text-gray-300"
                     }`}
                     style={{ fontFamily: "'JetBrains Mono', monospace" }}>
@@ -126,7 +133,7 @@ export default function ControlPanel({
 
               {weatherSource !== "custom" && weatherInfo && (
                 <div className="bg-white/[0.03] rounded-lg px-3 py-2.5 border border-white/[0.04]">
-                  <p className="text-[15px] text-gray-300 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
+                  <p className="text-sm text-gray-300 leading-relaxed whitespace-pre-line">{weatherInfo}</p>
                 </div>
               )}
 
@@ -142,7 +149,7 @@ export default function ControlPanel({
               )}
             </div>
 
-            <p className="text-[13px] text-gray-500 leading-relaxed">
+            <p className="text-sm text-gray-500 leading-relaxed">
               {weatherSource === "live"
                 ? "Click on the globe to ignite. Live weather will be fetched for that location."
                 : weatherSource === "seasonal"
@@ -156,31 +163,43 @@ export default function ControlPanel({
           <>
             <div>
               <SectionLabel>Select Fire Event</SectionLabel>
-              <select value={selectedFire}
-                onChange={(e) => {
-                  const idx = Number(e.target.value);
-                  setSelectedFire(idx);
-                  onStartHistorical(HISTORICAL_FIRE_LIST[idx].id);
-                }}
-                className="fire-select w-full">
+              <div className="flex flex-col gap-1.5 max-h-[260px] overflow-y-auto pr-1">
                 {HISTORICAL_FIRE_LIST.map((f, i) => (
-                  <option key={i} value={i}>{f.name}</option>
+                  <button
+                    key={f.id}
+                    onClick={() => {
+                      setSelectedFire(i);
+                      onStartHistorical(f.id);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg border transition-all duration-200 cursor-pointer ${
+                      selectedFire === i
+                        ? "bg-amber-500/15 border-amber-500/30"
+                        : "bg-white/[0.03] border-white/[0.04] hover:border-amber-500/20 hover:bg-white/[0.05]"
+                    }`}
+                  >
+                    <div className="flex items-baseline justify-between mb-0.5">
+                      <span className="text-sm font-semibold text-gray-200 truncate">
+                        {f.name.replace(/ \(.*\)$/, "").replace(/ \d{4}$/, "")}
+                      </span>
+                      <span
+                        className="text-caption text-gray-500 ml-2 flex-shrink-0"
+                        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+                      >
+                        {f.year}
+                      </span>
+                    </div>
+                    <div className="text-micro text-gray-500 mb-1">{f.location}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {f.acres && <Pill label={formatAcres(f.acres)} />}
+                      {f.damage && <Pill label={f.damage} />}
+                      {f.fatalities && <Pill label={`${f.fatalities} deaths`} color="red" />}
+                    </div>
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
 
-            <div className="bg-white/[0.03] rounded-lg px-3.5 py-3 border border-white/[0.04] space-y-2">
-              <p className="text-[15px] text-gray-300 leading-relaxed">
-                {HISTORICAL_FIRE_LIST[selectedFire].description}
-              </p>
-              {"details" in HISTORICAL_FIRE_LIST[selectedFire] && (
-                <p className="text-[13px] text-gray-500 leading-relaxed border-t border-white/[0.04] pt-2">
-                  {(HISTORICAL_FIRE_LIST[selectedFire] as { details: string }).details}
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 text-[12px] text-gray-500">
+            <div className="flex items-center gap-2 text-caption text-gray-500">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
               </svg>
@@ -189,6 +208,12 @@ export default function ControlPanel({
               </span>
             </div>
           </>
+        )}
+
+        {showImpact && fire && (
+          <div className="border-t border-white/[0.04] pt-4 mt-2">
+            <ImpactSection fire={fire} currentFrame={currentFrame ?? 0} />
+          </div>
         )}
       </div>
 
@@ -217,9 +242,30 @@ export default function ControlPanel({
   );
 }
 
+function Pill({ label, color }: { label: string; color?: "red" | "default" }) {
+  return (
+    <span
+      className={`inline-flex items-center px-1.5 py-0.5 rounded text-micro font-medium ${
+        color === "red"
+          ? "bg-red-500/15 text-red-400 border border-red-500/20"
+          : "bg-white/[0.06] text-gray-400 border border-white/[0.06]"
+      }`}
+      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+    >
+      {label}
+    </span>
+  );
+}
+
+function formatAcres(acres: number): string {
+  if (acres >= 1_000_000) return (acres / 1_000_000).toFixed(1) + "M acres";
+  if (acres >= 1_000) return Math.round(acres / 1_000) + "K acres";
+  return acres + " acres";
+}
+
 function SectionLabel({ children }: { children: string }) {
   return (
-    <label className="block text-[13px] font-medium tracking-wider uppercase mb-1.5"
+    <label className="block text-sm font-medium tracking-wider uppercase mb-1.5"
       style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
       {children}
     </label>
@@ -232,11 +278,11 @@ function SliderField({ label, value, unit, min, max, onChange }: {
   return (
     <div>
       <div className="flex justify-between items-baseline mb-1">
-        <label className="text-[12px] font-medium tracking-wider uppercase"
+        <label className="text-caption font-medium tracking-wider uppercase"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-secondary)" }}>
           {label}
         </label>
-        <span className="text-[14px] font-semibold tabular-nums"
+        <span className="text-sm font-semibold tabular-nums"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}>
           {value}{unit}
         </span>

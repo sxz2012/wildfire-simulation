@@ -20,9 +20,9 @@ export default function Legend({ mode, visible }: LegendProps) {
         ];
 
   return (
-    <div className="fire-panel absolute bottom-16 right-3 z-50 rounded-xl px-3.5 py-3 min-w-[150px]">
+    <div className="fire-panel animate-enter-right absolute bottom-16 right-3 z-50 rounded-xl px-3.5 py-3 min-w-[150px]">
       <div
-        className="text-[11px] font-semibold tracking-[0.2em] uppercase mb-2.5 pb-1.5 border-b border-white/[0.04]"
+        className="text-label font-semibold tracking-[0.2em] uppercase mb-2.5 pb-1.5 border-b border-white/[0.04]"
         style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
       >
         Legend
@@ -37,12 +37,12 @@ export default function Legend({ mode, visible }: LegendProps) {
                 boxShadow: item.glow !== "none" ? `0 0 6px ${item.glow}` : undefined,
               }}
             />
-            <span className="text-[13px] text-gray-400">{item.label}</span>
+            <span className="text-sm text-gray-400">{item.label}</span>
           </div>
         ))}
       </div>
       <div
-        className="text-[11px] mt-2.5 pt-2 border-t border-white/[0.04]"
+        className="text-label mt-2.5 pt-2 border-t border-white/[0.04]"
         style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
       >
         {mode === "historical" ? "NASA FIRMS" : "Rothermel Model"}

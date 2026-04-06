@@ -126,3 +126,26 @@ select.fire-select:focus {
   background: rgba(245, 158, 11, 0.2);
   border-radius: 2px;
 }
+
+/* ─── Typography Scale ─── */
+.text-micro  { font-size: 10px; }
+.text-label  { font-size: 11px; }
+.text-caption { font-size: 12px; }
+
+/* ─── Panel Entrance Animations ─── */
+@keyframes panel-enter-left {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes panel-enter-right {
+  from { opacity: 0; transform: translateX(12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes panel-enter-bottom {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-enter-left   { animation: panel-enter-left 0.3s ease-out both; }
+.animate-enter-right  { animation: panel-enter-right 0.3s ease-out both; }
+.animate-enter-bottom { animation: panel-enter-bottom 0.3s ease-out both; }

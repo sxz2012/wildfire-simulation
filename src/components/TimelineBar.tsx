@@ -70,7 +70,7 @@ export default function TimelineBar({
   const speeds = [0.5, 1, 2, 5];
 
   return (
-    <div className="fire-panel absolute bottom-3 left-3 right-3 z-50 rounded-xl text-white px-4 py-3">
+    <div className="fire-panel animate-enter-bottom absolute bottom-3 left-3 right-3 z-50 rounded-xl text-white px-4 py-3">
       <div className="flex items-center gap-4">
         {/* Play/Pause */}
         <button
@@ -146,7 +146,7 @@ export default function TimelineBar({
             <button
               key={s}
               onClick={() => setSpeed(s)}
-              className={`px-2 py-1 rounded text-[12px] font-semibold tracking-wide transition-all duration-150 cursor-pointer ${
+              className={`px-2 py-1 rounded text-caption font-semibold tracking-wide transition-all duration-150 cursor-pointer ${
                 speed === s
                   ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                   : "text-gray-500 hover:text-gray-300 border border-transparent"
@@ -160,7 +160,7 @@ export default function TimelineBar({
 
         {/* Frame Counter */}
         <span
-          className="text-[12px] text-gray-500 flex-shrink-0 tabular-nums"
+          className="text-caption text-gray-500 flex-shrink-0 tabular-nums"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           {currentStep + 1}/{totalSteps}
