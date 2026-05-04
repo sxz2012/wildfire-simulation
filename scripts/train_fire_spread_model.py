@@ -233,6 +233,88 @@ def evaluate(booster: xgb.Booster, test_df: pd.DataFrame, label: str) -> dict:
     return metrics
 
 
+V1_FEATURES = [
+    "hours_since_start",
+    "latitude",
+    "longitude",
+    "frp_mw",
+    "brightness_k",
+    "confidence",
+    "is_daytime",
+    "fuel_type_enc",
+    "temp_mean_c",
+    "temp_max_c",
+    "humidity_pct",
+    "wind_speed_kmh",
+    "wind_direction_deg",
+    "precipitation_mm",
+    "cumulative_precip_mm",
+    "neighbors_1km",
+    "neighbors_5km",
+    "neighbors_10km",
+]
+
+
+def _walk_tree(node: dict, x: np.ndarray) -> float:
+    while "v" not in node:
+        if x[node["f"]] < node["t"]:
+            node = node["y"]
+        else:
+            node = node["n"]
+    return float(node["v"])
+
+
+def predict_v1(test_df: pd.DataFrame) -> np.ndarray:
+    """Predict with the existing model's custom JSON, using v1 feature set
+    and the same constants the runtime fakes for satellite features."""
+    with open(EXISTING_MODEL_PATH) as f:
+        v1 = json.load(f)
+
+    # The runtime fakes these for unburned candidate cells:
+    df = test_df.copy()
+    if "frp_mw" not in df:
+        df["frp_mw"] = 15.0
+    if "brightness_k" not in df:
+        df["brightness_k"] = 300.0
+    if "confidence" not in df:
+        df["confidence"] = 50.0
+
+    X = df[V1_FEATURES].to_numpy()
+    n = len(df)
+    sums = np.zeros(n)
+    for tree in v1["trees"]:
+        for i in range(n):
+            sums[i] += _walk_tree(tree, X[i])
+    # sigmoid
+    return 1.0 / (1.0 + np.exp(-sums))
+
+
+def evaluate_v1(test_df: pd.DataFrame) -> dict:
+    """Evaluate v1 model on holdout — uses the runtime's faked satellite
+    constants to mirror what the browser sim actually sees, NOT the real
+    satellite values from the dataset."""
+    preds = predict_v1(test_df.assign(frp_mw=15.0, brightness_k=300.0, confidence=50.0))
+    y = test_df[TARGET].values
+    yhat = (preds >= 0.5).astype(int)
+    metrics = {
+        "model": "v1 (existing, 18 features, satellite-faked)",
+        "n_rows": int(len(test_df)),
+        "n_fires": int(test_df["fire_id"].nunique()),
+        "aucpr": float(average_precision_score(y, preds)),
+        "aucroc": float(roc_auc_score(y, preds)),
+        "f1": float(f1_score(y, yhat)),
+        "brier": float(brier_score_loss(y, preds)),
+        "positive_rate": float(y.mean()),
+    }
+    print(f"\n=== Holdout metrics (v1) ===")
+    for k, v in metrics.items():
+        if isinstance(v, float):
+            print(f"  {k:>15}: {v:.4f}")
+        else:
+            print(f"  {k:>15}: {v}")
+    return metrics
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
@@ -251,6 +333,11 @@ def main() -> None:
     booster = train_final(train_df, best_n)
 
     new_metrics = evaluate(booster, test_df, label="v2 (enriched, 27 features)")
+
+    v1_metrics = evaluate_v1(test_df)
+    print("\n=== v2 vs v1 ===")
+    print(f"  AUC-PR: v1={v1_metrics['aucpr']:.4f}  v2={new_metrics['aucpr']:.4f}  "
+          f"Δ={new_metrics['aucpr']-v1_metrics['aucpr']:+.4f}")
 
 
 if __name__ == "__main__":
