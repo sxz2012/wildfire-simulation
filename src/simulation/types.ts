@@ -29,6 +29,8 @@ export interface SimulationConfig {
   humidity: number; // 0-100
   defaultFuel: FuelType;
   timestepMinutes: number;
+  recentPrecip3Day?: number; // mm of rain in last 3 days
+  landCoverCode?: number;    // numeric land-cover code (preset per scenario)
 }
 
 export interface SimulationState {
@@ -70,4 +72,6 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   humidity: 30,
   defaultFuel: FuelType.Grass,
   timestepMinutes: 15,
+  recentPrecip3Day: 0,
+  landCoverCode: 126, // 'open_forest_unknown' — neutral default
 };
