@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import numpy as np
@@ -305,6 +306,80 @@ def evaluate_v1(test_df: pd.DataFrame) -> dict:
         else:
             print(f"  {k:>15}: {v}")
     return metrics
+
+
+def export_booster_to_json(
+    booster: xgb.Booster, feature_names: list[str]
+) -> dict:
+    """Convert a trained XGBoost Booster to the custom JSON tree format
+    consumed by src/simulation/mlModel.ts.
+
+    Output schema:
+        {"features": [...], "base_score": 0.5, "trees": [<tree>, ...]}
+    Each tree is a nested {"f": int, "t": float, "y": <child>, "n": <child>}
+    or a leaf {"v": float}.
+
+    The runtime evaluates ``sigmoid(sum_of_tree_leaves)`` without an explicit
+    base-score term. XGBoost (>= 2.0) auto-tunes ``base_score`` from the
+    label distribution, so we bake its logit into a single-leaf "bias" tree
+    prepended to the tree list. This makes the export self-contained.
+    """
+    feat_index = {name: i for i, name in enumerate(feature_names)}
+    raw_trees = booster.get_dump(dump_format="json")
+    trees: list[dict] = []
+    for raw in raw_trees:
+        tree_dict = json.loads(raw)
+        trees.append(_convert_node(tree_dict, feat_index))
+
+    config = json.loads(booster.save_config())
+    # XGBoost wraps the base_score scalar in brackets like "[4.94E-1]".
+    base_score = float(
+        config["learner"]["learner_model_param"]["base_score"].strip("[]")
+    )
+    # Clamp to avoid log(0); XGBoost itself clamps similarly.
+    base_score = min(max(base_score, 1e-7), 1.0 - 1e-7)
+    bias = math.log(base_score / (1.0 - base_score))
+    if abs(bias) > 0.0:
+        trees.insert(0, {"v": bias})
+
+    return {"features": feature_names, "base_score": base_score, "trees": trees}
+
+
+def _convert_node(node: dict, feat_index: dict[str, int]) -> dict:
+    """Recursively convert one XGBoost tree-dump node to the {f,t,y,n,v}
+    format used by mlModel.ts.
+
+    XGBoost's "yes" branch is taken when feature < split_condition (matches
+    mlModel.ts which tests `featureValue < node.t -> y`). The "missing"
+    direction is also recorded by XGBoost; we use the "yes"/"no" pair the
+    runtime expects and ignore missing handling (our features have no NaN).
+
+    XGBoost stores split conditions and feature values internally as float32,
+    so its comparison is `float32(x) < float32(threshold)`. The runtime
+    (mlModel.ts) compares feature values in float64 (JS numbers). To make the
+    float64 comparison agree with XGBoost's float32 comparison for any input
+    x, we shift the threshold to the midpoint between the float32 split value
+    and its predecessor in float32 — that is exactly the rounding boundary
+    where float64 values switch from rounding to ``prev`` to rounding to
+    ``T``. With the midpoint as the threshold, ``x_f64 < midpoint`` is
+    equivalent to ``float32(x) < T_f32`` for all float64 x.
+    """
+    if "leaf" in node:
+        return {"v": float(node["leaf"])}
+
+    f = feat_index[node["split"]]
+    t_f32 = np.float32(node["split_condition"])
+    prev_t_f32 = np.nextafter(t_f32, np.float32(-np.inf))
+    t = (float(prev_t_f32) + float(t_f32)) / 2.0
+    yes_id = node["yes"]
+    no_id = node["no"]
+    children_by_id = {c["nodeid"]: c for c in node["children"]}
+    return {
+        "f": f,
+        "t": t,
+        "y": _convert_node(children_by_id[yes_id], feat_index),
+        "n": _convert_node(children_by_id[no_id], feat_index),
+    }
 
 
 def main() -> None:
