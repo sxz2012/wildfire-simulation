@@ -143,6 +143,18 @@ function App() {
       }
 
       const center = Math.floor(config.gridSize / 2);
+
+      // Safety net: if the click landed directly on a non-flammable cell
+      // (e.g., user clicked the middle of a lake), force the ignition cell
+      // to Grass so the user gets visual feedback. Fire still won't spread
+      // if the surrounding cells are all water — that's realistic.
+      if (fuelMap) {
+        const igniteIdx = center * config.gridSize + center;
+        if (fuelMap[igniteIdx] === FuelType.Water) {
+          fuelMap[igniteIdx] = FuelType.Grass;
+        }
+      }
+
       startSimulation(config, center, center, lat, lng, fuelMap, {
         tempMean: weather.temperature,
         tempMax: weather.temperature + 5,

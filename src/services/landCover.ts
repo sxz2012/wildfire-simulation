@@ -20,26 +20,31 @@ export const WORLDCOVER = {
 } as const;
 
 /**
- * Map a WorldCover code to the simulation's FuelType. Non-flammable classes
- * (water, snow, urban, bare, wetlands) are mapped to Water, which the
- * simulation treats as a hard non-spread cell.
+ * Map a WorldCover code to the simulation's FuelType.
+ *
+ * Only truly non-flammable surfaces (open water, permanent snow/ice, bare
+ * rock/sand) are mapped to FuelType.Water — the simulation treats those as
+ * hard non-spread cells. Vegetated wetlands, urban areas, mangroves, and
+ * moss/lichen are mapped to a flammable type because they CAN burn under
+ * dry conditions; mapping them to Water made simulations near salt marshes
+ * or suburbs go completely inert at the first step.
  */
 export function worldCoverToFuel(code: number): FuelType {
   switch (code) {
     case WORLDCOVER.TREE:
       return FuelType.Forest;
     case WORLDCOVER.SHRUBLAND:
+    case WORLDCOVER.MANGROVE:
       return FuelType.Shrub;
     case WORLDCOVER.GRASSLAND:
     case WORLDCOVER.CROPLAND:
+    case WORLDCOVER.HERBACEOUS_WETLAND:
+    case WORLDCOVER.MOSS_LICHEN:
+    case WORLDCOVER.BUILT_UP:
       return FuelType.Grass;
     case WORLDCOVER.WATER:
     case WORLDCOVER.SNOW_ICE:
-    case WORLDCOVER.BUILT_UP:
     case WORLDCOVER.BARE:
-    case WORLDCOVER.HERBACEOUS_WETLAND:
-    case WORLDCOVER.MANGROVE:
-    case WORLDCOVER.MOSS_LICHEN:
       return FuelType.Water;
     default:
       return FuelType.Grass;
