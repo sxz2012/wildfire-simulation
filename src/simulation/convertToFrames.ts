@@ -9,7 +9,11 @@ export function convertSimulationToFire(
   history: SimulationState[],
   config: SimulationConfig,
   centerLat: number,
-  centerLng: number
+  centerLng: number,
+  /** Real-world ignition timestamp. When provided, frame dates are emitted
+   *  as ISO strings so the UI can show actual clock dates/times. When
+   *  omitted, frames fall back to "Day N, HH:MM" simulation-relative labels. */
+  originDate?: Date,
 ): HistoricalFire {
   const { gridSize, cellSizeMeters, timestepMinutes } = config;
   const metersPerDegreeLat = 111320;
@@ -31,12 +35,18 @@ export function convertSimulationToFire(
       }
     }
 
-    // Generate a time label for this step
-    const totalMinutes = stepIdx * timestepMinutes;
-    const day = Math.floor(totalMinutes / 1440) + 1;
-    const hours = Math.floor((totalMinutes % 1440) / 60);
-    const mins = totalMinutes % 60;
-    const date = `Day ${day}, ${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+    let date: string;
+    if (originDate) {
+      // ISO timestamp at originDate + stepIdx timesteps. Components detect
+      // "T" / trailing "Z" and render in the viewer's local timezone.
+      date = new Date(originDate.getTime() + stepIdx * timestepMinutes * 60_000).toISOString();
+    } else {
+      const totalMinutes = stepIdx * timestepMinutes;
+      const day = Math.floor(totalMinutes / 1440) + 1;
+      const hours = Math.floor((totalMinutes % 1440) / 60);
+      const mins = totalMinutes % 60;
+      date = `Day ${day}, ${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
+    }
 
     return { date, hotspots };
   });

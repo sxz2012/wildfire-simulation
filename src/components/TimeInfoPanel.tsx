@@ -14,9 +14,21 @@ function formatDayTime(totalMinutes: number): string {
 
 function formatDate(dateStr: string): string {
   if (dateStr.startsWith("Day") || dateStr.startsWith("Before")) return dateStr;
-  const d = new Date(dateStr.includes("T") ? dateStr + "Z" : dateStr + "T00:00:00Z");
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) +
-    " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
+  const hasTime = dateStr.includes("T");
+  // ISO with T (and possibly Z) — parse as instant, render in local timezone.
+  // Date-only strings (historical FIRMS data) — render in UTC to avoid drift.
+  const parsed = hasTime
+    ? new Date(dateStr.endsWith("Z") ? dateStr : dateStr + "Z")
+    : new Date(dateStr + "T00:00:00Z");
+  if (isNaN(parsed.getTime())) return dateStr;
+  const dateOpts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+  const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false };
+  if (!hasTime) {
+    dateOpts.timeZone = "UTC";
+    timeOpts.timeZone = "UTC";
+  }
+  return parsed.toLocaleDateString("en-US", dateOpts) + " " +
+    parsed.toLocaleTimeString("en-US", timeOpts);
 }
 
 export default function TimeInfoPanel({
@@ -27,9 +39,13 @@ export default function TimeInfoPanel({
 }: TimeInfoPanelProps) {
   if (!visible) return null;
 
-  const isHistorical = historicalDates && historicalDates.length > 0;
-  const startLabel = isHistorical ? formatDate(historicalDates[0]) : formatDayTime(0);
-  const currentLabel = isHistorical
+  // Use real frame timestamps when available (historical replays AND live-weather
+  // simulations). Fall back to "Day N, HH:MM" relative labels for seasonal/custom
+  // simulations that don't have a wall-clock origin.
+  const haveDates = historicalDates && historicalDates.length > 0;
+  const isHistorical = haveDates;
+  const startLabel = haveDates ? formatDate(historicalDates[0]) : formatDayTime(0);
+  const currentLabel = haveDates
     ? formatDate(historicalDates[Math.min(currentStep, historicalDates.length - 1)])
     : formatDayTime(currentStep * timestepMinutes);
 

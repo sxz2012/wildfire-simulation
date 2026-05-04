@@ -29,6 +29,7 @@ function App() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; altitude: number; _t: number } | null>(null);
   const [activeConfig, setActiveConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
   const [activeFuelMap, setActiveFuelMap] = useState<FuelType[] | null>(null);
+  const [activeOriginDate, setActiveOriginDate] = useState<Date | null>(null);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
@@ -46,6 +47,7 @@ function App() {
     setIgnitionPoint(null);
     setActiveFire(null);
     setActiveFuelMap(null);
+    setActiveOriginDate(null);
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
@@ -65,10 +67,11 @@ function App() {
       activeConfig,
       ignitionPoint.lat,
       ignitionPoint.lng,
+      activeOriginDate ?? undefined,
     );
     setActiveFire(fire);
     setAutoPlay(true);
-  }, [history, appMode, ignitionPoint, activeConfig]);
+  }, [history, appMode, ignitionPoint, activeConfig, activeOriginDate]);
 
   const handleIgnite = useCallback(
     async (lat: number, lng: number) => {
@@ -77,20 +80,25 @@ function App() {
       setIgnitionPoint({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
 
-      // Fetch weather based on selected source
+      // Fetch weather based on selected source. For "live", also capture
+      // the current wall-clock time as the simulation's origin so that
+      // timeline labels show real dates/times instead of "Day 1, HH:MM".
       let weather: WeatherData;
       const ws = weatherSourceRef.current;
       try {
         if (ws.source === "live") {
           weather = await fetchCurrentWeather(lat, lng);
           setWeatherInfo(`Live: ${weather.windSpeed} km/h wind ${weather.windDirection}°, ${weather.humidity}% humidity, ${weather.temperature}°C`);
+          setActiveOriginDate(new Date());
         } else {
           weather = getSeasonalWeather(lat, ws.season || "summer");
           setWeatherInfo(`${ws.season}: ${weather.windSpeed} km/h wind ${weather.windDirection}°, ${weather.humidity}% humidity`);
+          setActiveOriginDate(null);
         }
       } catch {
         weather = { windSpeed: 20, windDirection: 270, humidity: 30, temperature: 25, source: "fallback" };
         setWeatherInfo("Weather unavailable — using defaults");
+        setActiveOriginDate(null);
       }
 
       const config: SimulationConfig = {
@@ -282,7 +290,7 @@ function App() {
         currentStep={currentStep}
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
-        historicalDates={isHistorical ? dateLabels : undefined}
+        historicalDates={dateLabels}
       />
 
       <Legend

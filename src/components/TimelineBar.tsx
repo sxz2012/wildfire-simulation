@@ -28,9 +28,20 @@ export default function TimelineBar({
     if (dateLabels && dateLabels[step]) {
       const raw = dateLabels[step];
       if (raw.startsWith("Day") || raw.startsWith("Before")) return raw;
-      const d = new Date(raw.includes("T") ? raw + "Z" : raw + "T00:00:00Z");
-      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" }) +
-        " " + d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: "UTC" });
+      const hasTime = raw.includes("T");
+      const parsed = hasTime
+        ? new Date(raw.endsWith("Z") ? raw : raw + "Z")
+        : new Date(raw + "T00:00:00Z");
+      if (!isNaN(parsed.getTime())) {
+        const dateOpts: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
+        const timeOpts: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hour12: false };
+        if (!hasTime) {
+          dateOpts.timeZone = "UTC";
+          timeOpts.timeZone = "UTC";
+        }
+        return parsed.toLocaleDateString("en-US", dateOpts) + " " +
+          parsed.toLocaleTimeString("en-US", timeOpts);
+      }
     }
     const totalMinutes = step * timestepMinutes;
     const day = Math.floor(totalMinutes / 1440) + 1;
