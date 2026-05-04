@@ -139,6 +139,46 @@ def make_cv_folds(train_df: pd.DataFrame, n_splits: int = 5) -> GroupKFold:
     return GroupKFold(n_splits=n_splits)
 
 
+def cv_train(train_df: pd.DataFrame) -> tuple[int, list[float]]:
+    """Run 5-fold leave-fires-out CV. Return (best n_estimators, per-fold AUC-PR)."""
+    gkf = make_cv_folds(train_df)
+    best_iters: list[int] = []
+    aucpr_per_fold: list[float] = []
+
+    pos = (train_df[TARGET] == 1).sum()
+    neg = (train_df[TARGET] == 0).sum()
+    spw = neg / pos
+    print(f"\nscale_pos_weight = {spw:.4f} (neg={neg:,} / pos={pos:,})")
+
+    for fold, (tr_idx, va_idx) in enumerate(
+        gkf.split(train_df, groups=train_df["fire_id"]), 1
+    ):
+        tr = train_df.iloc[tr_idx]
+        va = train_df.iloc[va_idx]
+        dtrain = xgb.DMatrix(tr[FEATURES], label=tr[TARGET])
+        dval = xgb.DMatrix(va[FEATURES], label=va[TARGET])
+
+        params = {**XGB_PARAMS, "scale_pos_weight": spw}
+        booster = xgb.train(
+            params,
+            dtrain,
+            num_boost_round=600,
+            evals=[(dtrain, "train"), (dval, "val")],
+            early_stopping_rounds=30,
+            verbose_eval=50,
+        )
+        best_iters.append(booster.best_iteration + 1)
+        preds = booster.predict(dval, iteration_range=(0, booster.best_iteration + 1))
+        aucpr = average_precision_score(va[TARGET], preds)
+        aucpr_per_fold.append(aucpr)
+        print(f"Fold {fold}: best_iter={best_iters[-1]} val_aucpr={aucpr:.4f}")
+
+    best_n = int(np.median(best_iters))
+    print(f"\nMedian best_iter across folds: {best_n}")
+    print(f"Mean val AUC-PR: {np.mean(aucpr_per_fold):.4f} ± {np.std(aucpr_per_fold):.4f}")
+    return best_n, aucpr_per_fold
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
@@ -151,6 +191,8 @@ def main() -> None:
         tr_fires = train_df.iloc[tr_idx]["fire_id"].nunique()
         va_fires = train_df.iloc[va_idx]["fire_id"].nunique()
         print(f"  Fold {i}: train_fires={tr_fires} val_fires={va_fires}")
+
+    best_n, fold_aucprs = cv_train(train_df)
 
 
 if __name__ == "__main__":
