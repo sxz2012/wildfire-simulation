@@ -14,6 +14,7 @@ import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires"
 import { fetchCurrentWeather, getSeasonalWeather, type Season, type WeatherData } from "./services/weather";
 import { sampleVegetation } from "./services/vegetation";
 import { sampleElevations } from "./services/terrain";
+import { sampleLandCover } from "./services/landCover";
 import type { Viewer as CesiumViewer } from "cesium";
 
 type AppMode = "idle" | "simulation" | "historical";
@@ -87,28 +88,57 @@ function App() {
       };
       setActiveConfig(config);
 
-      // Sample vegetation from satellite imagery + real terrain elevations.
+      // Build the fuel map and elevation map for the simulation grid.
+      //
+      // Preference order for land cover:
+      //   1. ESA WorldCover 10m (Microsoft Planetary Computer) — authoritative
+      //      land-cover classification: water, urban, forest, etc.
+      //   2. Satellite imagery color sampling — fragile fallback when WorldCover
+      //      is unreachable.
+      //
+      // Elevation sampling runs in parallel; the elevation map is needed by the
+      // ML model and the Rothermel slope calculation regardless of which
+      // land-cover source we use. We also keep an elevation-based water override
+      // (elevation ≤ 0) as belt-and-braces for ocean/bay cells.
       const viewer = viewerRef.current;
       let fuelMap: FuelType[] | undefined;
       let elevationMap: Float32Array | undefined;
-      if (viewer && !viewer.isDestroyed()) {
+
+      const [worldCoverFuels, sampledElevations] = await Promise.all([
+        sampleLandCover(lat, lng, config.gridSize, config.cellSizeMeters).catch(
+          () => null,
+        ),
+        viewer && !viewer.isDestroyed()
+          ? sampleElevations(
+              viewer,
+              lat,
+              lng,
+              config.gridSize,
+              config.cellSizeMeters,
+            ).catch(() => undefined)
+          : Promise.resolve(undefined),
+      ]);
+
+      if (worldCoverFuels) {
+        fuelMap = worldCoverFuels;
+      } else if (viewer && !viewer.isDestroyed()) {
         try {
-          fuelMap = sampleVegetation(viewer, lat, lng, config.gridSize, config.cellSizeMeters);
+          fuelMap = sampleVegetation(
+            viewer,
+            lat,
+            lng,
+            config.gridSize,
+            config.cellSizeMeters,
+          );
         } catch {
-          // Fall back to procedural if sampling fails
+          // Fall back to procedural assignment in createGrid.
         }
-        try {
-          elevationMap = await sampleElevations(viewer, lat, lng, config.gridSize, config.cellSizeMeters);
-          // Override fuel: any cell at or below sea level is water (ocean/bay/sea).
-          // This is a far more reliable signal than imagery color, which fails
-          // when water renders dark green/black under haze or low light.
-          if (fuelMap) {
-            for (let i = 0; i < fuelMap.length; i++) {
-              if (elevationMap[i] <= 0) fuelMap[i] = FuelType.Water;
-            }
-          }
-        } catch {
-          // Fall back: no elevation map (worker uses zeros)
+      }
+
+      elevationMap = sampledElevations;
+      if (fuelMap && elevationMap) {
+        for (let i = 0; i < fuelMap.length; i++) {
+          if (elevationMap[i] <= 0) fuelMap[i] = FuelType.Water;
         }
       }
 
