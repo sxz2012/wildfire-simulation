@@ -82,7 +82,7 @@ describe("simulateStep", () => {
     igniteCell(grid, 1, 1, config.gridSize);
 
     let currentGrid = grid;
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 100; i++) {
       currentGrid = simulateStep(currentGrid, config);
     }
 
