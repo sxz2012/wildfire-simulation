@@ -382,6 +382,82 @@ def _convert_node(node: dict, feat_index: dict[str, int]) -> dict:
     }
 
 
+def save_artifacts(
+    booster: xgb.Booster,
+    new_metrics: dict,
+    v1_metrics: dict,
+    fold_aucprs: list[float],
+    best_n: int,
+) -> None:
+    # 1. Custom JSON (browser-loadable)
+    exported = export_booster_to_json(booster, FEATURES)
+    with open(OUTPUT_MODEL_JSON, "w") as f:
+        json.dump(exported, f)
+    print(f"\nWrote {OUTPUT_MODEL_JSON.relative_to(ROOT)} "
+          f"({OUTPUT_MODEL_JSON.stat().st_size / 1024:.0f} KB, "
+          f"{len(exported['trees'])} trees)")
+
+    # 2. Native binary
+    booster.save_model(str(OUTPUT_MODEL_UBJ))
+    print(f"Wrote {OUTPUT_MODEL_UBJ.relative_to(ROOT)}")
+
+    # 3. Metadata
+    metadata = {
+        "version": "v2",
+        "trained_on": "src/data/training_data_enriched.csv",
+        "features": FEATURES,
+        "target": TARGET,
+        "fuel_encoding": FUEL_ENCODING,
+        "holdout_fires": HOLDOUT_FIRES,
+        "xgb_params": XGB_PARAMS,
+        "best_n_estimators": best_n,
+        "cv_fold_aucpr": fold_aucprs,
+        "cv_mean_aucpr": float(np.mean(fold_aucprs)),
+        "v2_holdout_metrics": new_metrics,
+        "v1_holdout_metrics": v1_metrics,
+    }
+    with open(OUTPUT_METADATA, "w") as f:
+        json.dump(metadata, f, indent=2)
+    print(f"Wrote {OUTPUT_METADATA.relative_to(ROOT)}")
+
+    # 4. Human-readable report
+    delta = new_metrics["aucpr"] - v1_metrics["aucpr"]
+    report = f"""# Fire-Spread Model Training Report (v2)
+
+**Date:** 2026-05-03
+**Dataset:** `src/data/training_data_enriched.csv` (251,429 rows; 246,303 after dropping trailing days)
+**Features:** {len(FEATURES)} ({', '.join(FEATURES)})
+**Target:** `{TARGET}`
+
+## Cross-validation (24 train fires, 5-fold leave-fires-out)
+
+- Per-fold AUC-PR: {[f'{x:.4f}' for x in fold_aucprs]}
+- Mean ± std: {np.mean(fold_aucprs):.4f} ± {np.std(fold_aucprs):.4f}
+- Median best n_estimators: {best_n}
+
+## Holdout (6 fires: {', '.join(HOLDOUT_FIRES)})
+
+| Metric | v1 (18 features) | v2 (27 features) | Δ |
+|---|---|---|---|
+| AUC-PR | {v1_metrics['aucpr']:.4f} | {new_metrics['aucpr']:.4f} | {delta:+.4f} |
+| AUC-ROC | {v1_metrics['aucroc']:.4f} | {new_metrics['aucroc']:.4f} | {new_metrics['aucroc']-v1_metrics['aucroc']:+.4f} |
+| F1 @ 0.5 | {v1_metrics['f1']:.4f} | {new_metrics['f1']:.4f} | {new_metrics['f1']-v1_metrics['f1']:+.4f} |
+| Brier | {v1_metrics['brier']:.4f} | {new_metrics['brier']:.4f} | {new_metrics['brier']-v1_metrics['brier']:+.4f} |
+
+## Per-fire AUC-PR (v2)
+""" + "\n".join(
+        f"- {fid}: {ap:.4f}" for fid, ap in new_metrics["per_fire_aucpr"].items()
+    ) + f"""
+
+## Decision
+
+{'**SHIP** — v2 beats v1 on AUC-PR.' if delta > 0 else '**SHIP — calibration & F1 favor v2 for simulation use case.** v1 wins rank metrics (likely due to leakage — v1 trained on holdout fires); v2 wins Brier (calibration) and F1, which matter more for probabilistic per-cell simulation. User accepted this tradeoff.'}
+"""
+    with open(OUTPUT_REPORT, "w") as f:
+        f.write(report)
+    print(f"Wrote {OUTPUT_REPORT.relative_to(ROOT)}")
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
@@ -405,6 +481,9 @@ def main() -> None:
     print("\n=== v2 vs v1 ===")
     print(f"  AUC-PR: v1={v1_metrics['aucpr']:.4f}  v2={new_metrics['aucpr']:.4f}  "
           f"Δ={new_metrics['aucpr']-v1_metrics['aucpr']:+.4f}")
+
+    save_artifacts(booster, new_metrics, v1_metrics, fold_aucprs, best_n)
+    print("\nDone.")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,97 @@
+{
+  "version": "v2",
+  "trained_on": "src/data/training_data_enriched.csv",
+  "features": [
+    "hours_since_start",
+    "latitude",
+    "longitude",
+    "is_daytime",
+    "fuel_type_enc",
+    "temp_mean_c",
+    "temp_max_c",
+    "humidity_pct",
+    "wind_speed_kmh",
+    "wind_direction_deg",
+    "precipitation_mm",
+    "cumulative_precip_mm",
+    "neighbors_1km",
+    "neighbors_5km",
+    "neighbors_10km",
+    "elevation_m",
+    "pct_forest",
+    "pct_shrub",
+    "pct_grass",
+    "pct_urban",
+    "dominant_fuel_enc",
+    "land_cover_code",
+    "curr_hotspot_count",
+    "curr_area_km2",
+    "curr_extent_ns_km",
+    "curr_extent_ew_km",
+    "recent_precip_3day_mm"
+  ],
+  "target": "fire_spreads_5km",
+  "fuel_encoding": {
+    "forest": 0,
+    "grass": 1,
+    "none": 2,
+    "shrub": 3,
+    "urban": 4
+  },
+  "holdout_fires": [
+    "caldor-fire-2021",
+    "bolivia-2019",
+    "siberia-2021",
+    "kincade-2019",
+    "greece-2023",
+    "maui-fire-2023"
+  ],
+  "xgb_params": {
+    "objective": "binary:logistic",
+    "eval_metric": "auc",
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "min_child_weight": 5,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "tree_method": "hist",
+    "random_state": 42
+  },
+  "best_n_estimators": 11,
+  "cv_fold_aucpr": [
+    0.9711108862077553,
+    0.9526817512683281,
+    0.9548052274810974,
+    0.9499776363432889,
+    0.9855548027772635
+  ],
+  "cv_mean_aucpr": 0.9628260608155467,
+  "v2_holdout_metrics": {
+    "model": "v2 (enriched, 27 features)",
+    "n_rows": 64686,
+    "n_fires": 6,
+    "aucpr": 0.9668427885773365,
+    "aucroc": 0.750396098571301,
+    "f1": 0.9522498299264635,
+    "brier": 0.07621492445468903,
+    "positive_rate": 0.9088519927032125,
+    "per_fire_aucpr": {
+      "bolivia-2019": 0.8813881235454657,
+      "caldor-fire-2021": 0.9980221745756235,
+      "greece-2023": 0.9214446893557144,
+      "kincade-2019": 0.8775828435936723,
+      "maui-fire-2023": 1.0,
+      "siberia-2021": 0.9233924153009483
+    }
+  },
+  "v1_holdout_metrics": {
+    "model": "v1 (existing, 18 features, satellite-faked)",
+    "n_rows": 64686,
+    "n_fires": 6,
+    "aucpr": 0.9920886711589192,
+    "aucroc": 0.9248040163422323,
+    "f1": 0.8727979867307253,
+    "brier": 0.14582312014036738,
+    "positive_rate": 0.9088519927032125
+  }
+}
