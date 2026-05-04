@@ -121,11 +121,36 @@ def load_and_prepare() -> pd.DataFrame:
     return df
 
 
+def split_train_test(df: pd.DataFrame) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Split into 24-fire training set and 6-fire holdout test set."""
+    test_df = df[df["fire_id"].isin(HOLDOUT_FIRES)].copy()
+    train_df = df[~df["fire_id"].isin(HOLDOUT_FIRES)].copy()
+
+    missing = set(HOLDOUT_FIRES) - set(df["fire_id"].unique())
+    assert not missing, f"Holdout fires not in data: {missing}"
+
+    print(f"\nTrain: {len(train_df):,} rows, {train_df['fire_id'].nunique()} fires")
+    print(f"Test:  {len(test_df):,} rows, {test_df['fire_id'].nunique()} fires")
+    return train_df, test_df
+
+
+def make_cv_folds(train_df: pd.DataFrame, n_splits: int = 5) -> GroupKFold:
+    """5-fold leave-fires-out cross-validation inside the training set."""
+    return GroupKFold(n_splits=n_splits)
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
     print(df[TARGET].value_counts().to_dict())
     print("\nFires:", df["fire_id"].nunique(), "unique")
+
+    train_df, test_df = split_train_test(df)
+    gkf = make_cv_folds(train_df)
+    for i, (tr_idx, va_idx) in enumerate(gkf.split(train_df, groups=train_df["fire_id"]), 1):
+        tr_fires = train_df.iloc[tr_idx]["fire_id"].nunique()
+        va_fires = train_df.iloc[va_idx]["fire_id"].nunique()
+        print(f"  Fold {i}: train_fires={tr_fires} val_fires={va_fires}")
 
 
 if __name__ == "__main__":
