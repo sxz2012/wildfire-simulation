@@ -8,11 +8,12 @@ import Legend from "./components/Legend";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
-import { DEFAULT_CONFIG, type SimulationConfig } from "./simulation/types";
+import { DEFAULT_CONFIG, FuelType, type SimulationConfig } from "./simulation/types";
 import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
 import { fetchCurrentWeather, getSeasonalWeather, type Season, type WeatherData } from "./services/weather";
 import { sampleVegetation } from "./services/vegetation";
+import { sampleElevations } from "./services/terrain";
 import type { Viewer as CesiumViewer } from "cesium";
 
 type AppMode = "idle" | "simulation" | "historical";
@@ -86,14 +87,28 @@ function App() {
       };
       setActiveConfig(config);
 
-      // Sample vegetation from satellite imagery
+      // Sample vegetation from satellite imagery + real terrain elevations.
       const viewer = viewerRef.current;
-      let fuelMap;
+      let fuelMap: FuelType[] | undefined;
+      let elevationMap: Float32Array | undefined;
       if (viewer && !viewer.isDestroyed()) {
         try {
           fuelMap = sampleVegetation(viewer, lat, lng, config.gridSize, config.cellSizeMeters);
         } catch {
           // Fall back to procedural if sampling fails
+        }
+        try {
+          elevationMap = await sampleElevations(viewer, lat, lng, config.gridSize, config.cellSizeMeters);
+          // Override fuel: any cell at or below sea level is water (ocean/bay/sea).
+          // This is a far more reliable signal than imagery color, which fails
+          // when water renders dark green/black under haze or low light.
+          if (fuelMap) {
+            for (let i = 0; i < fuelMap.length; i++) {
+              if (elevationMap[i] <= 0) fuelMap[i] = FuelType.Water;
+            }
+          }
+        } catch {
+          // Fall back: no elevation map (worker uses zeros)
         }
       }
 
@@ -103,7 +118,7 @@ function App() {
         tempMax: weather.temperature + 5,
         precipitation: 0,
         cumulativePrecip: 0,
-      });
+      }, undefined, elevationMap);
     },
     [fullReset, startSimulation]
   );

@@ -48,7 +48,10 @@ export function createGrid(
   centerLng: number,
   elevationFn: (lat: number, lng: number) => number,
   /** Optional pre-computed fuel types from satellite imagery sampling */
-  fuelMap?: FuelType[]
+  fuelMap?: FuelType[],
+  /** Optional pre-sampled elevations (Float32Array, matches grid layout).
+   * Takes precedence over elevationFn when provided. */
+  elevationMap?: Float32Array
 ): GridCell[] {
   const { gridSize, cellSizeMeters } = config;
   const grid: GridCell[] = new Array(gridSize * gridSize);
@@ -69,11 +72,12 @@ export function createGrid(
         centerLng + (offsetCol * cellSizeMeters) / metersPerDegreeLng;
 
       const fuel = fuelMap ? fuelMap[idx] : assignFuel(lat, lng);
+      const elevation = elevationMap ? elevationMap[idx] : elevationFn(lat, lng);
 
       grid[idx] = {
         state: CellState.Unburned,
         fuel,
-        elevation: elevationFn(lat, lng),
+        elevation,
         burnTimer: 0,
         lat,
         lng,

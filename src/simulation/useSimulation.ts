@@ -13,7 +13,8 @@ interface UseSimulationReturn {
     centerLng: number,
     fuelMap?: FuelType[],
     weatherData?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number },
-    maxSteps?: number
+    maxSteps?: number,
+    elevationMap?: Float32Array
   ) => void;
   reset: () => void;
 }
@@ -64,7 +65,8 @@ export function useSimulation(): UseSimulationReturn {
       centerLng: number,
       fuelMap?: FuelType[],
       weatherData?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number },
-      maxSteps = 500
+      maxSteps = 500,
+      elevationMap?: Float32Array
     ) => {
       const worker = workerRef.current;
       if (!worker) return;
@@ -109,6 +111,7 @@ export function useSimulation(): UseSimulationReturn {
         centerLat,
         centerLng,
         fuelMap,
+        elevationMap,
         weatherData,
       });
     },

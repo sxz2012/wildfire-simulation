@@ -11,6 +11,7 @@ export interface WorkerRequest {
   centerLat?: number;
   centerLng?: number;
   fuelMap?: FuelType[];
+  elevationMap?: Float32Array;
   modelJson?: unknown;
   weatherData?: {
     tempMean: number;
@@ -38,7 +39,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       return;
     }
 
-    const { config, igniteRow, igniteCol, maxSteps, centerLat, centerLng, fuelMap, weatherData } = e.data;
+    const { config, igniteRow, igniteCol, maxSteps, centerLat, centerLng, fuelMap, elevationMap, weatherData } = e.data;
 
     // Attach weather data to config for ML model access
     const enrichedConfig = {
@@ -51,7 +52,7 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
     const result = runSimulation(
       enrichedConfig, igniteRow!, igniteCol!, () => 0, maxSteps!,
-      centerLat!, centerLng!, fuelMap
+      centerLat!, centerLng!, fuelMap, elevationMap
     );
 
     const gridCells = config!.gridSize * config!.gridSize;

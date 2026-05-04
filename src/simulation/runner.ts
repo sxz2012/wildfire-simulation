@@ -25,9 +25,10 @@ export function runSimulation(
   maxSteps: number,
   centerLat = 0,
   centerLng = 0,
-  fuelMap?: FuelType[]
+  fuelMap?: FuelType[],
+  elevationMap?: Float32Array
 ): SimulationResult {
-  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap);
+  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
   igniteCell(grid, igniteRow, igniteCol, config.gridSize);
 
   const history: SimulationState[] = [
