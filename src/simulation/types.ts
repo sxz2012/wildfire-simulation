@@ -9,6 +9,7 @@ export const FuelType = {
   Grass: "grass",
   Shrub: "shrub",
   Forest: "forest",
+  Water: "water",
 } as const;
 export type FuelType = (typeof FuelType)[keyof typeof FuelType];
 
@@ -62,6 +63,7 @@ export const FUEL_PROPERTIES: Record<
   [FuelType.Grass]: { ignitionRate: 0.55, burnDuration: 20, spreadRate: 0.65 },
   [FuelType.Shrub]: { ignitionRate: 0.35, burnDuration: 40, spreadRate: 0.50 },
   [FuelType.Forest]: { ignitionRate: 0.20, burnDuration: 80, spreadRate: 0.35 },
+  [FuelType.Water]: { ignitionRate: 0, burnDuration: 0, spreadRate: 0 },
 };
 
 export const DEFAULT_CONFIG: SimulationConfig = {

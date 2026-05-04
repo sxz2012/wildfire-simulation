@@ -78,7 +78,8 @@ export function encodeFuelType(fuel: string): number {
   switch (fuel) {
     case "forest": return 0;
     case "grass": return 1;
-    case "none": return 2;
+    case "none":
+    case "water": return 2; // water has no flammable cover
     case "shrub": return 3;
     case "urban": return 4;
     default: return 3; // shrub as default

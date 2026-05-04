@@ -15,10 +15,12 @@ function classifyPixelColor(r: number, g: number, b: number): FuelType {
   // Compute vegetation index from color
   // Green dominance indicates vegetation density
   const greenDominance = gn - (rn + bn) / 2;
+  const blueDominance = bn - (rn + gn) / 2;
   const brightness = (rn + gn + bn) / 3;
 
-  // Very dark (shadows, water) → treat as non-burnable (grass with low spread)
-  if (brightness < 0.15) return FuelType.Grass;
+  // Water: blue dominant (lakes, reservoirs) OR dark with blue ≥ green (deep water in shadow)
+  if (blueDominance > 0.04) return FuelType.Water;
+  if (brightness < 0.18 && bn >= gn && bn > rn) return FuelType.Water;
 
   // Strong green → forest
   if (greenDominance > 0.05 && gn > 0.3) return FuelType.Forest;

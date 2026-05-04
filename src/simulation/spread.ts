@@ -204,6 +204,7 @@ export function simulateStep(
           const neighbor = grid[nIdx];
           if (neighbor.state !== CellState.Unburned) continue;
           if (newGrid[nIdx].state === CellState.Burning) continue;
+          if (neighbor.fuel === "water") continue;
 
           let rate: number;
 
