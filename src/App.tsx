@@ -148,7 +148,7 @@ function App() {
   return (
     <div className="h-screen w-screen relative">
       <GlobeView
-        onIgnite={appMode !== "idle" ? undefined : handleIgnite}
+        onIgnite={isRunning || appMode === "historical" ? undefined : handleIgnite}
         flyTo={flyTo}
         onViewerReady={handleViewerReady}
       />
