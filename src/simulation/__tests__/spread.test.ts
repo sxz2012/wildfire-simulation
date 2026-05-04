@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { simulateStep, computeSpreadRate } from "../spread";
+import { simulateStep, computeSpreadRate, computeScenarioFeatures } from "../spread";
 import { createGrid, igniteCell, getCell } from "../grid";
 import { CellState, FuelType, DEFAULT_CONFIG } from "../types";
 
@@ -88,5 +88,32 @@ describe("simulateStep", () => {
 
     const cell = getCell(currentGrid, 1, 1, config.gridSize);
     expect(cell.state).toBe(CellState.Burned);
+  });
+});
+
+describe("computeScenarioFeatures", () => {
+  it("computes percentages and dominant fuel correctly", () => {
+    // Includes "urban" which isn't in the FuelType union but is a valid
+    // input the helper must handle (per the spec).
+    const fuelMap = ["forest", "forest", "shrub", "grass", "urban"];
+    const f = computeScenarioFeatures(fuelMap);
+    expect(f.pctForest).toBeCloseTo(0.4, 5);
+    expect(f.pctShrub).toBeCloseTo(0.2, 5);
+    expect(f.pctGrass).toBeCloseTo(0.2, 5);
+    expect(f.pctUrban).toBeCloseTo(0.2, 5);
+    expect(f.dominantFuelEnc).toBe(0); // forest = 0
+  });
+
+  it("handles a single-fuel map", () => {
+    const fuelMap: FuelType[] = Array(100).fill(FuelType.Shrub);
+    const f = computeScenarioFeatures(fuelMap);
+    expect(f.pctShrub).toBe(1);
+    expect(f.dominantFuelEnc).toBe(3); // shrub = 3
+  });
+
+  it("handles an empty map without dividing by zero", () => {
+    const f = computeScenarioFeatures([]);
+    expect(f.pctForest).toBe(0);
+    expect(Number.isFinite(f.pctForest)).toBe(true);
   });
 });

@@ -1,10 +1,55 @@
 import {
   CellState,
   FUEL_PROPERTIES,
+  type FuelType,
   type GridCell,
   type SimulationConfig,
 } from "./types";
 import { predictSpreadProbability, encodeFuelType } from "./mlModel";
+
+export interface ScenarioFeatures {
+  pctForest: number;
+  pctShrub: number;
+  pctGrass: number;
+  pctUrban: number;
+  dominantFuelEnc: number;
+}
+
+/**
+ * Compute land-cover percentages and dominant fuel from the full fuel map.
+ * Constant for the duration of a simulation — call once at sim start.
+ *
+ * Accepts the broader set of fuel-name strings (`"forest" | "shrub" | "grass"
+ * | "urban" | "none"`), since some upstream data sources include urban/none
+ * categories that aren't part of the simulation's `FuelType` union.
+ */
+export function computeScenarioFeatures(
+  fuelMap: ReadonlyArray<FuelType | "urban" | "none" | string>
+): ScenarioFeatures {
+  let f = 0, s = 0, g = 0, u = 0, n = 0;
+  for (const fuel of fuelMap) {
+    if (fuel === "forest") f++;
+    else if (fuel === "shrub") s++;
+    else if (fuel === "grass") g++;
+    else if (fuel === "urban") u++;
+    else n++; // 'none' or any other label
+  }
+  const total = fuelMap.length || 1;
+  const pctForest = f / total;
+  const pctShrub = s / total;
+  const pctGrass = g / total;
+  const pctUrban = u / total;
+
+  // dominant_fuel = argmax. Must match FUEL_ENCODING (forest=0, grass=1,
+  // none=2, shrub=3, urban=4).
+  const counts: [string, number][] = [
+    ["forest", f], ["grass", g], ["none", n], ["shrub", s], ["urban", u],
+  ];
+  counts.sort((a, b) => b[1] - a[1]);
+  const dominantFuelEnc = encodeFuelType(counts[0][0]);
+
+  return { pctForest, pctShrub, pctGrass, pctUrban, dominantFuelEnc };
+}
 
 export interface SpreadParams {
   slopeAngle: number;
