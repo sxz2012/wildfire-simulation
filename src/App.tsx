@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import GlobeView from "./components/GlobeView";
 import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
@@ -51,14 +51,24 @@ function App() {
     setSimKey((k) => k + 1);
   }, [reset]);
 
-  // Convert simulation history to fire frames when simulation completes
-  const prevHistoryLen = useRef(0);
-  if (appMode === "simulation" && history.length > 0 && history.length !== prevHistoryLen.current && ignitionPoint) {
-    prevHistoryLen.current = history.length;
-    const fire = convertSimulationToFire(history, activeConfig, ignitionPoint.lat, ignitionPoint.lng);
+  // Convert simulation history to fire frames when the worker finishes a run.
+  // Implemented as a real effect (rather than an inline render-time side effect)
+  // so it always fires for each new run, regardless of how step counts compare
+  // to the previous one. The earlier ref-based gate could silently no-op when
+  // a second simulation produced the same number of steps as the first.
+  useEffect(() => {
+    if (appMode !== "simulation") return;
+    if (history.length === 0) return;
+    if (!ignitionPoint) return;
+    const fire = convertSimulationToFire(
+      history,
+      activeConfig,
+      ignitionPoint.lat,
+      ignitionPoint.lng,
+    );
     setActiveFire(fire);
     setAutoPlay(true);
-  }
+  }, [history, appMode, ignitionPoint, activeConfig]);
 
   const handleIgnite = useCallback(
     async (lat: number, lng: number) => {
