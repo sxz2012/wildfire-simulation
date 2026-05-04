@@ -26,3 +26,6 @@ dist-ssr
 
 # Trained model binaries (the browser-loaded JSON is checked in separately)
 models/*.ubj
+
+# Python cache
+scripts/**/__pycache__/
