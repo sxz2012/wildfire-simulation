@@ -51,6 +51,52 @@ export function computeScenarioFeatures(
   return { pctForest, pctShrub, pctGrass, pctUrban, dominantFuelEnc };
 }
 
+export interface StepAggregates {
+  currHotspotCount: number;
+  currAreaKm2: number;
+  currExtentNsKm: number;
+  currExtentEwKm: number;
+}
+
+/**
+ * Compute the bounding-box stats over all currently-burning cells. Call
+ * ONCE per step (before iterating cells), not per candidate cell.
+ */
+export function computeStepAggregates(
+  grid: GridCell[],
+  cellSizeMeters: number,
+): StepAggregates {
+  let count = 0;
+  let latMin = Infinity, latMax = -Infinity;
+  let lngMin = Infinity, lngMax = -Infinity;
+  for (const c of grid) {
+    if (c.state !== CellState.Burning) continue;
+    count++;
+    if (c.lat < latMin) latMin = c.lat;
+    if (c.lat > latMax) latMax = c.lat;
+    if (c.lng < lngMin) lngMin = c.lng;
+    if (c.lng > lngMax) lngMax = c.lng;
+  }
+  if (count === 0) {
+    return { currHotspotCount: 0, currAreaKm2: 0, currExtentNsKm: 0, currExtentEwKm: 0 };
+  }
+
+  const ns = (latMax - latMin) * 111;
+  const midLat = ((latMax + latMin) / 2) * Math.PI / 180;
+  const ew = (lngMax - lngMin) * 111 * Math.cos(midLat);
+
+  // Approximate burning-cell area as count × cell area, in km².
+  const cellAreaKm2 = (cellSizeMeters / 1000) ** 2;
+  const currAreaKm2 = count * cellAreaKm2;
+
+  return {
+    currHotspotCount: count,
+    currAreaKm2,
+    currExtentNsKm: ns,
+    currExtentEwKm: ew,
+  };
+}
+
 export interface SpreadParams {
   slopeAngle: number;
   windAlignment: number;

@@ -1,7 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { simulateStep, computeSpreadRate, computeScenarioFeatures } from "../spread";
+import {
+  simulateStep,
+  computeSpreadRate,
+  computeScenarioFeatures,
+  computeStepAggregates,
+} from "../spread";
 import { createGrid, igniteCell, getCell } from "../grid";
-import { CellState, FuelType, DEFAULT_CONFIG } from "../types";
+import { CellState, FuelType, DEFAULT_CONFIG, type GridCell } from "../types";
 
 describe("computeSpreadRate", () => {
   it("returns higher rate when spreading uphill", () => {
@@ -115,5 +120,35 @@ describe("computeScenarioFeatures", () => {
     const f = computeScenarioFeatures([]);
     expect(f.pctForest).toBe(0);
     expect(Number.isFinite(f.pctForest)).toBe(true);
+  });
+});
+
+describe("computeStepAggregates", () => {
+  function mkCell(lat: number, lng: number, state: CellState): GridCell {
+    return {
+      lat, lng, elevation: 0, fuel: "forest",
+      state, burnTimer: 0, row: 0, col: 0,
+    } as GridCell;
+  }
+
+  it("returns zeros when no cells are burning", () => {
+    const grid = [mkCell(0, 0, CellState.Unburned)];
+    const agg = computeStepAggregates(grid, 100);
+    expect(agg.currHotspotCount).toBe(0);
+    expect(agg.currAreaKm2).toBe(0);
+  });
+
+  it("computes count, area, and extents for a small burn cluster", () => {
+    // Two cells at (0,0) and (0.01, 0.01) — about 1.1 km × 1.1 km (at equator)
+    const grid = [
+      mkCell(0, 0, CellState.Burning),
+      mkCell(0.01, 0.01, CellState.Burning),
+      mkCell(5, 5, CellState.Unburned),
+    ];
+    const agg = computeStepAggregates(grid, 100); // 100 m cells -> 0.01 km² each
+    expect(agg.currHotspotCount).toBe(2);
+    expect(agg.currAreaKm2).toBeCloseTo(0.02, 5);
+    expect(agg.currExtentNsKm).toBeCloseTo(1.11, 1);
+    expect(agg.currExtentEwKm).toBeGreaterThan(1.0);
   });
 });
