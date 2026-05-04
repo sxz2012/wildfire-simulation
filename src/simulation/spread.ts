@@ -173,6 +173,15 @@ export function simulateStep(
   const newGrid: GridCell[] = grid.map((cell) => ({ ...cell }));
   const windStrength = Math.min(windSpeed / 40, 1.0);
 
+  // Compute scenario- and step-static features once per step (not per cell).
+  const scenarioFeatures = (config as any)._scenarioFeatures as ScenarioFeatures | undefined
+    ?? computeScenarioFeatures(grid.map(c => c.fuel));
+  const stepAgg = computeStepAggregates(grid, cellSizeMeters);
+  const hoursElapsed = stepNumber * timestepMinutes / 60;
+  const isDaytime = (hoursElapsed % 24) >= 6 && (hoursElapsed % 24) <= 18 ? 1 : 0;
+  const recentPrecip3Day = (config as any).recentPrecip3Day ?? 0;
+  const landCoverCode = (config as any).landCoverCode ?? 126;
+
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
       const idx = row * gridSize + col;
@@ -200,30 +209,38 @@ export function simulateStep(
 
           if (useML) {
             // ML model prediction
-            const hoursElapsed = stepNumber * timestepMinutes / 60;
             const n1km = countBurningNeighbors(grid, nr, nc, gridSize, 2);
             const n5km = countBurningNeighbors(grid, nr, nc, gridSize, 5);
             const n10km = countBurningNeighbors(grid, nr, nc, gridSize, 10);
 
             const features = [
-              hoursElapsed,           // hours_since_start
-              neighbor.lat,           // latitude
-              neighbor.lng,           // longitude
-              15,                     // frp_mw (estimate for unburned cell)
-              300,                    // brightness_k (baseline)
-              50,                     // confidence
-              1,                      // is_daytime (assume day)
-              encodeFuelType(neighbor.fuel), // fuel_type_enc
-              (config as any).tempMean ?? 25,  // temp_mean_c
-              (config as any).tempMax ?? 35,   // temp_max_c
-              humidity,               // humidity_pct
-              windSpeed,              // wind_speed_kmh
-              windDirection,          // wind_direction_deg
-              (config as any).precipitation ?? 0, // precipitation_mm
-              (config as any).cumulativePrecip ?? 0, // cumulative_precip_mm
-              n1km,                   // neighbors_1km
-              n5km,                   // neighbors_5km
-              n10km,                  // neighbors_10km
+              hoursElapsed,                    // 0  hours_since_start
+              neighbor.lat,                    // 1  latitude
+              neighbor.lng,                    // 2  longitude
+              isDaytime,                       // 3  is_daytime
+              encodeFuelType(neighbor.fuel),   // 4  fuel_type_enc
+              (config as any).tempMean ?? 25,  // 5  temp_mean_c
+              (config as any).tempMax ?? 35,   // 6  temp_max_c
+              humidity,                        // 7  humidity_pct
+              windSpeed,                       // 8  wind_speed_kmh
+              windDirection,                   // 9  wind_direction_deg
+              (config as any).precipitation ?? 0,      // 10 precipitation_mm
+              (config as any).cumulativePrecip ?? 0,   // 11 cumulative_precip_mm
+              n1km,                            // 12 neighbors_1km
+              n5km,                            // 13 neighbors_5km
+              n10km,                           // 14 neighbors_10km
+              neighbor.elevation,              // 15 elevation_m
+              scenarioFeatures.pctForest,      // 16 pct_forest
+              scenarioFeatures.pctShrub,       // 17 pct_shrub
+              scenarioFeatures.pctGrass,       // 18 pct_grass
+              scenarioFeatures.pctUrban,       // 19 pct_urban
+              scenarioFeatures.dominantFuelEnc, // 20 dominant_fuel_enc
+              landCoverCode,                   // 21 land_cover_code
+              stepAgg.currHotspotCount,        // 22 curr_hotspot_count
+              stepAgg.currAreaKm2,             // 23 curr_area_km2
+              stepAgg.currExtentNsKm,          // 24 curr_extent_ns_km
+              stepAgg.currExtentEwKm,          // 25 curr_extent_ew_km
+              recentPrecip3Day,                // 26 recent_precip_3day_mm
             ];
 
             const mlProb = predictSpreadProbability(features);
