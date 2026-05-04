@@ -4,6 +4,7 @@ import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
+import WaterOverlay from "./components/WaterOverlay";
 import Legend from "./components/Legend";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
@@ -27,6 +28,7 @@ function App() {
   const [ignitionPoint, setIgnitionPoint] = useState<{ lat: number; lng: number } | null>(null);
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; altitude: number; _t: number } | null>(null);
   const [activeConfig, setActiveConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
+  const [activeFuelMap, setActiveFuelMap] = useState<FuelType[] | null>(null);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
@@ -43,6 +45,7 @@ function App() {
     setCurrentStep(0);
     setIgnitionPoint(null);
     setActiveFire(null);
+    setActiveFuelMap(null);
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
@@ -155,6 +158,9 @@ function App() {
         }
       }
 
+      // Lift fuelMap to state so WaterOverlay can render it.
+      setActiveFuelMap(fuelMap ?? null);
+
       startSimulation(config, center, center, lat, lng, fuelMap, {
         tempMean: weather.temperature,
         tempMax: weather.temperature + 5,
@@ -209,6 +215,17 @@ function App() {
         flyTo={flyTo}
         onViewerReady={handleViewerReady}
       />
+
+      {activeFuelMap && ignitionPoint && appMode === "simulation" && (
+        <WaterOverlay
+          key={`water-${simKey}`}
+          fuelMap={activeFuelMap}
+          centerLat={ignitionPoint.lat}
+          centerLng={ignitionPoint.lng}
+          config={activeConfig}
+          viewer={viewerRef.current}
+        />
+      )}
 
       {activeFire && (
         <>
