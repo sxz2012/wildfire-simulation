@@ -196,6 +196,43 @@ def train_final(train_df: pd.DataFrame, n_estimators: int) -> xgb.Booster:
     return booster
 
 
+def evaluate(booster: xgb.Booster, test_df: pd.DataFrame, label: str) -> dict:
+    """Evaluate booster on holdout. Return metrics dict."""
+    dtest = xgb.DMatrix(test_df[FEATURES], label=test_df[TARGET])
+    preds = booster.predict(dtest)
+    y = test_df[TARGET].values
+    yhat = (preds >= 0.5).astype(int)
+
+    metrics = {
+        "model": label,
+        "n_rows": int(len(test_df)),
+        "n_fires": int(test_df["fire_id"].nunique()),
+        "aucpr": float(average_precision_score(y, preds)),
+        "aucroc": float(roc_auc_score(y, preds)),
+        "f1": float(f1_score(y, yhat)),
+        "brier": float(brier_score_loss(y, preds)),
+        "positive_rate": float(y.mean()),
+    }
+    print(f"\n=== Holdout metrics ({label}) ===")
+    for k, v in metrics.items():
+        if isinstance(v, float):
+            print(f"  {k:>15}: {v:.4f}")
+        else:
+            print(f"  {k:>15}: {v}")
+
+    print(f"\n  Per-fire AUC-PR ({label}):")
+    per_fire = {}
+    for fid, group in test_df.groupby("fire_id"):
+        idx = group.index
+        # group preds need positional indexing; rebuild
+        gp = booster.predict(xgb.DMatrix(group[FEATURES]))
+        ap = average_precision_score(group[TARGET], gp) if group[TARGET].nunique() > 1 else float("nan")
+        per_fire[fid] = float(ap)
+        print(f"    {fid:<22} aucpr={ap:.4f} (n={len(group):,})")
+    metrics["per_fire_aucpr"] = per_fire
+    return metrics
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
@@ -212,6 +249,8 @@ def main() -> None:
     best_n, fold_aucprs = cv_train(train_df)
 
     booster = train_final(train_df, best_n)
+
+    new_metrics = evaluate(booster, test_df, label="v2 (enriched, 27 features)")
 
 
 if __name__ == "__main__":
