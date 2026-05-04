@@ -92,8 +92,40 @@ XGB_PARAMS = {
 }
 
 
+def load_and_prepare() -> pd.DataFrame:
+    """Load enriched CSV, drop trailing-day rows, encode categoricals, sanity-check."""
+    print(f"Loading {DATA_PATH.name} ...")
+    df = pd.read_csv(DATA_PATH)
+    n0 = len(df)
+    print(f"  loaded {n0:,} rows, {df.shape[1]} cols")
+
+    # Drop the 5,126 trailing-day rows (they have NaN in recent_precip_3day_mm
+    # and represent each fire's last observed day — different distribution).
+    df = df[df["daily_features_recomputed"] == 0].copy()
+    print(f"  dropped {n0 - len(df):,} trailing-day rows; {len(df):,} remain")
+
+    # Encode categorical fuels using the runtime encoding (mlModel.ts).
+    unknown_fuels = set(df["fuel_type"].unique()) - set(FUEL_ENCODING)
+    assert not unknown_fuels, f"Unknown fuel_type values: {unknown_fuels}"
+    unknown_doms = set(df["dominant_fuel"].unique()) - set(FUEL_ENCODING)
+    assert not unknown_doms, f"Unknown dominant_fuel values: {unknown_doms}"
+    df["fuel_type_enc"] = df["fuel_type"].map(FUEL_ENCODING).astype("int8")
+    df["dominant_fuel_enc"] = df["dominant_fuel"].map(FUEL_ENCODING).astype("int8")
+
+    # Verify no NaN in any feature column.
+    null_counts = df[FEATURES].isna().sum()
+    bad = null_counts[null_counts > 0]
+    assert bad.empty, f"NaN found in feature columns:\n{bad}"
+
+    print(f"  feature matrix ready: {len(df):,} rows × {len(FEATURES)} features")
+    return df
+
+
 def main() -> None:
-    print("TODO: implement pipeline")
+    df = load_and_prepare()
+    print("\nLabel balance:")
+    print(df[TARGET].value_counts().to_dict())
+    print("\nFires:", df["fire_id"].nunique(), "unique")
 
 
 if __name__ == "__main__":
