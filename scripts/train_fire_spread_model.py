@@ -179,6 +179,23 @@ def cv_train(train_df: pd.DataFrame) -> tuple[int, list[float]]:
     return best_n, aucpr_per_fold
 
 
+def train_final(train_df: pd.DataFrame, n_estimators: int) -> xgb.Booster:
+    """Train final booster on all 24 train fires, fixed n_estimators."""
+    pos = (train_df[TARGET] == 1).sum()
+    neg = (train_df[TARGET] == 0).sum()
+    spw = neg / pos
+    dtrain = xgb.DMatrix(train_df[FEATURES], label=train_df[TARGET])
+
+    print(f"\nTraining final model: {n_estimators} trees on {len(train_df):,} rows ...")
+    booster = xgb.train(
+        {**XGB_PARAMS, "scale_pos_weight": spw},
+        dtrain,
+        num_boost_round=n_estimators,
+        verbose_eval=False,
+    )
+    return booster
+
+
 def main() -> None:
     df = load_and_prepare()
     print("\nLabel balance:")
@@ -193,6 +210,8 @@ def main() -> None:
         print(f"  Fold {i}: train_fires={tr_fires} val_fires={va_fires}")
 
     best_n, fold_aucprs = cv_train(train_df)
+
+    booster = train_final(train_df, best_n)
 
 
 if __name__ == "__main__":
