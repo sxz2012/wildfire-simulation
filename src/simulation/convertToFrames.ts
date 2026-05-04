@@ -51,8 +51,11 @@ export function convertSimulationToFire(
     return { date, hotspots };
   });
 
-  // Add empty pre-fire frame
-  frames.unshift({ date: "Before ignition", hotspots: [] });
+  // Pre-fire frame (no hotspots yet) sits at the same wall-clock moment as
+  // the ignition step. Label it with the ignition timestamp itself so the
+  // UI's Origin field reads as a real date/time rather than "Before ignition".
+  const ignitionLabel = originDate ? originDate.toISOString() : "Day 1, 00:00";
+  frames.unshift({ date: ignitionLabel, hotspots: [] });
 
   return {
     name: "Simulation",
