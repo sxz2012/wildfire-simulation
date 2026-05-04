@@ -28,6 +28,18 @@ interface GlobeViewProps {
   onViewerReady?: (viewer: CesiumViewer) => void;
 }
 
+// Inline SVG flame cursor used when the globe is in click-to-ignite mode.
+// Uses a 32×32 PNG-style raster of a Lucide-flame path filled with fire-orange
+// and a yellow inner gradient. Hotspot anchored at the base of the flame
+// (16, 28) so the click point sits where the flame "lands" on the terrain.
+const IGNITE_CURSOR =
+  "url(\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 24 24'>" +
+  "<path fill='%23ff5722' stroke='%23b83000' stroke-width='1' stroke-linejoin='round' " +
+  "d='M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z'/>" +
+  "<path fill='%23ffd54f' " +
+  "d='M12 9c.4 1.5 1.4 2.5 2.4 3.6.9 1 1.6 2 1.6 3.4a4 4 0 1 1-8 0c0-.7.3-1.4.7-1.9a1.5 1.5 0 0 0 1.3 1.4 1.5 1.5 0 0 0 1.5-1.5c0-.7-.3-1.1-.6-1.6-.4-.7-.7-1.4-.4-2.5 .5.5 1 1 1.5 1Z'/>" +
+  "</svg>\") 16 28, crosshair";
+
 export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const viewerRef = useRef<CesiumViewer | null>(null);
@@ -157,5 +169,15 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
     });
   }, [flyTo]);
 
-  return <div ref={containerRef} className="w-full h-full" />;
+  // When ignition is armed (parent passes a callback), swap the cursor to the
+  // fire icon so users have an obvious affordance.
+  const igniteReady = onIgnite !== undefined;
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full"
+      style={igniteReady ? { cursor: IGNITE_CURSOR } : undefined}
+    />
+  );
 }
