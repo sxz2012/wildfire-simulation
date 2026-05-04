@@ -81,7 +81,7 @@ HOLDOUT_FIRES = [
 
 XGB_PARAMS = {
     "objective": "binary:logistic",
-    "eval_metric": "aucpr",
+    "eval_metric": "auc",
     "max_depth": 6,
     "learning_rate": 0.05,
     "min_child_weight": 5,
@@ -145,11 +145,6 @@ def cv_train(train_df: pd.DataFrame) -> tuple[int, list[float]]:
     best_iters: list[int] = []
     aucpr_per_fold: list[float] = []
 
-    pos = (train_df[TARGET] == 1).sum()
-    neg = (train_df[TARGET] == 0).sum()
-    spw = neg / pos
-    print(f"\nscale_pos_weight = {spw:.4f} (neg={neg:,} / pos={pos:,})")
-
     for fold, (tr_idx, va_idx) in enumerate(
         gkf.split(train_df, groups=train_df["fire_id"]), 1
     ):
@@ -158,7 +153,7 @@ def cv_train(train_df: pd.DataFrame) -> tuple[int, list[float]]:
         dtrain = xgb.DMatrix(tr[FEATURES], label=tr[TARGET])
         dval = xgb.DMatrix(va[FEATURES], label=va[TARGET])
 
-        params = {**XGB_PARAMS, "scale_pos_weight": spw}
+        params = XGB_PARAMS
         booster = xgb.train(
             params,
             dtrain,
@@ -181,14 +176,11 @@ def cv_train(train_df: pd.DataFrame) -> tuple[int, list[float]]:
 
 def train_final(train_df: pd.DataFrame, n_estimators: int) -> xgb.Booster:
     """Train final booster on all 24 train fires, fixed n_estimators."""
-    pos = (train_df[TARGET] == 1).sum()
-    neg = (train_df[TARGET] == 0).sum()
-    spw = neg / pos
     dtrain = xgb.DMatrix(train_df[FEATURES], label=train_df[TARGET])
 
     print(f"\nTraining final model: {n_estimators} trees on {len(train_df):,} rows ...")
     booster = xgb.train(
-        {**XGB_PARAMS, "scale_pos_weight": spw},
+        XGB_PARAMS,
         dtrain,
         num_boost_round=n_estimators,
         verbose_eval=False,
