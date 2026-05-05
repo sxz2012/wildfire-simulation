@@ -12,6 +12,8 @@ interface ControlPanelProps {
   onReset: () => void;
   onWeatherSourceChange: (source: WeatherSource, season?: Season) => void;
   isRunning: boolean;
+  /** True when the user has dropped a flame pin and is ready to start. */
+  hasPendingIgnition?: boolean;
   collapsed: boolean;
   onToggleCollapse: () => void;
   weatherInfo?: string;
@@ -26,6 +28,7 @@ export default function ControlPanel({
   onReset,
   onWeatherSourceChange,
   isRunning,
+  hasPendingIgnition = false,
   collapsed,
   onToggleCollapse,
   weatherInfo,
@@ -220,10 +223,20 @@ export default function ControlPanel({
       {/* Actions */}
       <div className="px-5 pb-4 pt-2 border-t border-white/[0.04] flex gap-2">
         {mode === "ignite" ? (
-          <button onClick={() => onStart(config)} disabled={isRunning}
-            className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/30 hover:border-amber-500/50
-              disabled:opacity-40 py-2.5 rounded-lg font-semibold text-base text-amber-400 transition-all duration-200 cursor-pointer">
-            {isRunning ? "Simulating..." : "Click Globe to Ignite"}
+          <button
+            onClick={() => onStart(config)}
+            disabled={isRunning || !hasPendingIgnition}
+            className={`flex-1 border py-2.5 rounded-lg font-semibold text-base transition-all duration-200 ${
+              hasPendingIgnition && !isRunning
+                ? "bg-amber-500/30 hover:bg-amber-500/40 border-amber-500/60 hover:border-amber-500/80 text-amber-300 cursor-pointer shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+                : "bg-amber-500/10 border-amber-500/20 text-amber-400/60 cursor-default"
+            }`}
+          >
+            {isRunning
+              ? "Simulating..."
+              : hasPendingIgnition
+                ? "Start the Wildfire"
+                : "Click Globe to Ignite"}
           </button>
         ) : (
           <button onClick={() => onStartHistorical(HISTORICAL_FIRE_LIST[selectedFire].id)} disabled={isRunning}

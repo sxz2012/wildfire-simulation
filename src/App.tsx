@@ -5,6 +5,7 @@ import TimelineBar from "./components/TimelineBar";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
 import WaterOverlay from "./components/WaterOverlay";
+import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
@@ -30,6 +31,10 @@ function App() {
   const [activeConfig, setActiveConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
   const [activeFuelMap, setActiveFuelMap] = useState<FuelType[] | null>(null);
   const [activeOriginDate, setActiveOriginDate] = useState<Date | null>(null);
+  // Where the user has placed the ignition flame pin but not yet confirmed.
+  // Globe clicks update this; the actual simulation only starts when the
+  // user clicks the "Start the Wildfire" button in ControlPanel.
+  const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
@@ -48,6 +53,7 @@ function App() {
     setActiveFire(null);
     setActiveFuelMap(null);
     setActiveOriginDate(null);
+    setPendingIgnition(null);
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
@@ -73,7 +79,20 @@ function App() {
     setAutoPlay(true);
   }, [history, appMode, ignitionPoint, activeConfig, activeOriginDate]);
 
-  const handleIgnite = useCallback(
+  // Globe click in idle mode just drops/moves the flame pin. The user
+  // confirms by clicking "Start the Wildfire" in ControlPanel.
+  const handlePlacePin = useCallback(
+    (lat: number, lng: number) => {
+      // If a previous run's visualization is still on screen, clear it
+      // before placing a fresh pin so the scene resets cleanly.
+      if (appMode === "simulation") fullReset();
+      setPendingIgnition({ lat, lng });
+      setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
+    },
+    [appMode, fullReset],
+  );
+
+  const handleStartWildfire = useCallback(
     async (lat: number, lng: number) => {
       fullReset();
       setAppMode("simulation");
@@ -189,9 +208,20 @@ function App() {
     [fullReset, startSimulation]
   );
 
-  const handleStart = useCallback((config: SimulationConfig) => {
-    setActiveConfig(config);
-  }, []);
+  // Bridges the ControlPanel's existing onStart prop into the new flow:
+  // - If a pin is placed, this is the "Start the Wildfire" action and we
+  //   actually launch the simulation at the pinned location.
+  // - Otherwise (no pin yet), the button is purely instructional; the
+  //   click is a no-op besides updating local config in ControlPanel.
+  const handleStart = useCallback(
+    (config: SimulationConfig) => {
+      setActiveConfig(config);
+      if (pendingIgnition) {
+        handleStartWildfire(pendingIgnition.lat, pendingIgnition.lng);
+      }
+    },
+    [pendingIgnition, handleStartWildfire],
+  );
 
   const handleWeatherSourceChange = useCallback((source: "live" | "seasonal" | "custom", season?: Season) => {
     weatherSourceRef.current = { source, season };
@@ -229,10 +259,12 @@ function App() {
   return (
     <div className="h-screen w-screen relative">
       <GlobeView
-        onIgnite={isRunning || appMode === "historical" ? undefined : handleIgnite}
+        onIgnite={isRunning || appMode === "historical" ? undefined : handlePlacePin}
         flyTo={flyTo}
         onViewerReady={handleViewerReady}
       />
+
+      <IgnitionPin viewer={viewerRef.current} position={pendingIgnition} />
 
       {activeFuelMap && ignitionPoint && appMode === "simulation" && (
         <WaterOverlay
@@ -269,6 +301,7 @@ function App() {
         onReset={fullReset}
         onWeatherSourceChange={handleWeatherSourceChange}
         isRunning={isRunning}
+        hasPendingIgnition={pendingIgnition !== null}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
         weatherInfo={weatherInfo}
