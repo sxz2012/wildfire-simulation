@@ -175,3 +175,44 @@ export async function findMaxDelay(
     bisectionTrace: trace,
   };
 }
+
+export interface FindMinTierInput extends InverseSearchInput {
+  delayMin: number;
+}
+
+export interface FindMinTierResult {
+  /** First tier in TIER_LADDER that passes. `null` if all fail. */
+  minTier: BundleKey | null;
+  minWorking: SimRunSummary | null;
+  tierBelow: SimRunSummary | null;
+  tierTrace: Array<{ tier: BundleKey; finalAreaHa: number; passed: boolean }>;
+}
+
+export async function findMinTier(
+  input: FindMinTierInput,
+): Promise<FindMinTierResult> {
+  const trace: FindMinTierResult["tierTrace"] = [];
+  let lastFailingRun: SimRunSummary | null = null;
+
+  for (const tier of TIER_LADDER) {
+    const bundle = SUPPRESSION_BUNDLES[tier];
+    const run = runOnce(input, input.delayMin, [...bundle]);
+    const passed = run.finalAreaHa <= input.thresholdAreaHa;
+    trace.push({ tier, finalAreaHa: run.finalAreaHa, passed });
+    if (passed) {
+      return {
+        minTier: tier,
+        minWorking: run,
+        tierBelow: lastFailingRun,
+        tierTrace: trace,
+      };
+    }
+    lastFailingRun = run;
+  }
+  return {
+    minTier: null,
+    minWorking: null,
+    tierBelow: lastFailingRun,
+    tierTrace: trace,
+  };
+}

@@ -77,24 +77,11 @@ describe("findMinTier (Q2)", () => {
   };
   const fuelMap: FuelType[] = new Array(50 * 50).fill(FuelType.Grass);
 
-  it("returns null when threshold is unsatisfiable (threshold=0, baseline > 0)", async () => {
-    // We can't engineer a real "even Type 1 fails" without a much bigger
-    // setup. Instead, we test the null-return path indirectly: if the
-    // implementation walks the ladder and every tier produces
-    // finalAreaHa > threshold, it MUST return null. Threshold=0 makes
-    // that the case for any non-trivial fire (which the runner will
-    // produce after one timestep at the ignition cell, even with full
-    // suppression — a single Burning cell during the run -> Burned at
-    // step end -> finalAreaHa > 0).
-    //
-    // NOTE: this assertion depends on the simulation actually marking
-    // at least one cell as Burning/Burned at some step. If suppression
-    // converts everything to Suppressed instantly (no Burning/Burned
-    // ever), the test will need maxSteps==1 + ignite-only behavior.
-    // The current runner's igniteCell + first simulateStep produces
-    // a Burning cell at minimum, which then either stays Burning or
-    // transitions to Burned by the end of the run. Either way,
-    // finalAreaHa > 0.
+  it("returns null when no tier passes the threshold", async () => {
+    // We construct an unsatisfiable threshold (negative ha) so that even
+    // a tier producing finalAreaHa=0 fails the `<= threshold` predicate.
+    // This forces the linear scan to walk all four tiers and return
+    // null — the path we want to cover.
     const result = await findMinTier({
       config: tinyConfig,
       fuelMap,
@@ -103,7 +90,7 @@ describe("findMinTier (Q2)", () => {
       centerLat: 37.3,
       centerLng: -122.1,
       maxSteps: 30,
-      thresholdAreaHa: 0,
+      thresholdAreaHa: -1,
       delayMin: 0,
     });
     expect(result.minTier).toBeNull();
