@@ -10,7 +10,7 @@ import Legend from "./components/Legend";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
-import { DEFAULT_CONFIG, FuelType, type SimulationConfig } from "./simulation/types";
+import { DEFAULT_CONFIG, FuelType, SUPPRESSION_BUNDLES, type SimulationConfig, type ResourceCount } from "./simulation/types";
 import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
 import { fetchCurrentWeather, getSeasonalWeather, type Season, type WeatherData } from "./services/weather";
@@ -35,6 +35,10 @@ function App() {
   // Globe clicks update this; the actual simulation only starts when the
   // user clicks the "Start the Wildfire" button in ControlPanel.
   const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
+  const [suppressionDelay, setSuppressionDelay] = useState(30);
+  const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>(
+    SUPPRESSION_BUNDLES.initialAttack,
+  );
   // True between "Start the Wildfire" being clicked and the worker actually
   // running. Bridges the async gap (weather + land cover + terrain fetches)
   // so the button reads "Simulating..." continuously instead of flashing
@@ -51,6 +55,14 @@ function App() {
     viewerRef.current = viewer;
   }, []);
 
+  const handleSuppressionChange = useCallback(
+    (delay: number, resources: ResourceCount[]) => {
+      setSuppressionDelay(delay);
+      setSuppressionResources(resources);
+    },
+    [],
+  );
+
   const fullReset = useCallback(() => {
     reset();
     setCurrentStep(0);
@@ -62,6 +74,8 @@ function App() {
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
+    setSuppressionDelay(30);
+    setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
   }, [reset]);
 
   // Convert simulation history to fire frames when the worker finishes a run.
@@ -215,15 +229,15 @@ function App() {
       // Lift fuelMap to state so WaterOverlay can render it.
       setActiveFuelMap(fuelMap ?? null);
 
-      startSimulation(config, center, center, lat, lng, fuelMap, {
-        tempMean: weather.temperature,
-        tempMax: weather.temperature + 5,
-        precipitation: 0,
-        cumulativePrecip: 0,
-      }, undefined, elevationMap);
+      startSimulation(
+        config, center, center, lat, lng, fuelMap,
+        { tempMean: weather.temperature, tempMax: weather.temperature + 5, precipitation: 0, cumulativePrecip: 0 },
+        undefined, elevationMap,
+        { responseDelayMin: suppressionDelay, resources: suppressionResources },
+      );
       setIsPreparingSim(false);
     },
-    [fullReset, startSimulation]
+    [fullReset, startSimulation, suppressionDelay, suppressionResources]
   );
 
   // Bridges the ControlPanel's existing onStart prop into the new flow:
@@ -339,6 +353,9 @@ function App() {
         fire={activeFire}
         currentFrame={currentStep}
         showImpact={totalSteps > 0}
+        suppressionDelay={suppressionDelay}
+        suppressionResources={suppressionResources}
+        onSuppressionChange={handleSuppressionChange}
       />
 
       <TimelineBar
