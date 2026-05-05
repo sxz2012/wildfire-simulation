@@ -192,3 +192,104 @@ export function pickFirelineCells(
   scored.sort((a, b) => b.alignment - a.alignment);
   return scored.slice(0, maxCells).map((s) => s.idx);
 }
+
+/**
+ * One-pass combined fireline picker + perimeter measurement. Replaces
+ * pickFirelineCells + activeFirePerimeter in the hot loop — does the same
+ * math but with a single grid scan instead of three.
+ *
+ * Returns:
+ *  - picked: indices of cells (capped at maxCells) at the head of the fire,
+ *    sorted by alignment with the wind, ready to be flipped to Suppressed.
+ *  - perimeterCellCount, perimeterMeters: same definition as
+ *    activeFirePerimeter — perimeter cells are Burning cells with at least
+ *    one Unburned (8-conn) neighbor; meters sums the cardinal-facing
+ *    unburned edges × cellSizeMeters.
+ */
+export function suppressionStep(
+  grid: GridCell[],
+  gridSize: number,
+  cellSizeMeters: number,
+  maxCells: number,
+  windDirectionDeg: number,
+): {
+  picked: number[];
+  perimeterCellCount: number;
+  perimeterMeters: number;
+} {
+  let centroidR = 0;
+  let centroidC = 0;
+  let burningCount = 0;
+  let perimeterCellCount = 0;
+  let totalEdges = 0;
+
+  // Single pass: find burning cells, compute centroid, count perimeter.
+  // Track candidate perimeter cells with their (row, col) so we can score
+  // them by alignment after the centroid is known.
+  type Candidate = { idx: number; row: number; col: number };
+  const candidates: Candidate[] = [];
+
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const idx = row * gridSize + col;
+      if (grid[idx].state !== CellState.Burning) continue;
+
+      centroidR += row;
+      centroidC += col;
+      burningCount++;
+
+      let isPerimeter = false;
+      let edgesFacingUnburned = 0;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        const nr = row + dr;
+        const nc = col + dc;
+        const outOfBounds = nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize;
+        const isCardinal = dr === 0 || dc === 0;
+
+        if (outOfBounds) {
+          // Grid edge counts as "unburned" for perimeter purposes.
+          isPerimeter = true;
+          if (isCardinal) edgesFacingUnburned++;
+          continue;
+        }
+        if (grid[nr * gridSize + nc].state === CellState.Unburned) {
+          isPerimeter = true;
+          if (isCardinal) edgesFacingUnburned++;
+        }
+      }
+
+      if (isPerimeter) {
+        perimeterCellCount++;
+        totalEdges += edgesFacingUnburned;
+        if (maxCells > 0) candidates.push({ idx, row, col });
+      }
+    }
+  }
+
+  const perimeterMeters = totalEdges * cellSizeMeters;
+
+  if (maxCells <= 0 || burningCount === 0 || candidates.length === 0) {
+    return { picked: [], perimeterCellCount, perimeterMeters };
+  }
+
+  centroidR /= burningCount;
+  centroidC /= burningCount;
+
+  // Wind blows TOWARD (windDir + 180). Score by alignment with that vector.
+  const headRad = ((windDirectionDeg + 180) * Math.PI) / 180;
+  const headDr = -Math.cos(headRad);
+  const headDc = Math.sin(headRad);
+
+  const scored = candidates.map((c) => {
+    const dr = c.row - centroidR;
+    const dc = c.col - centroidC;
+    const len = Math.sqrt(dr * dr + dc * dc) || 1;
+    return { idx: c.idx, score: (dr * headDr + dc * headDc) / len };
+  });
+  scored.sort((a, b) => b.score - a.score);
+  return {
+    picked: scored.slice(0, maxCells).map((s) => s.idx),
+    perimeterCellCount,
+    perimeterMeters,
+  };
+}

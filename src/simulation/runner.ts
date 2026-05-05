@@ -12,8 +12,7 @@ import {
 import { createGrid, igniteCell } from "./grid";
 import { simulateStep } from "./spread";
 import {
-  activeFirePerimeter,
-  pickFirelineCells,
+  suppressionStep,
   totalChainsPerHour,
   delayDecay,
   chainsToMeters,
@@ -52,34 +51,48 @@ function runOnePass(
     if (suppression && suppression.resources.length > 0) {
       const elapsedMin = step * config.timestepMinutes;
       const onScene = elapsedMin >= suppression.responseDelayMin;
-      const stepChainsBudget = onScene
-        ? totalChainsPerHour(suppression.resources) *
-          (config.timestepMinutes / 60) *
-          delayDecay(suppression.responseDelayMin)
-        : 0;
-      const cellsBudget = Math.floor(
-        chainsToMeters(stepChainsBudget) / config.cellSizeMeters,
-      );
-      const picked = onScene
-        ? pickFirelineCells(grid, config.gridSize, cellsBudget, config.windDirection)
-        : [];
-      for (const idx of picked) grid[idx].state = CellState.Suppressed;
-      cumulativeChains += stepChainsBudget;
 
-      const perim = activeFirePerimeter(grid, config.gridSize, config.cellSizeMeters);
-      diags.push({
-        step,
-        cumulativeLineMeters: chainsToMeters(cumulativeChains),
-        activePerimeterMeters: perim.meters,
-        containmentProbability: containmentProbability(
-          chainsToMeters(cumulativeChains),
-          perim.meters,
-        ),
-        resourcesActive: onScene
-          ? suppression.resources.reduce((s, r) => s + r.count, 0)
-          : 0,
-        newFirelineCells: picked.length,
-      });
+      if (onScene) {
+        const stepChainsBudget =
+          totalChainsPerHour(suppression.resources) *
+          (config.timestepMinutes / 60) *
+          delayDecay(suppression.responseDelayMin);
+        const cellsBudget = Math.floor(
+          chainsToMeters(stepChainsBudget) / config.cellSizeMeters,
+        );
+        const { picked, perimeterMeters } = suppressionStep(
+          grid,
+          config.gridSize,
+          config.cellSizeMeters,
+          cellsBudget,
+          config.windDirection,
+        );
+        for (const idx of picked) grid[idx].state = CellState.Suppressed;
+        cumulativeChains += stepChainsBudget;
+
+        diags.push({
+          step,
+          cumulativeLineMeters: chainsToMeters(cumulativeChains),
+          activePerimeterMeters: perimeterMeters,
+          containmentProbability: containmentProbability(
+            chainsToMeters(cumulativeChains),
+            perimeterMeters,
+          ),
+          resourcesActive: suppression.resources.reduce((s, r) => s + r.count, 0),
+          newFirelineCells: picked.length,
+        });
+      } else {
+        // Pre-response: skip the expensive grid scan entirely. Push a
+        // placeholder diag so the per-step series stays continuous.
+        diags.push({
+          step,
+          cumulativeLineMeters: 0,
+          activePerimeterMeters: 0,
+          containmentProbability: 0,
+          resourcesActive: 0,
+          newFirelineCells: 0,
+        });
+      }
     }
 
     history.push({ grid: snapshotGrid(grid, config.gridSize), timestep: step });
