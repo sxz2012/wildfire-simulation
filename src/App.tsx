@@ -165,26 +165,37 @@ function App() {
           : Promise.resolve(undefined),
       ]);
 
-      if (worldCoverFuels) {
-        fuelMap = worldCoverFuels;
-      } else if (viewer && !viewer.isDestroyed()) {
-        try {
-          fuelMap = sampleVegetation(
-            viewer,
-            lat,
-            lng,
-            config.gridSize,
-            config.cellSizeMeters,
-          );
-        } catch {
-          // Fall back to procedural assignment in createGrid.
-        }
-      }
-
       elevationMap = sampledElevations;
-      if (fuelMap && elevationMap) {
-        for (let i = 0; i < fuelMap.length; i++) {
-          if (elevationMap[i] <= 0) fuelMap[i] = FuelType.Water;
+
+      if (worldCoverFuels) {
+        // WorldCover is pixel-perfect at 10m and explicitly classifies water
+        // (class 80). Trust it — do NOT layer on the elevation-based water
+        // override, which is sampled in 12x12 blocks and would replace
+        // WorldCover's smooth coastline with rectangular non-flammable
+        // patches whenever a coastal sample point happens to fall over
+        // water.
+        fuelMap = worldCoverFuels;
+      } else {
+        // Imagery / procedural fallback path. WorldCover unavailable, so use
+        // imagery color sampling for fuels and the elevation override as the
+        // best-effort water mask.
+        if (viewer && !viewer.isDestroyed()) {
+          try {
+            fuelMap = sampleVegetation(
+              viewer,
+              lat,
+              lng,
+              config.gridSize,
+              config.cellSizeMeters,
+            );
+          } catch {
+            // Fall back to procedural assignment in createGrid.
+          }
+        }
+        if (fuelMap && elevationMap) {
+          for (let i = 0; i < fuelMap.length; i++) {
+            if (elevationMap[i] <= 0) fuelMap[i] = FuelType.Water;
+          }
         }
       }
 
