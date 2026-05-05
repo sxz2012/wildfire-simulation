@@ -5,6 +5,8 @@ import TimelineBar from "./components/TimelineBar";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
 import WaterOverlay from "./components/WaterOverlay";
+import FirelineOverlay from "./components/FirelineOverlay";
+import GhostFireOverlay from "./components/GhostFireOverlay";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
@@ -297,6 +299,15 @@ function App() {
   const dateLabels = activeFire ? activeFire.frames.map((f) => f.date) : undefined;
   const isHistorical = appMode === "historical";
 
+  const baselineSnapshot =
+    history.baseline.length > 0
+      ? history.baseline[Math.min(currentStep, history.baseline.length - 1)].grid
+      : null;
+  const suppressedSnapshot =
+    history.suppressed && history.suppressed.length > 0
+      ? history.suppressed[Math.min(currentStep, history.suppressed.length - 1)].grid
+      : null;
+
   return (
     <div className="h-screen w-screen relative">
       <GlobeView
@@ -314,6 +325,29 @@ function App() {
         <WaterOverlay
           key={`water-${simKey}`}
           fuelMap={activeFuelMap}
+          centerLat={ignitionPoint.lat}
+          centerLng={ignitionPoint.lng}
+          config={activeConfig}
+          viewer={viewerRef.current}
+        />
+      )}
+
+      {suppressedSnapshot && ignitionPoint && (
+        <FirelineOverlay
+          key={`fireline-${simKey}`}
+          gridSnapshot={suppressedSnapshot}
+          centerLat={ignitionPoint.lat}
+          centerLng={ignitionPoint.lng}
+          config={activeConfig}
+          viewer={viewerRef.current}
+        />
+      )}
+
+      {baselineSnapshot && suppressedSnapshot && ignitionPoint && (
+        <GhostFireOverlay
+          key={`ghost-${simKey}`}
+          baselineSnapshot={baselineSnapshot}
+          suppressedSnapshot={suppressedSnapshot}
           centerLat={ignitionPoint.lat}
           centerLng={ignitionPoint.lng}
           config={activeConfig}
