@@ -239,8 +239,10 @@ These are reasonable Phase-2 candidates after the core scenario-comparison featu
 3. **Real-time pause-and-intervene** — slider to scrub mid-sim, change resource mix, replay forward.
 4. **Bringing in real CAL FIRE / NWS data** — pre-fill the response-delay slider with the historical median for that county.
 
-## Open questions
+## Resolved decisions
 
-- Should the **default** bundle be "None" (baseline) or "Initial Attack" (most realistic baseline)? Leaning toward "Initial Attack" because every real fire gets some response.
-- Should the **ghost overlay** be on by default or behind a toggle? Leaning toward on by default, with a checkbox in the legend.
-- For Custom resource bundles, do we expose all 6 resource types or simplify to 3 (Crew, Heavy Equipment, Air)? Leaning simplified, with a "Show advanced" expander.
+| Decision | Resolution |
+|---|---|
+| Default resource bundle | **Initial Attack** — every real fire gets some response, so this is the realistic baseline. The user can flip to "None" to see the no-suppression case. |
+| Ghost overlay (counterfactual area) | **On by default.** A checkbox in `Legend` lets the user toggle it off if it feels visually noisy on a given scene. |
+| Custom-bundle resource types | **All 6 exposed** — Type 1 Crew, Type 2 Crew, Engine, Type 1 Dozer, Helitack, Air Tanker. No "simplified" mode. Each row shows its NWCG production rate inline so the user understands what they're choosing. |
