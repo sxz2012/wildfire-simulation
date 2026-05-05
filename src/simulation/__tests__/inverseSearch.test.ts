@@ -33,7 +33,8 @@ describe("findMaxDelay (Q1)", () => {
   };
   const fuelMap: FuelType[] = new Array(50 * 50).fill(FuelType.Grass);
 
-  it("returns null when even delay=0 fails (threshold too low)", async () => {
+  it("returns null when no delay value satisfies the threshold", async () => {
+    // No suppression + threshold=0 means every delay fails (any spread > 0).
     const result = await findMaxDelay({
       config: tinyConfig,
       fuelMap,
@@ -42,8 +43,8 @@ describe("findMaxDelay (Q1)", () => {
       centerLat: 37.3,
       centerLng: -122.1,
       maxSteps: 30,
-      thresholdAreaHa: 0.001, // sub-cell, impossible
-      bundle: [...SUPPRESSION_BUNDLES.initialAttack],
+      thresholdAreaHa: 0,
+      bundle: [],
     });
     expect(result.maxDelayMin).toBeNull();
   });
