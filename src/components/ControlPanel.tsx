@@ -4,6 +4,8 @@ import { HISTORICAL_FIRE_LIST, type HistoricalFire } from "../data/historicalFir
 import { SEASONS, type Season } from "../services/weather";
 import ImpactSection from "./ImpactSection";
 import LocationSearch from "./LocationSearch";
+import SuppressionInputs from "./SuppressionInputs";
+import type { ResourceCount } from "../simulation/types";
 
 type WeatherSource = "live" | "seasonal" | "custom";
 
@@ -23,6 +25,9 @@ interface ControlPanelProps {
   fire?: HistoricalFire | null;
   currentFrame?: number;
   showImpact?: boolean;
+  suppressionDelay?: number;
+  suppressionResources?: ResourceCount[];
+  onSuppressionChange?: (delay: number, resources: ResourceCount[]) => void;
 }
 
 export default function ControlPanel({
@@ -39,6 +44,9 @@ export default function ControlPanel({
   fire,
   currentFrame,
   showImpact,
+  suppressionDelay,
+  suppressionResources,
+  onSuppressionChange,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -162,6 +170,14 @@ export default function ControlPanel({
                 </div>
               )}
             </div>
+
+            {onSuppressionChange && suppressionResources !== undefined && suppressionDelay !== undefined && (
+              <SuppressionInputs
+                responseDelayMin={suppressionDelay}
+                resources={suppressionResources}
+                onChange={onSuppressionChange}
+              />
+            )}
 
             <p className="text-sm text-gray-500 leading-relaxed">
               {weatherSource === "live"
