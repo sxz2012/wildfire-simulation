@@ -264,7 +264,10 @@ function App() {
         onViewerReady={handleViewerReady}
       />
 
-      <IgnitionPin viewer={viewerRef.current} position={pendingIgnition} />
+      <IgnitionPin
+        viewer={viewerRef.current}
+        position={pendingIgnition ?? ignitionPoint}
+      />
 
       {activeFuelMap && ignitionPoint && appMode === "simulation" && (
         <WaterOverlay
