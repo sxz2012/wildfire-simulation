@@ -2,19 +2,92 @@ import {
   CellState,
   type FuelType,
   type SimulationConfig,
-  type SimulationResult,
   type SimulationState,
   type GridCell,
+  type SuppressionConfig,
+  type SuppressionResult,
+  type SuppressionStepDiag,
+  type DualSimulationResult,
 } from "./types";
 import { createGrid, igniteCell } from "./grid";
 import { simulateStep } from "./spread";
+import {
+  activeFirePerimeter,
+  pickFirelineCells,
+  totalChainsPerHour,
+  delayDecay,
+  chainsToMeters,
+  containmentProbability,
+} from "./suppression";
 
 function snapshotGrid(grid: GridCell[], gridSize: number): Uint8Array {
   const snapshot = new Uint8Array(gridSize * gridSize);
-  for (let i = 0; i < grid.length; i++) {
-    snapshot[i] = grid[i].state;
-  }
+  for (let i = 0; i < grid.length; i++) snapshot[i] = grid[i].state;
   return snapshot;
+}
+
+function runOnePass(
+  config: SimulationConfig,
+  igniteRow: number,
+  igniteCol: number,
+  elevationFn: (lat: number, lng: number) => number,
+  maxSteps: number,
+  centerLat: number,
+  centerLng: number,
+  fuelMap: FuelType[] | undefined,
+  elevationMap: Float32Array | undefined,
+  suppression: SuppressionConfig | undefined,
+): { history: SimulationState[]; diags: SuppressionStepDiag[] } {
+  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
+  igniteCell(grid, igniteRow, igniteCol, config.gridSize);
+  const history: SimulationState[] = [
+    { grid: snapshotGrid(grid, config.gridSize), timestep: 0 },
+  ];
+  const diags: SuppressionStepDiag[] = [];
+  let cumulativeChains = 0;
+
+  for (let step = 1; step <= maxSteps; step++) {
+    grid = simulateStep(grid, config, step);
+
+    if (suppression && suppression.resources.length > 0) {
+      const elapsedMin = step * config.timestepMinutes;
+      const onScene = elapsedMin >= suppression.responseDelayMin;
+      const stepChainsBudget = onScene
+        ? totalChainsPerHour(suppression.resources) *
+          (config.timestepMinutes / 60) *
+          delayDecay(suppression.responseDelayMin)
+        : 0;
+      const cellsBudget = Math.floor(
+        chainsToMeters(stepChainsBudget) / config.cellSizeMeters,
+      );
+      const picked = onScene
+        ? pickFirelineCells(grid, config.gridSize, cellsBudget, config.windDirection)
+        : [];
+      for (const idx of picked) grid[idx].state = CellState.Suppressed;
+      cumulativeChains += stepChainsBudget;
+
+      const perim = activeFirePerimeter(grid, config.gridSize, config.cellSizeMeters);
+      diags.push({
+        step,
+        cumulativeLineMeters: chainsToMeters(cumulativeChains),
+        activePerimeterMeters: perim.meters,
+        containmentProbability: containmentProbability(
+          chainsToMeters(cumulativeChains),
+          perim.meters,
+        ),
+        resourcesActive: onScene
+          ? suppression.resources.reduce((s, r) => s + r.count, 0)
+          : 0,
+        newFirelineCells: picked.length,
+      });
+    }
+
+    history.push({ grid: snapshotGrid(grid, config.gridSize), timestep: step });
+
+    const hasBurning = grid.some((c) => c.state === CellState.Burning);
+    if (!hasBurning) break;
+  }
+  return { history, diags };
 }
 
 export function runSimulation(
@@ -26,26 +99,21 @@ export function runSimulation(
   centerLat = 0,
   centerLng = 0,
   fuelMap?: FuelType[],
-  elevationMap?: Float32Array
-): SimulationResult {
-  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
-  igniteCell(grid, igniteRow, igniteCol, config.gridSize);
+  elevationMap?: Float32Array,
+  suppression?: SuppressionConfig,
+): DualSimulationResult {
+  const baseline = runOnePass(
+    config, igniteRow, igniteCol, elevationFn, maxSteps,
+    centerLat, centerLng, fuelMap, elevationMap, undefined,
+  ).history;
 
-  const history: SimulationState[] = [
-    { grid: snapshotGrid(grid, config.gridSize), timestep: 0 },
-  ];
+  const suppressed: SuppressionResult | undefined =
+    suppression && suppression.resources.length > 0
+      ? runOnePass(
+          config, igniteRow, igniteCol, elevationFn, maxSteps,
+          centerLat, centerLng, fuelMap, elevationMap, suppression,
+        )
+      : undefined;
 
-  for (let step = 1; step <= maxSteps; step++) {
-    grid = simulateStep(grid, config, step);
-
-    history.push({
-      grid: snapshotGrid(grid, config.gridSize),
-      timestep: step,
-    });
-
-    const hasBurning = grid.some((cell) => cell.state === CellState.Burning);
-    if (!hasBurning) break;
-  }
-
-  return { history, config };
+  return { config, baseline, suppressed };
 }

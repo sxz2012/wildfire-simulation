@@ -155,3 +155,23 @@ export const DEFAULT_CONFIG: SimulationConfig = {
   recentPrecip3Day: 0,
   landCoverCode: 126, // 'open_forest_unknown' — neutral default
 };
+
+export interface SuppressionStepDiag {
+  step: number;
+  cumulativeLineMeters: number;
+  activePerimeterMeters: number;
+  containmentProbability: number; // 0..1
+  resourcesActive: number;        // 0 before delay, total count after
+  newFirelineCells: number;
+}
+
+export interface SuppressionResult {
+  history: SimulationState[];
+  diags: SuppressionStepDiag[];
+}
+
+export interface DualSimulationResult {
+  config: SimulationConfig;
+  baseline: SimulationState[];
+  suppressed?: SuppressionResult;
+}

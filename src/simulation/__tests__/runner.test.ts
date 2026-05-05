@@ -8,8 +8,8 @@ describe("runSimulation", () => {
     const maxSteps = 20;
     const result = runSimulation(config, 5, 5, () => 0, maxSteps);
 
-    expect(result.history.length).toBeLessThanOrEqual(maxSteps + 1);
-    expect(result.history.length).toBeGreaterThan(1);
+    expect(result.baseline.length).toBeLessThanOrEqual(maxSteps + 1);
+    expect(result.baseline.length).toBeGreaterThan(1);
     expect(result.config).toEqual(config);
   });
 
@@ -17,7 +17,7 @@ describe("runSimulation", () => {
     const config = { ...DEFAULT_CONFIG, gridSize: 10 };
     const result = runSimulation(config, 5, 5, () => 0, 10);
 
-    const first = result.history[0];
+    const first = result.baseline[0];
     expect(first.timestep).toBe(0);
 
     let burningCount = 0;
@@ -32,6 +32,6 @@ describe("runSimulation", () => {
     const config = { ...DEFAULT_CONFIG, gridSize: 5, humidity: 100 };
     const result = runSimulation(config, 2, 2, () => 0, 500);
 
-    expect(result.history.length).toBeLessThan(500);
+    expect(result.baseline.length).toBeLessThan(500);
   });
 });

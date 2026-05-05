@@ -56,18 +56,18 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
     );
 
     const gridCells = config!.gridSize * config!.gridSize;
-    const totalBytes = result.history.length * gridCells;
+    const totalBytes = result.baseline.length * gridCells;
     const buffer = new Uint8Array(totalBytes);
 
-    for (let i = 0; i < result.history.length; i++) {
-      buffer.set(result.history[i].grid, i * gridCells);
+    for (let i = 0; i < result.baseline.length; i++) {
+      buffer.set(result.baseline[i].grid, i * gridCells);
     }
 
     const response: WorkerResponse = {
       type: "complete",
-      step: result.history.length,
+      step: result.baseline.length,
       gridBuffer: buffer.buffer,
-      historyLength: result.history.length,
+      historyLength: result.baseline.length,
       gridSize: config!.gridSize,
     };
 
