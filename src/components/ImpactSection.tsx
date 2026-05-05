@@ -1,6 +1,7 @@
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import type { HistoricalFire } from "../data/historicalFires";
 import { useCountUp } from "../hooks/useCountUp";
+import EmissionsDetailModal from "./EmissionsDetailModal";
 
 const HOTSPOT_AREA_HA = 14;
 const CO2_PER_HA = 15;
@@ -105,6 +106,8 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
   const animatedCO = useCountUp(coTonnes);
   const animatedCars = useCountUp(carsEquivalent);
 
+  const [showDetail, setShowDetail] = useState(false);
+
   return (
     <div className="space-y-3">
       {/* Header */}
@@ -145,13 +148,25 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
         <BarChart data={stats.dailyHotspots} highlightIdx={currentFrame} color="#F59E0B" />
       </div>
 
-      {/* Emissions */}
-      <div className="border-t border-white/[0.04] pt-3 space-y-2">
+      {/* Emissions — click for breakdown */}
+      <button
+        type="button"
+        onClick={() => setShowDetail(true)}
+        className="w-full text-left border-t border-white/[0.04] pt-3 space-y-2 group cursor-pointer
+          rounded-md hover:bg-white/[0.02] -mx-2 px-2 transition-colors duration-150"
+        title="Click for detailed emissions breakdown"
+      >
         <div
-          className="text-label font-medium tracking-[0.15em] uppercase mb-1"
+          className="text-label font-medium tracking-[0.15em] uppercase mb-1 flex items-center justify-between"
           style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
         >
-          Estimated Emissions
+          <span>Estimated Emissions</span>
+          <span
+            className="text-micro normal-case tracking-normal opacity-0 group-hover:opacity-100 transition-opacity"
+            style={{ color: "var(--fire-amber)" }}
+          >
+            details →
+          </span>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <EmissionCard label="CO₂" value={formatNumber(animatedCO2)} unit="tonnes" color="#EF4444" />
@@ -159,7 +174,18 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
           <EmissionCard label="CO" value={formatNumber(animatedCO)} unit="tonnes" color="#FBBF24" />
           <EmissionCard label="Car Years" value={formatNumber(animatedCars)} unit="equivalent" color="#A78BFA" />
         </div>
-      </div>
+      </button>
+
+      <EmissionsDetailModal
+        open={showDetail}
+        onClose={() => setShowDetail(false)}
+        areaBurnedHa={areaBurnedHa}
+        detections={hotspotsToDate}
+        co2Tonnes={co2Tonnes}
+        pm25Tonnes={pm25Tonnes}
+        coTonnes={coTonnes}
+        carYears={carsEquivalent}
+      />
 
       {/* Progress Bar */}
       <div>
