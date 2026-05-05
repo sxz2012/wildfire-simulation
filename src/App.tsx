@@ -396,6 +396,9 @@ function App() {
         suppressionDelay={suppressionDelay}
         suppressionResources={suppressionResources}
         onSuppressionChange={handleSuppressionChange}
+        suppressionDiags={history.diags}
+        baselineHistory={history.baseline}
+        suppressedHistory={history.suppressed}
       />
 
       <TimelineBar

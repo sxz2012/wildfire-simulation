@@ -1,5 +1,6 @@
 import { useMemo, useRef, useEffect, useState } from "react";
 import type { HistoricalFire } from "../data/historicalFires";
+import type { SimulationState, SuppressionStepDiag } from "../simulation/types";
 import { useCountUp } from "../hooks/useCountUp";
 import EmissionsDetailModal from "./EmissionsDetailModal";
 
@@ -72,9 +73,18 @@ function BarChart({
 interface ImpactSectionProps {
   fire: HistoricalFire;
   currentFrame: number;
+  suppressionDiags?: SuppressionStepDiag[];
+  baselineHistory?: SimulationState[];
+  suppressedHistory?: SimulationState[];
 }
 
-export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps) {
+export default function ImpactSection({
+  fire,
+  currentFrame,
+  suppressionDiags,
+  baselineHistory,
+  suppressedHistory,
+}: ImpactSectionProps) {
   const stats = useMemo(() => {
     const dailyHotspots: number[] = [];
     let cumulativeHotspots = 0;
@@ -107,6 +117,26 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
   const animatedCars = useCountUp(carsEquivalent);
 
   const [showDetail, setShowDetail] = useState(false);
+
+  const diag = suppressionDiags && suppressionDiags.length > 0
+    ? suppressionDiags[Math.min(currentFrame - 1, suppressionDiags.length - 1)]
+    : undefined;
+
+  let savedHa: number | null = null;
+  if (baselineHistory && suppressedHistory && currentFrame > 0) {
+    const bIdx = Math.min(currentFrame, baselineHistory.length - 1);
+    const sIdx = Math.min(currentFrame, suppressedHistory.length - 1);
+    const b = baselineHistory[bIdx].grid;
+    const s = suppressedHistory[sIdx].grid;
+    let savedCells = 0;
+    for (let i = 0; i < b.length; i++) {
+      const burned = b[i] === 1 || b[i] === 2;
+      const sBurned = s[i] === 1 || s[i] === 2;
+      if (burned && !sBurned) savedCells++;
+    }
+    // Each cell at default config = 50m × 50m = 0.25 ha
+    savedHa = savedCells * 0.25;
+  }
 
   return (
     <div className="space-y-3">
@@ -147,6 +177,42 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
         </div>
         <BarChart data={stats.dailyHotspots} highlightIdx={currentFrame} color="#F59E0B" />
       </div>
+
+      {/* Containment */}
+      {diag && (
+        <div className="border-t border-white/[0.04] pt-3 space-y-1.5">
+          <div
+            className="text-label font-medium tracking-[0.15em] uppercase mb-1"
+            style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
+          >
+            Containment
+          </div>
+          <ContainmentRow
+            label="P(contained)"
+            value={`${(diag.containmentProbability * 100).toFixed(0)}%`}
+            accent
+          />
+          <ContainmentRow
+            label="Line laid"
+            value={`${(diag.cumulativeLineMeters / 1000).toFixed(1)} km`}
+          />
+          <ContainmentRow
+            label="Active perimeter"
+            value={`${(diag.activePerimeterMeters / 1000).toFixed(1)} km`}
+          />
+          <ContainmentRow
+            label="Resources on scene"
+            value={`${diag.resourcesActive}`}
+          />
+          {savedHa !== null && (
+            <ContainmentRow
+              label="Area saved vs baseline"
+              value={`${savedHa.toFixed(0)} ha`}
+              accent
+            />
+          )}
+        </div>
+      )}
 
       {/* Emissions — click for breakdown */}
       <button
@@ -222,6 +288,31 @@ export default function ImpactSection({ fire, currentFrame }: ImpactSectionProps
       >
         Estimates based on VIIRS 375m pixel area &times; published emission factors (van der Werf et al.)
       </p>
+    </div>
+  );
+}
+
+function ContainmentRow({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent?: boolean;
+}) {
+  return (
+    <div
+      className="flex items-baseline justify-between text-sm"
+      style={{ fontFamily: "'JetBrains Mono', monospace" }}
+    >
+      <span className="text-gray-400">{label}</span>
+      <span
+        className="tabular-nums"
+        style={{ color: accent ? "var(--fire-amber)" : "var(--text-secondary)" }}
+      >
+        {value}
+      </span>
     </div>
   );
 }

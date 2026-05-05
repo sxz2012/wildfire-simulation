@@ -5,7 +5,7 @@ import { SEASONS, type Season } from "../services/weather";
 import ImpactSection from "./ImpactSection";
 import LocationSearch from "./LocationSearch";
 import SuppressionInputs from "./SuppressionInputs";
-import type { ResourceCount } from "../simulation/types";
+import type { ResourceCount, SimulationState, SuppressionStepDiag } from "../simulation/types";
 
 type WeatherSource = "live" | "seasonal" | "custom";
 
@@ -28,6 +28,9 @@ interface ControlPanelProps {
   suppressionDelay?: number;
   suppressionResources?: ResourceCount[];
   onSuppressionChange?: (delay: number, resources: ResourceCount[]) => void;
+  suppressionDiags?: SuppressionStepDiag[];
+  baselineHistory?: SimulationState[];
+  suppressedHistory?: SimulationState[];
 }
 
 export default function ControlPanel({
@@ -47,6 +50,9 @@ export default function ControlPanel({
   suppressionDelay,
   suppressionResources,
   onSuppressionChange,
+  suppressionDiags,
+  baselineHistory,
+  suppressedHistory,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -242,7 +248,13 @@ export default function ControlPanel({
 
         {showImpact && fire && (
           <div className="border-t border-white/[0.04] pt-4 mt-2">
-            <ImpactSection fire={fire} currentFrame={currentFrame ?? 0} />
+            <ImpactSection
+              fire={fire}
+              currentFrame={currentFrame ?? 0}
+              suppressionDiags={suppressionDiags}
+              baselineHistory={baselineHistory}
+              suppressedHistory={suppressedHistory}
+            />
           </div>
         )}
       </div>
