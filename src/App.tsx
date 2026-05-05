@@ -35,6 +35,11 @@ function App() {
   // Globe clicks update this; the actual simulation only starts when the
   // user clicks the "Start the Wildfire" button in ControlPanel.
   const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
+  // True between "Start the Wildfire" being clicked and the worker actually
+  // running. Bridges the async gap (weather + land cover + terrain fetches)
+  // so the button reads "Simulating..." continuously instead of flashing
+  // back to "Click Globe to Ignite" during loading.
+  const [isPreparingSim, setIsPreparingSim] = useState(false);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
@@ -94,6 +99,7 @@ function App() {
 
   const handleStartWildfire = useCallback(
     async (lat: number, lng: number) => {
+      setIsPreparingSim(true);
       fullReset();
       setAppMode("simulation");
       setIgnitionPoint({ lat, lng });
@@ -204,6 +210,7 @@ function App() {
         precipitation: 0,
         cumulativePrecip: 0,
       }, undefined, elevationMap);
+      setIsPreparingSim(false);
     },
     [fullReset, startSimulation]
   );
@@ -303,7 +310,7 @@ function App() {
         onStartHistorical={handleStartHistorical}
         onReset={fullReset}
         onWeatherSourceChange={handleWeatherSourceChange}
-        isRunning={isRunning}
+        isRunning={isRunning || isPreparingSim}
         hasPendingIgnition={pendingIgnition !== null}
         collapsed={collapsed}
         onToggleCollapse={() => setCollapsed(!collapsed)}
