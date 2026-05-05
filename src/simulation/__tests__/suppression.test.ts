@@ -3,8 +3,11 @@ import {
   totalChainsPerHour,
   delayDecay,
   containmentProbability,
+  activeFirePerimeter,
+  pickFirelineCells,
 } from "../suppression";
-import { ResourceType } from "../types";
+import { CellState, ResourceType } from "../types";
+import type { GridCell } from "../types";
 
 describe("totalChainsPerHour", () => {
   it("returns 0 for an empty roster", () => {
@@ -77,5 +80,68 @@ describe("containmentProbability (Reed-McCool)", () => {
   it("equals 1 - 1/e when line equals perimeter", () => {
     // P = 1 - exp(-1) = 0.632
     expect(containmentProbability(1000, 1000)).toBeCloseTo(1 - Math.exp(-1), 5);
+  });
+});
+
+function mkGrid(rows: number, cols: number): GridCell[] {
+  const g: GridCell[] = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      g.push({
+        state: CellState.Unburned,
+        fuel: "forest",
+        elevation: 0,
+        burnTimer: 0,
+        lat: r,
+        lng: c,
+      });
+    }
+  }
+  return g;
+}
+
+describe("activeFirePerimeter", () => {
+  it("returns 0 for an all-unburned grid", () => {
+    const g = mkGrid(5, 5);
+    expect(activeFirePerimeter(g, 5, 50).cellCount).toBe(0);
+    expect(activeFirePerimeter(g, 5, 50).meters).toBe(0);
+  });
+
+  it("counts a single burning cell as a perimeter cell with 4×cellSize meters", () => {
+    const g = mkGrid(5, 5);
+    g[2 * 5 + 2].state = CellState.Burning;
+    const p = activeFirePerimeter(g, 5, 50);
+    expect(p.cellCount).toBe(1);
+    // 4 unburned-neighbor edges × 50m
+    expect(p.meters).toBe(4 * 50);
+  });
+
+  it("excludes burning cells whose neighbors are all burning (interior)", () => {
+    const g = mkGrid(5, 5);
+    // 3x3 burning block centered at (2,2)
+    for (let r = 1; r <= 3; r++) {
+      for (let c = 1; c <= 3; c++) g[r * 5 + c].state = CellState.Burning;
+    }
+    // Only the 8 outer cells of the 3x3 are perimeter; the 1 inner cell
+    // has all-burning neighbors (8-connectivity).
+    expect(activeFirePerimeter(g, 5, 50).cellCount).toBe(8);
+  });
+});
+
+describe("pickFirelineCells", () => {
+  it("returns no more than the requested number of cells", () => {
+    const g = mkGrid(5, 5);
+    g[12].state = CellState.Burning; // single perimeter cell
+    const picked = pickFirelineCells(g, 5, 100, 0);
+    expect(picked.length).toBeLessThanOrEqual(100);
+    expect(picked.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("only returns cells that are currently Burning", () => {
+    const g = mkGrid(5, 5);
+    g[12].state = CellState.Burning;
+    g[7].state = CellState.Burning;
+    const picked = pickFirelineCells(g, 5, 5, 0);
+    for (const idx of picked) expect(g[idx].state).toBe(CellState.Burning);
   });
 });

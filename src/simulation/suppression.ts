@@ -5,8 +5,10 @@
  * docs/plans/2026-05-04-suppression-modeling-design.md
  */
 import {
+  CellState,
   CHAINS_TO_METERS,
   RESOURCE_RATES,
+  type GridCell,
   type ResourceCount,
 } from "./types";
 
@@ -56,4 +58,137 @@ export function containmentProbability(
  */
 export function chainsToMeters(chains: number): number {
   return chains * CHAINS_TO_METERS;
+}
+
+const NEIGHBOR_OFFSETS = [
+  [-1, -1], [-1, 0], [-1, 1],
+  [0, -1],           [0, 1],
+  [1, -1],  [1, 0],  [1, 1],
+];
+
+/**
+ * Compute the active fire perimeter — the set of currently-Burning cells
+ * that have at least one Unburned neighbor (8-connectivity). Returns
+ * cell count and approximate length in meters (each perimeter cell
+ * contributes ~edges_facing_unburned × cellSize).
+ *
+ * Used as the denominator in the Reed-McCool containment formula.
+ */
+export function activeFirePerimeter(
+  grid: GridCell[],
+  gridSize: number,
+  cellSizeMeters: number,
+): { cellCount: number; meters: number } {
+  let cellCount = 0;
+  let totalEdges = 0;
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const cell = grid[row * gridSize + col];
+      if (cell.state !== CellState.Burning) continue;
+      let edgesFacingUnburned = 0;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        // Only count the 4 cardinal edges for length, not diagonals.
+        if (dr !== 0 && dc !== 0) continue;
+        const nr = row + dr,
+          nc = col + dc;
+        if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) {
+          edgesFacingUnburned++; // edge of grid acts as unburned
+          continue;
+        }
+        if (grid[nr * gridSize + nc].state === CellState.Unburned) {
+          edgesFacingUnburned++;
+        }
+      }
+      // 8-connectivity for "is perimeter" but length sums only cardinals.
+      let hasAnyUnburnedNeighbor = false;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        const nr = row + dr,
+          nc = col + dc;
+        if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) {
+          hasAnyUnburnedNeighbor = true;
+          break;
+        }
+        if (grid[nr * gridSize + nc].state === CellState.Unburned) {
+          hasAnyUnburnedNeighbor = true;
+          break;
+        }
+      }
+      if (hasAnyUnburnedNeighbor) {
+        cellCount++;
+        totalEdges += edgesFacingUnburned;
+      }
+    }
+  }
+  return { cellCount, meters: totalEdges * cellSizeMeters };
+}
+
+/**
+ * Pick up to maxCells perimeter cells that should become fireline this
+ * step. Currently picks the burning perimeter cells with the LARGEST
+ * downwind alignment (head of the fire) — that's where the operational
+ * priority is. windDirectionDeg is the direction wind is FROM
+ * (0° = north).
+ *
+ * Returns indices into the grid. Caller flips them to Suppressed.
+ */
+export function pickFirelineCells(
+  grid: GridCell[],
+  gridSize: number,
+  maxCells: number,
+  windDirectionDeg: number,
+): number[] {
+  if (maxCells <= 0) return [];
+
+  // Wind blows FROM windDirectionDeg TOWARD windDirectionDeg+180.
+  // The "head" of the fire is the side facing windward — the cells the
+  // fire is racing toward. We score each perimeter cell by how aligned
+  // its position is with the head direction relative to the centroid.
+  let centroidR = 0,
+    centroidC = 0,
+    burningCount = 0;
+  const candidates: number[] = [];
+  for (let row = 0; row < gridSize; row++) {
+    for (let col = 0; col < gridSize; col++) {
+      const idx = row * gridSize + col;
+      const cell = grid[idx];
+      if (cell.state !== CellState.Burning) continue;
+      centroidR += row;
+      centroidC += col;
+      burningCount++;
+      let isPerimeter = false;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        const nr = row + dr,
+          nc = col + dc;
+        if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) {
+          isPerimeter = true;
+          break;
+        }
+        if (grid[nr * gridSize + nc].state === CellState.Unburned) {
+          isPerimeter = true;
+          break;
+        }
+      }
+      if (isPerimeter) candidates.push(idx);
+    }
+  }
+  if (candidates.length === 0 || burningCount === 0) return [];
+  centroidR /= burningCount;
+  centroidC /= burningCount;
+
+  // Head direction unit vector — wind blows toward (windDir+180).
+  const headRad = ((windDirectionDeg + 180) * Math.PI) / 180;
+  const headDr = -Math.cos(headRad); // rows increase southward in our grid
+  const headDc = Math.sin(headRad);
+
+  const scored = candidates.map((idx) => {
+    const row = Math.floor(idx / gridSize);
+    const col = idx % gridSize;
+    const dr = row - centroidR;
+    const dc = col - centroidC;
+    const len = Math.sqrt(dr * dr + dc * dc) || 1;
+    const alignment = (dr * headDr + dc * headDc) / len;
+    return { idx, alignment };
+  });
+  scored.sort((a, b) => b.alignment - a.alignment);
+  return scored.slice(0, maxCells).map((s) => s.idx);
 }
