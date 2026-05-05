@@ -241,6 +241,15 @@ function App() {
     [pendingIgnition, handleStartWildfire],
   );
 
+  const handleLocationSelected = useCallback(
+    (lat: number, lng: number) => {
+      // Just fly the camera. The user still chooses where to drop the
+      // ignition pin by clicking the globe.
+      setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
+    },
+    [],
+  );
+
   const handleWeatherSourceChange = useCallback((source: "live" | "seasonal" | "custom", season?: Season) => {
     weatherSourceRef.current = { source, season };
     if (source === "seasonal" && season) {
@@ -321,6 +330,7 @@ function App() {
         onStartHistorical={handleStartHistorical}
         onReset={fullReset}
         onWeatherSourceChange={handleWeatherSourceChange}
+        onLocationSelected={handleLocationSelected}
         isRunning={isRunning || isPreparingSim}
         hasPendingIgnition={pendingIgnition !== null}
         collapsed={collapsed}
