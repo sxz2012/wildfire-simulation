@@ -175,3 +175,17 @@ export interface DualSimulationResult {
   baseline: SimulationState[];
   suppressed?: SuppressionResult;
 }
+
+/**
+ * Verbose, audience-friendly labels for each suppression bundle.
+ * Format: size descriptor (official tier) — composition.
+ * Used by SuppressionInputs and AnalysisPanel so non-fire-ops viewers
+ * understand what each tier is.
+ */
+export const BUNDLE_DISPLAY_LABELS: Record<string, string> = {
+  none: "No response",
+  initialAttack: "Small (Initial Attack) — 1 crew + 1 engine + 1 helitack",
+  type3: "Medium (Type 3) — 3 crews + 2 engines + 2 helitack",
+  type2: "Large (Type 2) — 5 crews + 3 dozers + 2 helitack + 1 tanker",
+  type1: "Maximum (Type 1) — 10 crews + 5 dozers + 3 helitack + 2 tankers",
+};

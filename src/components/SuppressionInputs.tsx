@@ -3,17 +3,10 @@ import {
   ResourceType,
   RESOURCE_RATES,
   SUPPRESSION_BUNDLES,
+  BUNDLE_DISPLAY_LABELS,
   type ResourceCount,
 } from "../simulation/types";
 import { totalChainsPerHour, chainsToMeters } from "../simulation/suppression";
-
-const BUNDLE_LABELS: Record<string, string> = {
-  none: "None",
-  initialAttack: "Initial Attack",
-  type3: "Type 3",
-  type2: "Type 2",
-  type1: "Type 1 (max)",
-};
 
 interface SuppressionInputsProps {
   responseDelayMin: number;
@@ -136,7 +129,7 @@ export default function SuppressionInputs({
               {Object.keys(SUPPRESSION_BUNDLES)
                 .filter((k) => k !== "none") // "Wildfire Only" toggle replaces the None option here
                 .map((key) => (
-                  <option key={key} value={key}>{BUNDLE_LABELS[key] ?? key}</option>
+                  <option key={key} value={key}>{BUNDLE_DISPLAY_LABELS[key] ?? key}</option>
                 ))}
               <option value="custom">Custom...</option>
             </select>
