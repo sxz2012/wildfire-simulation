@@ -71,10 +71,10 @@ function App() {
   // a second simulation produced the same number of steps as the first.
   useEffect(() => {
     if (appMode !== "simulation") return;
-    if (history.length === 0) return;
+    if (history.baseline.length === 0) return;
     if (!ignitionPoint) return;
     const fire = convertSimulationToFire(
-      history,
+      history.baseline,
       activeConfig,
       ignitionPoint.lat,
       ignitionPoint.lng,
