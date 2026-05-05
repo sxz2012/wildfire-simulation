@@ -1,6 +1,11 @@
 import { runSimulation } from "./runner";
 import { loadModel } from "./mlModel";
-import type { SimulationConfig, FuelType } from "./types";
+import type {
+  SimulationConfig,
+  FuelType,
+  SuppressionConfig,
+  SuppressionStepDiag,
+} from "./types";
 
 export interface WorkerRequest {
   type: "run" | "loadModel";
@@ -12,6 +17,7 @@ export interface WorkerRequest {
   centerLng?: number;
   fuelMap?: FuelType[];
   elevationMap?: Float32Array;
+  suppressionConfig?: SuppressionConfig;
   modelJson?: unknown;
   weatherData?: {
     tempMean: number;
@@ -24,8 +30,11 @@ export interface WorkerRequest {
 export interface WorkerResponse {
   type: "complete" | "error" | "modelLoaded";
   step: number;
-  gridBuffer?: ArrayBuffer;
-  historyLength?: number;
+  baselineBuffer?: ArrayBuffer;
+  suppressedBuffer?: ArrayBuffer;
+  baselineLength?: number;
+  suppressedLength?: number;
+  suppressionDiags?: SuppressionStepDiag[];
   gridSize?: number;
   error?: string;
 }
@@ -39,9 +48,8 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
       return;
     }
 
-    const { config, igniteRow, igniteCol, maxSteps, centerLat, centerLng, fuelMap, elevationMap, weatherData } = e.data;
+    const { config, igniteRow, igniteCol, maxSteps, centerLat, centerLng, fuelMap, elevationMap, weatherData, suppressionConfig } = e.data;
 
-    // Attach weather data to config for ML model access
     const enrichedConfig = {
       ...config!,
       tempMean: weatherData?.tempMean ?? 25,
@@ -52,26 +60,32 @@ self.onmessage = (e: MessageEvent<WorkerRequest>) => {
 
     const result = runSimulation(
       enrichedConfig, igniteRow!, igniteCol!, () => 0, maxSteps!,
-      centerLat!, centerLng!, fuelMap, elevationMap
+      centerLat!, centerLng!, fuelMap, elevationMap, suppressionConfig,
     );
 
     const gridCells = config!.gridSize * config!.gridSize;
-    const totalBytes = result.baseline.length * gridCells;
-    const buffer = new Uint8Array(totalBytes);
-
-    for (let i = 0; i < result.baseline.length; i++) {
-      buffer.set(result.baseline[i].grid, i * gridCells);
-    }
+    const packBuffer = (history: typeof result.baseline): ArrayBuffer => {
+      const buf = new Uint8Array(history.length * gridCells);
+      for (let i = 0; i < history.length; i++) buf.set(history[i].grid, i * gridCells);
+      return buf.buffer;
+    };
+    const baselineBuffer = packBuffer(result.baseline);
+    const suppressedBuffer = result.suppressed ? packBuffer(result.suppressed.history) : undefined;
 
     const response: WorkerResponse = {
       type: "complete",
       step: result.baseline.length,
-      gridBuffer: buffer.buffer,
-      historyLength: result.baseline.length,
+      baselineBuffer,
+      baselineLength: result.baseline.length,
+      suppressedBuffer,
+      suppressedLength: result.suppressed?.history.length,
+      suppressionDiags: result.suppressed?.diags,
       gridSize: config!.gridSize,
     };
 
-    self.postMessage(response, { transfer: [buffer.buffer] });
+    const transfer: ArrayBuffer[] = [baselineBuffer];
+    if (suppressedBuffer) transfer.push(suppressedBuffer);
+    self.postMessage(response, { transfer });
   } catch (err) {
     const response: WorkerResponse = {
       type: "error",

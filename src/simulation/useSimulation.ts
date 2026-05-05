@@ -1,9 +1,16 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import type { SimulationConfig, SimulationState, FuelType } from "./types";
+import type { SuppressionConfig, SuppressionStepDiag } from "./types";
 import type { WorkerResponse } from "./worker";
 
+interface DualHistory {
+  baseline: SimulationState[];
+  suppressed?: SimulationState[];
+  diags?: SuppressionStepDiag[];
+}
+
 interface UseSimulationReturn {
-  history: SimulationState[];
+  history: DualHistory;
   isRunning: boolean;
   startSimulation: (
     config: SimulationConfig,
@@ -14,13 +21,14 @@ interface UseSimulationReturn {
     fuelMap?: FuelType[],
     weatherData?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number },
     maxSteps?: number,
-    elevationMap?: Float32Array
+    elevationMap?: Float32Array,
+    suppressionConfig?: SuppressionConfig,
   ) => void;
   reset: () => void;
 }
 
 export function useSimulation(): UseSimulationReturn {
-  const [history, setHistory] = useState<SimulationState[]>([]);
+  const [history, setHistory] = useState<DualHistory>({ baseline: [] });
   const [isRunning, setIsRunning] = useState(false);
   const workerRef = useRef<Worker | null>(null);
   const modelLoadedRef = useRef(false);
@@ -66,30 +74,34 @@ export function useSimulation(): UseSimulationReturn {
       fuelMap?: FuelType[],
       weatherData?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number },
       maxSteps = 500,
-      elevationMap?: Float32Array
+      elevationMap?: Float32Array,
+      suppressionConfig?: SuppressionConfig,
     ) => {
       const worker = workerRef.current;
       if (!worker) return;
 
       setIsRunning(true);
-      setHistory([]);
+      setHistory({ baseline: [] });
 
       // Replace the onmessage handler for this simulation run
       worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
-        if (e.data.type === "complete" && e.data.gridBuffer) {
-          const { gridBuffer, historyLength, gridSize } = e.data;
-          const fullBuffer = new Uint8Array(gridBuffer);
+        if (e.data.type === "complete" && e.data.baselineBuffer) {
+          const { baselineBuffer, baselineLength, suppressedBuffer, suppressedLength, suppressionDiags, gridSize } = e.data;
           const gridCells = gridSize! * gridSize!;
-
-          const states: SimulationState[] = [];
-          for (let i = 0; i < historyLength!; i++) {
-            states.push({
-              grid: fullBuffer.slice(i * gridCells, (i + 1) * gridCells),
-              timestep: i,
-            });
+          const baseline = new Uint8Array(baselineBuffer);
+          const baseStates: SimulationState[] = [];
+          for (let i = 0; i < baselineLength!; i++) {
+            baseStates.push({ grid: baseline.slice(i * gridCells, (i + 1) * gridCells), timestep: i });
           }
-
-          setHistory(states);
+          let suppressedStates: SimulationState[] | undefined;
+          if (suppressedBuffer && suppressedLength) {
+            const supp = new Uint8Array(suppressedBuffer);
+            suppressedStates = [];
+            for (let i = 0; i < suppressedLength; i++) {
+              suppressedStates.push({ grid: supp.slice(i * gridCells, (i + 1) * gridCells), timestep: i });
+            }
+          }
+          setHistory({ baseline: baseStates, suppressed: suppressedStates, diags: suppressionDiags });
           setIsRunning(false);
         } else if (e.data.type === "error") {
           console.error("Simulation worker error:", e.data.error);
@@ -113,13 +125,14 @@ export function useSimulation(): UseSimulationReturn {
         fuelMap,
         elevationMap,
         weatherData,
+        suppressionConfig,
       });
     },
     []
   );
 
   const reset = useCallback(() => {
-    setHistory([]);
+    setHistory({ baseline: [] });
     setIsRunning(false);
   }, []);
 
