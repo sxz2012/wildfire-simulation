@@ -187,6 +187,10 @@ export function simulateStep(
       const idx = row * gridSize + col;
       const cell = grid[idx];
 
+      // Suppressed cells (firelines) neither continue burning nor spread
+      // — they're permanent firebreaks for the rest of the simulation.
+      if (cell.state === CellState.Suppressed) continue;
+
       if (cell.state === CellState.Burning) {
         newGrid[idx].burnTimer = cell.burnTimer - 1;
         if (newGrid[idx].burnTimer <= 0) {
