@@ -87,10 +87,16 @@ function App() {
   // a second simulation produced the same number of steps as the first.
   useEffect(() => {
     if (appMode !== "simulation") return;
-    if (history.baseline.length === 0) return;
+    // Prefer the suppressed run as the visible foreground when present;
+    // baseline shows as the counterfactual ghost via GhostFireOverlay.
+    const active =
+      history.suppressed && history.suppressed.length > 0
+        ? history.suppressed
+        : history.baseline;
+    if (active.length === 0) return;
     if (!ignitionPoint) return;
     const fire = convertSimulationToFire(
-      history.baseline,
+      active,
       activeConfig,
       ignitionPoint.lat,
       ignitionPoint.lng,
