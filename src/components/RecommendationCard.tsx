@@ -69,6 +69,16 @@ function formatBreachTime(
     : `${Math.floor(totalMin / 60)}h ${totalMin % 60}min`;
 }
 
+// breachPercent comes from containmentCheck as a fraction in [0, 1].
+// Multiply by 100 for display. Tiny non-zero values round up to "<1%"
+// instead of hiding as "0%" — matters when a polygon "almost" holds.
+function formatBreachPercent(fraction: number): string {
+  if (fraction <= 0) return "0%";
+  const pct = fraction * 100;
+  if (pct < 1) return "<1%";
+  return `${Math.round(pct)}%`;
+}
+
 function formatCost(perHour: number): string {
   if (perHour >= 1000) return `$${Math.round(perHour / 1000)}k/hr`;
   return `$${perHour}/hr`;
@@ -163,7 +173,7 @@ export default function RecommendationCard(
     result.failingRun !== null
       ? `${describeRoster(
           result.bisectionTrace.find((b) => !b.passed)?.roster ?? [],
-        )} breaches at ${formatBreachTime(result.breachStep, timestepMinutes)} — ${result.breachPercent.toFixed(0)}% outside boundary`
+        )} breaches at ${formatBreachTime(result.breachStep, timestepMinutes)} — ${formatBreachPercent(result.breachPercent)} outside boundary`
       : null;
 
   return (
@@ -259,7 +269,7 @@ export default function RecommendationCard(
                   </span>{" "}
                   &mdash;{" "}
                   <span className="text-red-300 tabular-nums">
-                    {result.breachPercent.toFixed(0)}%
+                    {formatBreachPercent(result.breachPercent)}
                   </span>{" "}
                   outside boundary.
                 </div>
@@ -274,7 +284,7 @@ export default function RecommendationCard(
                 <div className="text-sm text-amber-200">
                   Limits breach to{" "}
                   <span className="tabular-nums">
-                    {result.breachPercent.toFixed(0)}%
+                    {formatBreachPercent(result.breachPercent)}
                   </span>
                   .
                 </div>
