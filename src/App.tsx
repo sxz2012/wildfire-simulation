@@ -18,6 +18,7 @@ import PolygonOverlay from "./components/PolygonOverlay";
 import { reverseGeocode } from "./components/LocationSearch";
 import { apiExtend, apiQBoundary, type ApiQBoundaryResponse } from "./services/simulationApi";
 import type { LatLng } from "./utils/containmentCheck";
+import { rleDecode } from "./utils/rle";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
@@ -44,7 +45,7 @@ type AppMode =
   | "simulation-resumed";
 
 function App() {
-  const { history, isRunning, startSimulation, reset } = useSimulation();
+  const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -423,15 +424,40 @@ function App() {
           suppression: { responseDelayMin, resources: roster },
           maxSteps,
         });
-        // PLACEHOLDER for Task 12: stitch extended into the live history.
-        // For Task 11 we just log so the smoke test confirms the call worked.
-        console.log(
-          "apiExtend returned",
-          extended.elapsedMs,
-          "ms;",
-          extended.rleSteps.length,
-          "steps",
-        );
+
+        // Decode the returned RLE steps. Each step matches the timestep it
+        // represents (extendSimulation emits history starting at initialStep).
+        const gridCells = activeConfig.gridSize * activeConfig.gridSize;
+        const resumedStates = extended.rleSteps.map((rle, i) => ({
+          grid: rleDecode(rle, gridCells),
+          timestep: pausedStep + i,
+        }));
+
+        // Stitch: pre-pause baseline (suppression-free) + resumed history
+        // (with suppression). The first resumedStates entry IS the snapshot
+        // at pausedStep, so drop it to avoid duplication with baseline[pausedStep].
+        const stitchedSuppressed = [
+          ...history.baseline.slice(0, pausedStep + 1),
+          ...resumedStates.slice(1),
+        ];
+
+        // Pad pre-pause diags with zeros so per-step indexing lines up with
+        // suppressed history. extended.diags only covers post-pause steps.
+        const preDiags = Array.from({ length: pausedStep + 1 }, (_, step) => ({
+          step,
+          cumulativeLineMeters: 0,
+          activePerimeterMeters: 0,
+          containmentProbability: 0,
+          resourcesActive: 0,
+          newFirelineCells: 0,
+        }));
+        const stitchedDiags = [...preDiags, ...extended.diags];
+
+        setHistory({
+          baseline: history.baseline,
+          suppressed: stitchedSuppressed,
+          diags: stitchedDiags,
+        });
       } catch (err) {
         console.error("apiExtend failed:", err);
         alert(
@@ -447,7 +473,8 @@ function App() {
       boundaryPolygon,
       activeConfig,
       activeFuelMap,
-      history.baseline.length,
+      history.baseline,
+      setHistory,
     ],
   );
 
