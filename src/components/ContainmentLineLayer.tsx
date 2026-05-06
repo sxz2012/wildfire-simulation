@@ -7,7 +7,7 @@ import {
 import type { Viewer as CesiumViewer } from "cesium";
 import { CellState, type SimulationConfig } from "../simulation/types";
 
-interface FirelineOverlayProps {
+interface ContainmentLineLayerProps {
   /** A snapshot of the suppressed run's grid at the current step. */
   gridSnapshot: Uint8Array | null;
   centerLat: number;
@@ -18,18 +18,17 @@ interface FirelineOverlayProps {
 }
 
 /**
- * Paints cells with state=Suppressed (firelines) as a dark-amber
- * imagery layer on top of the globe. The same canvas + SingleTile
- * pattern as WaterOverlay, but for the suppressed run only.
+ * Paints cells with state=Suppressed as a saturated cyan imagery layer —
+ * the growing "containment line" around a successfully suppressed fire.
  */
-export default function FirelineOverlay({
+export default function ContainmentLineLayer({
   gridSnapshot,
   centerLat,
   centerLng,
   config,
   viewer,
-  alpha = 0.8,
-}: FirelineOverlayProps) {
+  alpha = 0.85,
+}: ContainmentLineLayerProps) {
   const layerRef = useRef<ImageryLayer | null>(null);
 
   useEffect(() => {
@@ -57,9 +56,9 @@ export default function FirelineOverlay({
         if (gridSnapshot[row * gridSize + col] !== CellState.Suppressed) continue;
         count++;
         const i = (canvasRow * gridSize + col) * 4;
-        px[i] = 124;     // dark amber R (#7c2d12)
-        px[i + 1] = 45;  // G
-        px[i + 2] = 18;  // B
+        px[i] = 34;      // saturated cyan R (#22d3ee)
+        px[i + 1] = 211; // G
+        px[i + 2] = 238; // B
         px[i + 3] = 255;
       }
     }
@@ -82,7 +81,7 @@ export default function FirelineOverlay({
         layerRef.current = layer;
         createdLayer = layer;
       })
-      .catch((err) => console.warn("FirelineOverlay failed:", err));
+      .catch((err) => console.warn("ContainmentLineLayer failed:", err));
 
     return () => {
       cancelled = true;

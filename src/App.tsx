@@ -5,7 +5,7 @@ import TimelineBar from "./components/TimelineBar";
 import HistoricalFireOverlay from "./components/HistoricalFireOverlay";
 import FireEffects from "./components/FireEffects";
 import WaterOverlay from "./components/WaterOverlay";
-import FirelineOverlay from "./components/FirelineOverlay";
+import ContainmentLineLayer from "./components/ContainmentLineLayer";
 import GhostFireOverlay from "./components/GhostFireOverlay";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
@@ -409,8 +409,8 @@ function App() {
       )}
 
       {suppressedSnapshot && ignitionPoint && (
-        <FirelineOverlay
-          key={`fireline-${simKey}`}
+        <ContainmentLineLayer
+          key={`containment-${simKey}`}
           gridSnapshot={suppressedSnapshot}
           centerLat={ignitionPoint.lat}
           centerLng={ignitionPoint.lng}
