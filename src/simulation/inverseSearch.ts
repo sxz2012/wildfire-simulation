@@ -257,6 +257,7 @@ const Q_BOUNDARY_RESOLUTION = 25;
 function runOnceFromGrid(
   input: FindMinRosterForBoundaryInput,
   roster: ResourceCount[],
+  enableAbortOnBreach: boolean,
 ): SuppressionResult {
   const responseDelayMin = input.initialStep * input.config.timestepMinutes;
   const suppression: SuppressionConfig | null =
@@ -272,6 +273,13 @@ function runOnceFromGrid(
     () => 0,
     suppression,
     input.maxSteps,
+    enableAbortOnBreach
+      ? {
+          polygon: input.polygon,
+          centerLat: input.centerLat,
+          centerLng: input.centerLng,
+        }
+      : undefined,
   );
 }
 
@@ -294,12 +302,43 @@ function scanForBreach(
   return { breachStep: null, breachPercent: 0 };
 }
 
+/**
+ * Fast scan when the runner was invoked with `abortOnBreach`. The runner
+ * breaks the step loop the first time a Burning cell appears outside the
+ * polygon, so the LAST history entry is either the breach moment (if a
+ * breach happened) or the natural end of the run (no breach).
+ *
+ * We just check the last entry — no full-history walk needed.
+ */
+function scanForBreachAborted(
+  result: SuppressionResult,
+  input: FindMinRosterForBoundaryInput,
+): { breachStep: number | null; breachPercent: number } {
+  if (result.history.length === 0) {
+    return { breachStep: null, breachPercent: 0 };
+  }
+  const last = result.history[result.history.length - 1];
+  const check = containmentCheck(
+    last,
+    input.polygon,
+    input.config,
+    input.centerLat,
+    input.centerLng,
+  );
+  if (!check.ok) {
+    return { breachStep: last.timestep, breachPercent: check.breachPercent };
+  }
+  return { breachStep: null, breachPercent: 0 };
+}
+
 export async function findMinRosterForBoundary(
   input: FindMinRosterForBoundaryInput,
 ): Promise<FindMinRosterForBoundaryResult> {
   // Special case: try baseline (no suppression) first. If the fire never
   // escapes the polygon even unsuppressed, recommend an empty roster.
-  const baselineRun = runOnceFromGrid(input, []);
+  // Run WITHOUT abortOnBreach so we keep the full history for the
+  // "passing" return path (the user sees the visualization).
+  const baselineRun = runOnceFromGrid(input, [], false);
   const baselineFinal = baselineRun.history[baselineRun.history.length - 1];
   const baselineFinalCheck = containmentCheck(
     baselineFinal,
@@ -338,17 +377,12 @@ export async function findMinRosterForBoundary(
       return { passed: passCache.get(capacity)!, run: runCache.get(capacity)! };
     }
     const roster = cheapestRosterForCapacity(capacity);
-    const run = runOnceFromGrid(input, roster);
-    const finalState = run.history[run.history.length - 1];
-    const finalCheck = containmentCheck(
-      finalState,
-      input.polygon,
-      input.config,
-      input.centerLat,
-      input.centerLng,
-    );
-    const passed = finalCheck.ok;
-    const scan = scanForBreach(run, input);
+    // Bisection candidates: enable abortOnBreach so failing sims fail fast.
+    // History will be truncated at the first-breach step, which is exactly
+    // what scanForBreachAborted needs.
+    const run = runOnceFromGrid(input, roster, true);
+    const scan = scanForBreachAborted(run, input);
+    const passed = scan.breachStep === null;
     trace.push({
       capacityChainsHr: capacity,
       roster,

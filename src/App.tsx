@@ -384,7 +384,10 @@ function App() {
       setAppMode("paused-computing");
       try {
         const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
-        const remainingSteps = Math.max(50, history.baseline.length - pausedStep);
+        // 60 steps is plenty to see if the polygon holds — that's 3 hours of
+        // simulated fire at the default 3-minute timestep, well past the
+        // deployment delay window for any realistic resource arrival.
+        const remainingSteps = 60;
         const maxSteps = pausedStep + remainingSteps;
         const result = await apiQBoundary({
           config: activeConfig,
@@ -422,7 +425,9 @@ function App() {
       // on it, so we just keep the mode as "simulation".
       try {
         const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
-        const remainingSteps = Math.max(50, history.baseline.length - pausedStep);
+        // Resume cap: at least an hour of post-pause runway so the user has
+        // time to watch the suppression play out after Approve.
+        const remainingSteps = Math.max(60, history.baseline.length - pausedStep);
         const maxSteps = pausedStep + remainingSteps;
         const extended = await apiExtend({
           config: activeConfig,

@@ -19,6 +19,13 @@ import {
   chainsToMeters,
   containmentProbability,
 } from "./suppression";
+import { containmentCheck, type LatLng } from "../utils/containmentCheck";
+
+export interface AbortOnBreachOptions {
+  polygon: LatLng[];
+  centerLat: number;
+  centerLng: number;
+}
 
 function snapshotGrid(grid: GridCell[], gridSize: number): Uint8Array {
   const snapshot = new Uint8Array(gridSize * gridSize);
@@ -32,6 +39,7 @@ function runOnePassFromGrid(
   config: SimulationConfig,
   maxSteps: number,
   suppression: SuppressionConfig | null | undefined,
+  abortOnBreach?: AbortOnBreachOptions,
 ): { history: SimulationState[]; diags: SuppressionStepDiag[] } {
   let grid = initialGrid;
   const history: SimulationState[] = [
@@ -91,6 +99,18 @@ function runOnePassFromGrid(
     }
 
     history.push({ grid: snapshotGrid(grid, config.gridSize), timestep: step });
+
+    if (abortOnBreach) {
+      const lastState = history[history.length - 1];
+      const check = containmentCheck(
+        lastState,
+        abortOnBreach.polygon,
+        config,
+        abortOnBreach.centerLat,
+        abortOnBreach.centerLng,
+      );
+      if (!check.ok) break;
+    }
 
     const hasBurning = grid.some((c) => c.state === CellState.Burning);
     if (!hasBurning) break;
@@ -164,6 +184,7 @@ export function extendSimulation(
   elevationFn: (lat: number, lng: number) => number,
   suppression: SuppressionConfig | null,
   maxSteps: number,
+  abortOnBreach?: AbortOnBreachOptions,
 ): SuppressionResult {
   const fresh = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
   for (let i = 0; i < fresh.length; i++) {
@@ -174,5 +195,12 @@ export function extendSimulation(
       fresh[i].burnTimer = FUEL_PROPERTIES[fresh[i].fuel].burnDuration;
     }
   }
-  return runOnePassFromGrid(fresh, initialStep, config, maxSteps, suppression);
+  return runOnePassFromGrid(
+    fresh,
+    initialStep,
+    config,
+    maxSteps,
+    suppression,
+    abortOnBreach,
+  );
 }
