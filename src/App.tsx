@@ -590,7 +590,7 @@ function App() {
   // Each repaint is a full 600x600 canvas + PNG encode + GPU texture upload;
   // doing that at autoplay's 5 Hz over 100+ steps OOMs the tab. The cyan
   // rim grows incrementally so missing intermediate steps is invisible.
-  const SNAPSHOT_STRIDE = 3;
+  const SNAPSHOT_STRIDE = 5;
   const throttledStep = Math.floor(currentStep / SNAPSHOT_STRIDE) * SNAPSHOT_STRIDE;
 
   const baselineSnapshot =
@@ -719,7 +719,12 @@ function App() {
         </>
       )}
 
-      {baselineSnapshot && suppressedSnapshot && ignitionPoint && (
+      {/* GhostFireOverlay disabled during the IC-recommend resume flow.
+          The boundary-set state means we entered via Suggest Containment;
+          in that flow the cyan rim from ContainmentLineLayer carries the
+          containment story and the counterfactual overlay just adds GPU
+          cost (full grid diff per repaint). */}
+      {baselineSnapshot && suppressedSnapshot && ignitionPoint && !boundaryPolygon && (
         <GhostFireOverlay
           key={`ghost-${simKey}`}
           baselineSnapshot={baselineSnapshot}
