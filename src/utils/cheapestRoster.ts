@@ -6,22 +6,37 @@ const CREW_RATE = 9;
 const HELITACK_THRESHOLD = 50;
 const TANKER_THRESHOLD = 200;
 
-export function cheapestRosterForCapacity(targetChainsHr: number): ResourceCount[] {
+export interface RosterRateOverrides {
+  dozerChainsHr?: number;
+  crewChainsHr?: number;
+  helitackThresholdChainsHr?: number;
+  tankerThresholdChainsHr?: number;
+}
+
+export function cheapestRosterForCapacity(
+  targetChainsHr: number,
+  overrides?: RosterRateOverrides,
+): ResourceCount[] {
   if (targetChainsHr <= 0) return [];
 
+  const dozerRate = overrides?.dozerChainsHr ?? DOZER_RATE;
+  const crewRate = overrides?.crewChainsHr ?? CREW_RATE;
+  const helitackThreshold = overrides?.helitackThresholdChainsHr ?? HELITACK_THRESHOLD;
+  const tankerThreshold = overrides?.tankerThresholdChainsHr ?? TANKER_THRESHOLD;
+
   const roster: ResourceCount[] = [];
-  const dozerCount = Math.floor(targetChainsHr / DOZER_RATE);
+  const dozerCount = dozerRate > 0 ? Math.floor(targetChainsHr / dozerRate) : 0;
   if (dozerCount > 0) roster.push({ type: ResourceType.Type1Dozer, count: dozerCount });
 
-  const remaining = targetChainsHr - dozerCount * DOZER_RATE;
-  const crewCount = remaining > 0 ? Math.ceil(remaining / CREW_RATE) : 0;
+  const remaining = targetChainsHr - dozerCount * dozerRate;
+  const crewCount = remaining > 0 && crewRate > 0 ? Math.ceil(remaining / crewRate) : 0;
   if (crewCount > 0) roster.push({ type: ResourceType.Type1Crew, count: crewCount });
 
-  const totalGroundCapacity = dozerCount * DOZER_RATE + crewCount * CREW_RATE;
-  if (totalGroundCapacity >= HELITACK_THRESHOLD) {
+  const totalGroundCapacity = dozerCount * dozerRate + crewCount * crewRate;
+  if (totalGroundCapacity >= helitackThreshold) {
     roster.push({ type: ResourceType.Helitack, count: 1 });
   }
-  if (totalGroundCapacity >= TANKER_THRESHOLD) {
+  if (totalGroundCapacity >= tankerThreshold) {
     roster.push({ type: ResourceType.AirTanker, count: 1 });
   }
   return roster;

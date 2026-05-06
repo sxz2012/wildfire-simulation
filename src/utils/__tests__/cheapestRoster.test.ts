@@ -55,4 +55,53 @@ describe("cheapestRosterForCapacity", () => {
     expect(tanker).toEqual({ type: ResourceType.AirTanker, count: 1 });
     expect(helitack).toEqual({ type: ResourceType.Helitack, count: 1 });
   });
+
+  it("uses overridden dozerChainsHr to reduce dozer count", () => {
+    const roster = cheapestRosterForCapacity(1500, { dozerChainsHr: 150 });
+    expectRoster(roster, [
+      { type: ResourceType.Type1Dozer, count: 10 },
+      { type: ResourceType.Helitack, count: 1 },
+      { type: ResourceType.AirTanker, count: 1 },
+    ]);
+  });
+
+  it("uses overridden crewChainsHr when filling remainder", () => {
+    const roster = cheapestRosterForCapacity(100, {
+      dozerChainsHr: 75,
+      crewChainsHr: 18,
+    });
+    expectRoster(roster, [
+      { type: ResourceType.Type1Dozer, count: 1 },
+      { type: ResourceType.Type1Crew, count: 2 },
+      { type: ResourceType.Helitack, count: 1 },
+    ]);
+  });
+
+  it("falls through to crews when dozerChainsHr override is 0", () => {
+    const roster = cheapestRosterForCapacity(27, {
+      dozerChainsHr: 0,
+      crewChainsHr: 9,
+    });
+    expectRoster(roster, [{ type: ResourceType.Type1Crew, count: 3 }]);
+  });
+
+  it("preserves default behavior when no overrides supplied", () => {
+    const roster = cheapestRosterForCapacity(1000);
+    expectRoster(roster, [
+      { type: ResourceType.Type1Dozer, count: 13 },
+      { type: ResourceType.Type1Crew, count: 3 },
+      { type: ResourceType.Helitack, count: 1 },
+      { type: ResourceType.AirTanker, count: 1 },
+    ]);
+  });
+
+  it("respects overridden helitack threshold", () => {
+    const roster = cheapestRosterForCapacity(100, {
+      helitackThresholdChainsHr: 200,
+    });
+    const helitack = roster.find((r) => r.type === ResourceType.Helitack);
+    const tanker = roster.find((r) => r.type === ResourceType.AirTanker);
+    expect(helitack).toBeUndefined();
+    expect(tanker).toBeUndefined();
+  });
 });
