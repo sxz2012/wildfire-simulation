@@ -2,6 +2,8 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import type { SimulationConfig, SimulationState, FuelType } from "./types";
 import type { SuppressionConfig, SuppressionStepDiag } from "./types";
 import type { WorkerResponse } from "./worker";
+import { apiSimulate, isServerReachable, ApiUnreachableError } from "../services/simulationApi";
+import { rleDecode } from "../utils/rle";
 
 interface DualHistory {
   baseline: SimulationState[];
@@ -65,7 +67,7 @@ export function useSimulation(): UseSimulationReturn {
   }, []);
 
   const startSimulation = useCallback(
-    (
+    async (
       config: SimulationConfig,
       igniteRow: number,
       igniteCol: number,
@@ -77,42 +79,90 @@ export function useSimulation(): UseSimulationReturn {
       elevationMap?: Float32Array,
       suppressionConfig?: SuppressionConfig,
     ) => {
-      const worker = workerRef.current;
-      if (!worker) return;
-
       setIsRunning(true);
       setHistory({ baseline: [] });
 
-      // Replace the onmessage handler for this simulation run
+      // Try the local Node API first (much faster on a powerful workstation).
+      // If unreachable or it errors, fall back to the browser worker path.
+      const apiReachable = await isServerReachable();
+      if (apiReachable) {
+        try {
+          const result = await apiSimulate({
+            config,
+            fuelMap: fuelMap ?? [],
+            elevationMap: elevationMap ? Array.from(elevationMap) : undefined,
+            igniteRow,
+            igniteCol,
+            centerLat,
+            centerLng,
+            maxSteps,
+            weather: weatherData,
+            suppression: suppressionConfig,
+          });
+
+          const gridCells = config.gridSize * config.gridSize;
+          const baseStates: SimulationState[] = result.baseline.rleSteps.map((rle, i) => ({
+            grid: rleDecode(rle, gridCells),
+            timestep: i,
+          }));
+          let suppressedStates: SimulationState[] | undefined;
+          if (result.suppressed) {
+            suppressedStates = result.suppressed.rleSteps.map((rle, i) => ({
+              grid: rleDecode(rle, gridCells),
+              timestep: i,
+            }));
+          }
+
+          setHistory({
+            baseline: baseStates,
+            suppressed: suppressedStates,
+            diags: (result.suppressed?.diags as SuppressionStepDiag[] | undefined) ?? undefined,
+          });
+          setIsRunning(false);
+          console.log(`Sim via API in ${result.elapsedMs}ms`);
+          return;
+        } catch (err) {
+          if (err instanceof ApiUnreachableError) {
+            console.warn("API became unreachable mid-request; falling back to browser worker");
+          } else {
+            console.warn("API simulation failed; falling back to browser worker:", err);
+          }
+          // Fall through to the worker path.
+        }
+      }
+
+      // Fallback: original browser worker path. Keep it byte-for-byte the same
+      // as before (just paste the existing logic here).
+      const worker = workerRef.current;
+      if (!worker) {
+        setIsRunning(false);
+        return;
+      }
+
       worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
         if (e.data.type === "complete" && e.data.baselineBuffer) {
           const { baselineBuffer, baselineLength, suppressedBuffer, suppressedLength, suppressionDiags, gridSize } = e.data;
-          const gridCells = gridSize! * gridSize!;
-          // Use subarray (zero-copy view) instead of slice (copy) to halve the
-          // memory footprint. Each step now points into the original transferred
-          // ArrayBuffer; as long as ANY subarray is held, the buffer is kept
-          // alive — and React drops them all atomically when reset is called.
+          const gridCellsW = gridSize! * gridSize!;
           const baseline = new Uint8Array(baselineBuffer);
-          const baseStates: SimulationState[] = [];
+          const baseStatesW: SimulationState[] = [];
           for (let i = 0; i < baselineLength!; i++) {
-            baseStates.push({
-              grid: baseline.subarray(i * gridCells, (i + 1) * gridCells),
+            baseStatesW.push({
+              grid: baseline.subarray(i * gridCellsW, (i + 1) * gridCellsW),
               timestep: i,
             });
           }
-
-          let suppressedStates: SimulationState[] | undefined;
+          let suppressedStatesW: SimulationState[] | undefined;
           if (suppressedBuffer && suppressedLength) {
             const supp = new Uint8Array(suppressedBuffer);
-            suppressedStates = [];
+            suppressedStatesW = [];
             for (let i = 0; i < suppressedLength; i++) {
-              suppressedStates.push({
-                grid: supp.subarray(i * gridCells, (i + 1) * gridCells),
+              suppressedStatesW.push({
+                grid: supp.subarray(i * gridCellsW, (i + 1) * gridCellsW),
                 timestep: i,
               });
             }
           }
-          setHistory({ baseline: baseStates, suppressed: suppressedStates, diags: suppressionDiags });
+          setHistory({ baseline: baseStatesW, suppressed: suppressedStatesW, diags: suppressionDiags });
           setIsRunning(false);
         } else if (e.data.type === "error") {
           console.error("Simulation worker error:", e.data.error);
