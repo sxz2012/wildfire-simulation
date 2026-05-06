@@ -1,12 +1,16 @@
-import { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import {
   Cartesian3,
-  BillboardCollection,
   Color,
   HeightReference,
-  VerticalOrigin,
+  HeadingPitchRoll,
+  Transforms,
+  CallbackProperty,
+  CallbackPositionProperty,
+  ConstantPositionProperty,
+  ConstantProperty,
 } from "cesium";
-import type { Viewer as CesiumViewer, Billboard } from "cesium";
+import type { Viewer as CesiumViewer, Entity } from "cesium";
 import { CellState } from "../simulation/types";
 import type { SimulationState, SimulationConfig, SuppressionConfig } from "../simulation/types";
 import { groundPositions, type LatLng } from "../utils/groundPositions";
@@ -27,25 +31,39 @@ interface SuppressionVehicleLayerProps {
   dropEvents: DropEvent[];
 }
 
-function createEmojiBillboard(size: number, fillColor: string, emoji: string): HTMLCanvasElement {
-  const canvas = document.createElement("canvas");
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext("2d")!;
+type GroundType = "engine" | "crew" | "dozer";
+type VehicleType = GroundType | "helitack" | "tanker";
 
-  ctx.fillStyle = fillColor;
-  ctx.beginPath();
-  ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = "rgba(255,255,255,0.85)";
-  ctx.lineWidth = 2;
-  ctx.stroke();
+const MODEL_URLS: Record<VehicleType, string> = {
+  engine: "/models/firetruck.glb",
+  crew: "/models/pickup.glb",
+  dozer: "/models/bulldozer.glb",
+  helitack: "/models/helicopter.glb",
+  tanker: "/models/airtanker.glb",
+};
 
-  ctx.font = `${Math.floor(size * 0.6)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.fillText(emoji, size / 2, size / 2 + 1);
-  return canvas;
+// Per-type uniform scale. Most poly.pizza models export at ~1m bounding box.
+const MODEL_SCALES: Record<VehicleType, number> = {
+  engine: 1.0,
+  crew: 1.0,
+  dozer: 1.0,
+  helitack: 1.0,
+  tanker: 1.0,
+};
+
+// minimumPixelSize keeps models legible from far camera positions.
+const MIN_PIXEL_SIZE_GROUND = 32;
+const MIN_PIXEL_SIZE_AIR = 48;
+
+const HELI_ORBIT_RADIUS_M = 400;
+const HELI_ORBIT_ALT_M = 60;
+const HELI_ORBIT_PERIOD_SEC = 30;
+const TANKER_ALT_M = 150;
+
+function bearingRad(from: LatLng, to: LatLng): number {
+  const dLng = to.lng - from.lng;
+  const dLat = to.lat - from.lat;
+  return Math.atan2(dLng * Math.cos((from.lat * Math.PI) / 180), dLat);
 }
 
 function activeFireCentroid(
@@ -53,7 +71,7 @@ function activeFireCentroid(
   config: SimulationConfig,
   centerLat: number,
   centerLng: number,
-): { lat: number; lng: number } | null {
+): LatLng | null {
   const { gridSize, cellSizeMeters } = config;
   const grid = state.grid;
   const len = grid.length;
@@ -96,29 +114,24 @@ export default function SuppressionVehicleLayer({
   currentStep,
   dropEvents,
 }: SuppressionVehicleLayerProps): null {
-  const groundCollectionRef = useRef<BillboardCollection | null>(null);
-  const helitackCollectionRef = useRef<BillboardCollection | null>(null);
-  const tankerCollectionRef = useRef<BillboardCollection | null>(null);
-  const helitackBillboardsRef = useRef<Billboard[]>([]);
-  const tankerBillboardsRef = useRef<Map<number, Billboard>>(new Map());
+  const engineEntitiesRef = useRef<Entity[]>([]);
+  const crewEntitiesRef = useRef<Entity[]>([]);
+  const dozerEntitiesRef = useRef<Entity[]>([]);
+  const helitackEntitiesRef = useRef<Entity[]>([]);
+  const tankerEntitiesRef = useRef<Map<number, Entity>>(new Map());
+
   const lastFramePos = useRef<{ engines: LatLng[]; crews: LatLng[]; dozers: LatLng[] }>({
     engines: [],
     crews: [],
     dozers: [],
   });
 
-  // Cinematic drive-in paths require glTF heading; deferred to Task 10. Fade-in only for billboards.
   const firstSeenMs = useRef<{
     engines: number | null;
     crews: number | null;
     dozers: number | null;
     helitack: number | null;
-  }>({
-    engines: null,
-    crews: null,
-    dozers: null,
-    helitack: null,
-  });
+  }>({ engines: null, crews: null, dozers: null, helitack: null });
 
   const currCachedRef = useRef<SimulationState>(curr);
   const configCachedRef = useRef<SimulationConfig>(config);
@@ -126,39 +139,6 @@ export default function SuppressionVehicleLayer({
   const centerLngCachedRef = useRef<number>(centerLng);
   const dropEventsCachedRef = useRef<DropEvent[]>(dropEvents);
   const currentStepCachedRef = useRef<number>(currentStep);
-
-  const engineImage = useMemo(() => createEmojiBillboard(64, "#dc2626", "🚒"), []);
-  const crewImage = useMemo(() => createEmojiBillboard(64, "#facc15", "👷"), []);
-  const dozerImage = useMemo(() => createEmojiBillboard(64, "#f97316", "🚜"), []);
-  const helitackImage = useMemo(() => createEmojiBillboard(64, "#3b82f6", "🚁"), []);
-  const tankerImage = useMemo(() => createEmojiBillboard(64, "#38bdf8", "✈️"), []);
-
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    // BillboardCollection needs `scene` so heightReference (CLAMP_TO_GROUND)
-    // can sample terrain. Without it Cesium throws on first add().
-    const groundCollection = new BillboardCollection({ scene: viewer.scene });
-    const helitackCollection = new BillboardCollection({ scene: viewer.scene });
-    const tankerCollection = new BillboardCollection({ scene: viewer.scene });
-    viewer.scene.primitives.add(groundCollection);
-    viewer.scene.primitives.add(helitackCollection);
-    viewer.scene.primitives.add(tankerCollection);
-    groundCollectionRef.current = groundCollection;
-    helitackCollectionRef.current = helitackCollection;
-    tankerCollectionRef.current = tankerCollection;
-    return () => {
-      if (viewer && !viewer.isDestroyed()) {
-        viewer.scene.primitives.remove(groundCollection);
-        viewer.scene.primitives.remove(helitackCollection);
-        viewer.scene.primitives.remove(tankerCollection);
-      }
-      groundCollectionRef.current = null;
-      helitackCollectionRef.current = null;
-      tankerCollectionRef.current = null;
-      helitackBillboardsRef.current = [];
-      tankerBillboardsRef.current = new Map();
-    };
-  }, [viewer]);
 
   useEffect(() => {
     currCachedRef.current = curr;
@@ -169,9 +149,29 @@ export default function SuppressionVehicleLayer({
     currentStepCachedRef.current = currentStep;
   }, [curr, config, centerLat, centerLng, dropEvents, currentStep]);
 
+  // Cleanup on viewer change / unmount
   useEffect(() => {
-    const collection = groundCollectionRef.current;
-    if (!collection) return;
+    return () => {
+      if (!viewer || viewer.isDestroyed()) return;
+      const all: Entity[] = [
+        ...engineEntitiesRef.current,
+        ...crewEntitiesRef.current,
+        ...dozerEntitiesRef.current,
+        ...helitackEntitiesRef.current,
+      ];
+      for (const e of all) viewer.entities.remove(e);
+      tankerEntitiesRef.current.forEach((e) => viewer.entities.remove(e));
+      engineEntitiesRef.current = [];
+      crewEntitiesRef.current = [];
+      dozerEntitiesRef.current = [];
+      helitackEntitiesRef.current = [];
+      tankerEntitiesRef.current = new Map();
+    };
+  }, [viewer]);
+
+  // Ground vehicles: engines, crews, dozers
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
 
     const counts = perTypeCounts({
       bundle: suppression.resources,
@@ -181,220 +181,219 @@ export default function SuppressionVehicleLayer({
     });
 
     const enginePositions = groundPositions(
-      prev,
-      curr,
-      config,
-      centerLat,
-      centerLng,
-      counts.engines,
-      lastFramePos.current.engines,
+      prev, curr, config, centerLat, centerLng, counts.engines, lastFramePos.current.engines,
     );
     const crewPositions = groundPositions(
-      prev,
-      curr,
-      config,
-      centerLat,
-      centerLng,
-      counts.crews,
-      lastFramePos.current.crews,
+      prev, curr, config, centerLat, centerLng, counts.crews, lastFramePos.current.crews,
     );
     const dozerPositions = groundPositions(
-      prev,
-      curr,
-      config,
-      centerLat,
-      centerLng,
-      counts.dozers,
-      lastFramePos.current.dozers,
+      prev, curr, config, centerLat, centerLng, counts.dozers, lastFramePos.current.dozers,
     );
-
     lastFramePos.current.engines = enginePositions;
     lastFramePos.current.crews = crewPositions;
     lastFramePos.current.dozers = dozerPositions;
 
     const arrivalDurationMs = 30 * (config.timestepMinutes / 60) * 1000;
-    const now = performance.now();
     const computeAlpha = (key: "engines" | "crews" | "dozers", count: number): number => {
       if (count === 0) {
         firstSeenMs.current[key] = null;
         return 1;
       }
-      if (firstSeenMs.current[key] === null) {
-        firstSeenMs.current[key] = now;
-      }
+      if (firstSeenMs.current[key] === null) firstSeenMs.current[key] = performance.now();
       const start = firstSeenMs.current[key]!;
-      const t = (now - start) / arrivalDurationMs;
+      const t = (performance.now() - start) / arrivalDurationMs;
       return Math.max(0, Math.min(1, t));
     };
     const engineAlpha = computeAlpha("engines", counts.engines);
     const crewAlpha = computeAlpha("crews", counts.crews);
     const dozerAlpha = computeAlpha("dozers", counts.dozers);
 
-    collection.removeAll();
+    const fireCentroid = activeFireCentroid(curr, config, centerLat, centerLng);
 
-    for (const pos of enginePositions) {
-      collection.add({
-        position: Cartesian3.fromDegrees(pos.lng, pos.lat),
-        image: engineImage,
-        scale: 1.0,
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        color: Color.WHITE.withAlpha(engineAlpha),
-      });
-    }
-    for (const pos of crewPositions) {
-      collection.add({
-        position: Cartesian3.fromDegrees(pos.lng, pos.lat),
-        image: crewImage,
-        scale: 1.0,
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        color: Color.WHITE.withAlpha(crewAlpha),
-      });
-    }
-    for (const pos of dozerPositions) {
-      collection.add({
-        position: Cartesian3.fromDegrees(pos.lng, pos.lat),
-        image: dozerImage,
-        scale: 1.0,
-        verticalOrigin: VerticalOrigin.BOTTOM,
-        heightReference: HeightReference.CLAMP_TO_GROUND,
-        color: Color.WHITE.withAlpha(dozerAlpha),
-      });
-    }
+    const sync = (
+      ref: { current: Entity[] },
+      positions: LatLng[],
+      type: GroundType,
+      alpha: number,
+    ) => {
+      const list = ref.current;
+      while (list.length > positions.length) {
+        const e = list.pop()!;
+        viewer.entities.remove(e);
+      }
+      while (list.length < positions.length) {
+        const e = viewer.entities.add({
+          position: Cartesian3.fromDegrees(0, 0),
+          model: {
+            uri: MODEL_URLS[type],
+            scale: MODEL_SCALES[type],
+            heightReference: HeightReference.CLAMP_TO_GROUND,
+            minimumPixelSize: MIN_PIXEL_SIZE_GROUND,
+          },
+        });
+        list.push(e);
+      }
+      for (let i = 0; i < positions.length; i++) {
+        const p = positions[i];
+        const ent = list[i];
+        const pos = Cartesian3.fromDegrees(p.lng, p.lat);
+        ent.position = new ConstantPositionProperty(pos);
+        const heading = fireCentroid ? bearingRad(p, fireCentroid) : 0;
+        const hpr = new HeadingPitchRoll(heading, 0, 0);
+        ent.orientation = new ConstantProperty(
+          Transforms.headingPitchRollQuaternion(pos, hpr),
+        );
+        if (ent.model) {
+          ent.model.color = new ConstantProperty(Color.WHITE.withAlpha(alpha));
+        }
+      }
+    };
+
+    sync(engineEntitiesRef, enginePositions, "engine", engineAlpha);
+    sync(crewEntitiesRef, crewPositions, "crew", crewAlpha);
+    sync(dozerEntitiesRef, dozerPositions, "dozer", dozerAlpha);
   }, [
-    viewer,
-    prev,
-    curr,
-    config,
-    centerLat,
-    centerLng,
-    suppression,
-    deployStep,
-    endStep,
-    currentStep,
-    engineImage,
-    crewImage,
-    dozerImage,
+    viewer, prev, curr, config, centerLat, centerLng,
+    suppression, deployStep, endStep, currentStep,
   ]);
 
+  // Helitack: orbit around fire centroid via CallbackProperty
   useEffect(() => {
-    const collection = helitackCollectionRef.current;
-    if (!collection) return;
+    if (!viewer || viewer.isDestroyed()) return;
+
     const counts = perTypeCounts({
       bundle: suppression.resources,
       step: currentStep,
       deployStep,
       endStep,
     });
-    if (counts.helitack === 0) {
-      firstSeenMs.current.helitack = null;
-    } else if (firstSeenMs.current.helitack === null) {
+
+    if (counts.helitack === 0) firstSeenMs.current.helitack = null;
+    else if (firstSeenMs.current.helitack === null) {
       firstSeenMs.current.helitack = performance.now();
     }
-    if (collection.length !== counts.helitack) {
-      collection.removeAll();
-      helitackBillboardsRef.current = [];
-      for (let i = 0; i < counts.helitack; i++) {
-        const bb = collection.add({
-          position: Cartesian3.fromDegrees(centerLng, centerLat, 60),
-          image: helitackImage,
-          scale: 1.0,
-          verticalOrigin: VerticalOrigin.BOTTOM,
-          color: Color.WHITE.withAlpha(0),
-        });
-        helitackBillboardsRef.current.push(bb);
-      }
+
+    const list = helitackEntitiesRef.current;
+
+    while (list.length > counts.helitack) {
+      const e = list.pop()!;
+      viewer.entities.remove(e);
     }
-  }, [viewer, suppression, deployStep, endStep, currentStep, helitackImage, centerLat, centerLng]);
+    while (list.length < counts.helitack) {
+      const idxAtCreation = list.length;
+      const startMs = performance.now();
 
-  useEffect(() => {
-    if (!viewer || viewer.isDestroyed()) return;
-    const startMs = performance.now();
-    const orbitRadiusMeters = 400;
-    const orbitAltitudeMeters = 60;
-    const orbitPeriodSec = 30;
-
-    const callback = () => {
-      const billboards = helitackBillboardsRef.current;
-      if (billboards.length === 0) return;
-      const centroid = activeFireCentroid(
-        currCachedRef.current,
-        configCachedRef.current,
-        centerLatCachedRef.current,
-        centerLngCachedRef.current,
-      );
-      if (!centroid) return;
-      const nowMs = performance.now();
-      const elapsedSec = (nowMs - startMs) / 1000;
-      const omega = (2 * Math.PI) / orbitPeriodSec;
-      const N = billboards.length;
-      const metersPerDegLat = 111_320;
-      const metersPerDegLng = 111_320 * Math.cos((centroid.lat * Math.PI) / 180);
-      const aircraftArrivalMs = 3 * (configCachedRef.current.timestepMinutes / 60) * 1000;
-      const seen = firstSeenMs.current.helitack;
-      const alpha = seen === null ? 1 : Math.max(0, Math.min(1, (nowMs - seen) / aircraftArrivalMs));
-      for (let i = 0; i < N; i++) {
-        const baseAngle = (i / N) * 2 * Math.PI;
+      const computePose = (): { lng: number; lat: number; headingRad: number } | null => {
+        const centroid = activeFireCentroid(
+          currCachedRef.current,
+          configCachedRef.current,
+          centerLatCachedRef.current,
+          centerLngCachedRef.current,
+        );
+        if (!centroid) return null;
+        const elapsedSec = (performance.now() - startMs) / 1000;
+        const omega = (2 * Math.PI) / HELI_ORBIT_PERIOD_SEC;
+        const N = Math.max(1, list.length);
+        const baseAngle = (idxAtCreation / N) * 2 * Math.PI;
         const angle = baseAngle + omega * elapsedSec;
-        const dxMeters = orbitRadiusMeters * Math.cos(angle);
-        const dyMeters = orbitRadiusMeters * Math.sin(angle);
-        const lat = centroid.lat + dyMeters / metersPerDegLat;
-        const lng = centroid.lng + dxMeters / metersPerDegLng;
-        billboards[i].position = Cartesian3.fromDegrees(lng, lat, orbitAltitudeMeters);
-        billboards[i].color = Color.WHITE.withAlpha(alpha);
-      }
-    };
-    viewer.scene.preRender.addEventListener(callback);
-    return () => {
-      if (viewer && !viewer.isDestroyed()) {
-        viewer.scene.preRender.removeEventListener(callback);
-      }
-    };
-  }, [viewer]);
+        const metersPerDegLat = 111_320;
+        const metersPerDegLng = 111_320 * Math.cos((centroid.lat * Math.PI) / 180);
+        const dxM = HELI_ORBIT_RADIUS_M * Math.cos(angle);
+        const dyM = HELI_ORBIT_RADIUS_M * Math.sin(angle);
+        return {
+          lat: centroid.lat + dyM / metersPerDegLat,
+          lng: centroid.lng + dxM / metersPerDegLng,
+          headingRad: angle + Math.PI / 2, // tangent to circular orbit
+        };
+      };
 
+      const e = viewer.entities.add({
+        position: new CallbackPositionProperty(() => {
+          const p = computePose();
+          const lng = p ? p.lng : centerLngCachedRef.current;
+          const lat = p ? p.lat : centerLatCachedRef.current;
+          return Cartesian3.fromDegrees(lng, lat, HELI_ORBIT_ALT_M);
+        }, false),
+        orientation: new CallbackProperty(() => {
+          const p = computePose();
+          const lng = p ? p.lng : centerLngCachedRef.current;
+          const lat = p ? p.lat : centerLatCachedRef.current;
+          const heading = p ? p.headingRad : 0;
+          return Transforms.headingPitchRollQuaternion(
+            Cartesian3.fromDegrees(lng, lat, HELI_ORBIT_ALT_M),
+            new HeadingPitchRoll(heading, 0, 0),
+          );
+        }, false),
+        model: {
+          uri: MODEL_URLS.helitack,
+          scale: MODEL_SCALES.helitack,
+          minimumPixelSize: MIN_PIXEL_SIZE_AIR,
+          color: new CallbackProperty(() => {
+            const arrivalMs = 3 * (configCachedRef.current.timestepMinutes / 60) * 1000;
+            const seen = firstSeenMs.current.helitack;
+            const a = seen === null
+              ? 1
+              : Math.max(0, Math.min(1, (performance.now() - seen) / arrivalMs));
+            return Color.WHITE.withAlpha(a);
+          }, false),
+        },
+      });
+      list.push(e);
+    }
+  }, [viewer, suppression, deployStep, endStep, currentStep]);
+
+  // Tankers: per-drop-event entities animated along their drop axis
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    const tankerAltitudeMeters = 150;
 
     const callback = () => {
-      const collection = tankerCollectionRef.current;
-      if (!collection) return;
       const dropEvts = dropEventsCachedRef.current;
       const cs = currentStepCachedRef.current;
-      const billboards = tankerBillboardsRef.current;
+      const map = tankerEntitiesRef.current;
 
       const activeDrops = dropEvts.filter((e) => cs >= e.startStep && cs <= e.endStep);
-      const activeTankerIdxs = new Set(activeDrops.map((e) => e.tankerIdx));
+      const activeIdxs = new Set(activeDrops.map((e) => e.tankerIdx));
 
-      for (const [idx, bb] of billboards) {
-        if (!activeTankerIdxs.has(idx)) {
-          collection.remove(bb);
-          billboards.delete(idx);
+      for (const [idx, ent] of map) {
+        if (!activeIdxs.has(idx)) {
+          viewer.entities.remove(ent);
+          map.delete(idx);
         }
       }
 
       for (const drop of activeDrops) {
-        const span = drop.endStep - drop.startStep;
-        const t = span > 0 ? (cs - drop.startStep) / span : 0;
-        const lat = drop.axisStart.lat + (drop.axisEnd.lat - drop.axisStart.lat) * t;
-        const lng = drop.axisStart.lng + (drop.axisEnd.lng - drop.axisStart.lng) * t;
-        const newPosition = Cartesian3.fromDegrees(lng, lat, tankerAltitudeMeters);
-
-        let bb = billboards.get(drop.tankerIdx);
-        if (!bb) {
-          bb = collection.add({
-            position: newPosition,
-            image: tankerImage,
-            scale: 1.0,
-            verticalOrigin: VerticalOrigin.BOTTOM,
-          });
-          billboards.set(drop.tankerIdx, bb);
-        } else {
-          bb.position = newPosition;
-        }
+        if (map.has(drop.tankerIdx)) continue;
+        const ent = viewer.entities.add({
+          position: new CallbackPositionProperty(() => {
+            const span = drop.endStep - drop.startStep;
+            const cur = currentStepCachedRef.current;
+            const t = span > 0 ? (cur - drop.startStep) / span : 0;
+            const lat = drop.axisStart.lat + (drop.axisEnd.lat - drop.axisStart.lat) * t;
+            const lng = drop.axisStart.lng + (drop.axisEnd.lng - drop.axisStart.lng) * t;
+            return Cartesian3.fromDegrees(lng, lat, TANKER_ALT_M);
+          }, false),
+          orientation: new CallbackProperty(() => {
+            const span = drop.endStep - drop.startStep;
+            const cur = currentStepCachedRef.current;
+            const t = span > 0 ? (cur - drop.startStep) / span : 0;
+            const lat = drop.axisStart.lat + (drop.axisEnd.lat - drop.axisStart.lat) * t;
+            const lng = drop.axisStart.lng + (drop.axisEnd.lng - drop.axisStart.lng) * t;
+            const heading = bearingRad(drop.axisStart, drop.axisEnd);
+            return Transforms.headingPitchRollQuaternion(
+              Cartesian3.fromDegrees(lng, lat, TANKER_ALT_M),
+              new HeadingPitchRoll(heading, 0, 0),
+            );
+          }, false),
+          model: {
+            uri: MODEL_URLS.tanker,
+            scale: MODEL_SCALES.tanker,
+            minimumPixelSize: MIN_PIXEL_SIZE_AIR,
+          },
+        });
+        map.set(drop.tankerIdx, ent);
       }
     };
+
     viewer.scene.preRender.addEventListener(callback);
     return () => {
       if (viewer && !viewer.isDestroyed()) {

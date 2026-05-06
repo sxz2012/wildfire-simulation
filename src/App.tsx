@@ -32,7 +32,7 @@ import type { Viewer as CesiumViewer } from "cesium";
 type AppMode = "idle" | "simulation" | "historical";
 
 function App() {
-  const { history, isRunning, startSimulation, reset } = useSimulation();
+  const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -298,10 +298,16 @@ function App() {
         _t: Date.now(),
       });
       setAppMode("simulation");
-      // Sync the panel inputs to the bundle the scenario was actually baked
-      // with — even though the suppression-visualization layers don't run for
-      // precomputed scenarios (they'd OOM on the 144 MB of decoded grids),
-      // syncing the panel keeps the displayed delay/bundle honest.
+      // Inject the precomputed scenario into useSimulation so the
+      // suppression-visualization layers + HUD see it as if it were a live
+      // run. Safe with the entity-pooling glTF SuppressionVehicleLayer —
+      // earlier OOMs came from per-step BillboardCollection churn, which the
+      // new implementation avoids via CallbackProperty + push/pop pooling.
+      setHistory({
+        baseline: loaded.baseline.history,
+        suppressed: loaded.suppressed?.history,
+        diags: loaded.suppressed?.diags,
+      });
       if (loaded.meta.suppression) {
         setSuppressionDelay(loaded.meta.suppression.responseDelayMin);
         setSuppressionResources(loaded.meta.suppression.resources);
