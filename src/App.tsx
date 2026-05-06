@@ -7,8 +7,6 @@ import FireEffects from "./components/FireEffects";
 import WaterOverlay from "./components/WaterOverlay";
 import ContainmentLineLayer from "./components/ContainmentLineLayer";
 import GhostFireOverlay from "./components/GhostFireOverlay";
-import RetardantTrailLayer from "./components/RetardantTrailLayer";
-import SuppressionVehicleLayer from "./components/SuppressionVehicleLayer";
 import SuppressionHUD from "./components/SuppressionHUD";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
@@ -690,35 +688,10 @@ function App() {
         />
       )}
 
-      {suppressionActive && history.suppressed && ignitionPoint && (
-        <>
-          <RetardantTrailLayer
-            key={`retardant-${simKey}`}
-            viewer={viewerRef.current}
-            dropEvents={dropEvents}
-            currentStep={suppressedCurrIdx}
-            timestepMinutes={activeConfig.timestepMinutes}
-          />
-          <SuppressionVehicleLayer
-            key={`vehicles-${simKey}`}
-            viewer={viewerRef.current}
-            prev={
-              currentStep > 0
-                ? history.suppressed[Math.min(currentStep - 1, suppressionEndStep)]
-                : null
-            }
-            curr={history.suppressed[suppressedCurrIdx]}
-            config={activeConfig}
-            centerLat={ignitionPoint.lat}
-            centerLng={ignitionPoint.lng}
-            suppression={suppressionConfig}
-            deployStep={deployStep}
-            endStep={suppressionEndStep}
-            currentStep={suppressedCurrIdx}
-            dropEvents={dropEvents}
-          />
-        </>
-      )}
+      {/* On-map resource simulation (RetardantTrailLayer + SuppressionVehicleLayer)
+          removed by user request. The HUD readout + cyan containment rim
+          carry the suppression story; on-map glTF lineups and tanker drop
+          passes added visual noise without operational value. */}
 
       {/* GhostFireOverlay disabled during the IC-recommend resume flow.
           The boundary-set state means we entered via Suggest Containment;
