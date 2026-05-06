@@ -73,11 +73,17 @@ export default function GlobeView({ onIgnite, flyTo, onViewerReady }: GlobeViewP
 
       // Add Google Photorealistic 3D Tiles
       try {
-        const tileset = await createGooglePhotorealistic3DTileset(
-          import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-            ? { key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY }
-            : undefined
-        );
+        const baseOpts = import.meta.env.VITE_GOOGLE_MAPS_API_KEY
+          ? { key: import.meta.env.VITE_GOOGLE_MAPS_API_KEY }
+          : {};
+        // onlyUsingWithGoogleGeocoder: silences the Cesium warning about
+        // mixing the default Cesium-Ion geocoder with Google's 3D Tiles.
+        // We don't use Cesium's geocoder anyway (LocationSearch hits
+        // Nominatim directly), so the warning is cosmetic.
+        const tileset = await createGooglePhotorealistic3DTileset({
+          ...baseOpts,
+          onlyUsingWithGoogleGeocoder: true,
+        });
         viewer.scene.primitives.add(tileset);
       } catch (e) {
         console.error("Failed to load Google 3D Tiles:", e);
