@@ -88,17 +88,28 @@ export function useSimulation(): UseSimulationReturn {
         if (e.data.type === "complete" && e.data.baselineBuffer) {
           const { baselineBuffer, baselineLength, suppressedBuffer, suppressedLength, suppressionDiags, gridSize } = e.data;
           const gridCells = gridSize! * gridSize!;
+          // Use subarray (zero-copy view) instead of slice (copy) to halve the
+          // memory footprint. Each step now points into the original transferred
+          // ArrayBuffer; as long as ANY subarray is held, the buffer is kept
+          // alive — and React drops them all atomically when reset is called.
           const baseline = new Uint8Array(baselineBuffer);
           const baseStates: SimulationState[] = [];
           for (let i = 0; i < baselineLength!; i++) {
-            baseStates.push({ grid: baseline.slice(i * gridCells, (i + 1) * gridCells), timestep: i });
+            baseStates.push({
+              grid: baseline.subarray(i * gridCells, (i + 1) * gridCells),
+              timestep: i,
+            });
           }
+
           let suppressedStates: SimulationState[] | undefined;
           if (suppressedBuffer && suppressedLength) {
             const supp = new Uint8Array(suppressedBuffer);
             suppressedStates = [];
             for (let i = 0; i < suppressedLength; i++) {
-              suppressedStates.push({ grid: supp.slice(i * gridCells, (i + 1) * gridCells), timestep: i });
+              suppressedStates.push({
+                grid: supp.subarray(i * gridCells, (i + 1) * gridCells),
+                timestep: i,
+              });
             }
           }
           setHistory({ baseline: baseStates, suppressed: suppressedStates, diags: suppressionDiags });
