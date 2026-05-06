@@ -149,3 +149,13 @@ select.fire-select:focus {
 .animate-enter-left   { animation: panel-enter-left 0.3s ease-out both; }
 .animate-enter-right  { animation: panel-enter-right 0.3s ease-out both; }
 .animate-enter-bottom { animation: panel-enter-bottom 0.3s ease-out both; }
+
+/* ─── Indeterminate progress stripe (used in paused-computing modal) ─── */
+@keyframes progress-stripe {
+  0%   { width: 10%; transform: translateX(-100%); }
+  50%  { width: 60%; transform: translateX(50%); }
+  100% { width: 10%; transform: translateX(800%); }
+}
+.animate-progress-stripe {
+  animation: progress-stripe 1.6s ease-in-out infinite;
+}

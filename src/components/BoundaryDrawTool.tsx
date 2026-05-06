@@ -19,9 +19,17 @@ interface BoundaryDrawToolProps {
   onClose: (polygon: LatLng[]) => void;
   onCancel: () => void;
   onValidationError?: (msg: string) => void;
+  onVerticesChange?: (vertices: LatLng[]) => void;
+  /**
+   * Parent increments this to request that the tool validate and finalize
+   * the current polygon (same flow as double-click-to-close). 0 / undefined
+   * is ignored.
+   */
+  closeRequest?: number;
 }
 
 const FIRST_VERTEX_SNAP_PX = 30;
+const VERTEX_HIT_RADIUS_PX = 18;
 const MIN_POLYGON_AREA_M2 = 10_000;
 
 function distance2D(a: Cartesian2, b: Cartesian2): number {
@@ -80,6 +88,8 @@ export default function BoundaryDrawTool({
   onClose,
   onCancel,
   onValidationError,
+  onVerticesChange,
+  closeRequest,
 }: BoundaryDrawToolProps): null {
   const [vertices, setVertices] = useState<LatLng[]>([]);
   const verticesRef = useRef(vertices);
@@ -88,14 +98,57 @@ export default function BoundaryDrawTool({
   const polylineEntityRef = useRef<Entity | null>(null);
   const polygonEntityRef = useRef<Entity | null>(null);
 
+  // Stable refs for callbacks so the close handler can call them without
+  // re-binding the input handlers every time the parent re-renders.
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const onValidationErrorRef = useRef(onValidationError);
+  onValidationErrorRef.current = onValidationError;
+
   useEffect(() => {
     if (active) setVertices([]);
   }, [active]);
 
+  // Notify parent whenever vertex set changes.
+  useEffect(() => {
+    onVerticesChange?.(vertices);
+  }, [vertices, onVerticesChange]);
+
+  // Shared close-validation flow used by both double-click and the parent's
+  // explicit Compute button (closeRequest).
+  const tryClose = (poly: LatLng[]) => {
+    if (poly.length < 3) return;
+    if (hasSelfIntersection(poly)) {
+      onValidationErrorRef.current?.("Polygon crosses itself — adjust vertices");
+      return;
+    }
+    const meanLat = poly.reduce((s, p) => s + p.lat, 0) / poly.length;
+    const area = shoelaceArea(poly, meanLat);
+    if (area < MIN_POLYGON_AREA_M2) {
+      onValidationErrorRef.current?.("Boundary too small — try again");
+      return;
+    }
+    onCloseRef.current(poly);
+  };
+
+  // Parent-driven close request (Compute button).
+  useEffect(() => {
+    if (!active) return;
+    if (closeRequest === undefined || closeRequest === 0) return;
+    tryClose(verticesRef.current);
+    // tryClose is stable enough — it only reads refs. Intentionally not in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [closeRequest, active]);
+
   useEffect(() => {
     if (!viewer || viewer.isDestroyed() || !active) return;
 
-    const handler = new ScreenSpaceEventHandler(viewer.scene.canvas);
+    // Crosshair cursor while drawing.
+    const canvas = viewer.scene.canvas;
+    const previousCursor = canvas.style.cursor;
+    canvas.style.cursor = "crosshair";
+
+    const handler = new ScreenSpaceEventHandler(canvas);
 
     const pickLatLng = (screenPos: Cartesian2): LatLng | null => {
       let cartesian: Cartesian3 | undefined = viewer.scene.pickPosition(screenPos);
@@ -111,22 +164,58 @@ export default function BoundaryDrawTool({
       };
     };
 
-    const tryClose = (poly: LatLng[]) => {
-      if (poly.length < 3) return;
-      if (hasSelfIntersection(poly)) {
-        onValidationError?.("Polygon crosses itself — adjust vertices");
-        return;
-      }
-      const meanLat = poly.reduce((s, p) => s + p.lat, 0) / poly.length;
-      const area = shoelaceArea(poly, meanLat);
-      if (area < MIN_POLYGON_AREA_M2) {
-        onValidationError?.("Boundary too small — try again");
-        return;
-      }
-      onClose(poly);
-    };
+    let draggingIndex: number | null = null;
+    let wasDragged = false;
 
     handler.setInputAction((event: ScreenSpaceEventHandler.PositionedEvent) => {
+      wasDragged = false;
+      const screenPos = event.position;
+      const v = verticesRef.current;
+      // Hit-test: find the closest vertex within VERTEX_HIT_RADIUS_PX.
+      let bestIdx = -1;
+      let bestDist = VERTEX_HIT_RADIUS_PX;
+      for (let i = 0; i < v.length; i++) {
+        const world = Cartesian3.fromDegrees(v[i].lng, v[i].lat);
+        const screen = viewer.scene.cartesianToCanvasCoordinates(world);
+        if (!screen) continue;
+        const d = distance2D(screen, screenPos);
+        if (d < bestDist) {
+          bestDist = d;
+          bestIdx = i;
+        }
+      }
+      if (bestIdx >= 0) {
+        draggingIndex = bestIdx;
+        // Disable camera input so panning doesn't fight the drag.
+        viewer.scene.screenSpaceCameraController.enableInputs = false;
+      }
+    }, ScreenSpaceEventType.LEFT_DOWN);
+
+    handler.setInputAction((movement: ScreenSpaceEventHandler.MotionEvent) => {
+      if (draggingIndex === null) return;
+      const newPt = pickLatLng(movement.endPosition);
+      if (!newPt) return;
+      wasDragged = true;
+      const v = verticesRef.current;
+      const next = [...v];
+      next[draggingIndex] = newPt;
+      setVertices(next);
+    }, ScreenSpaceEventType.MOUSE_MOVE);
+
+    handler.setInputAction(() => {
+      if (draggingIndex !== null) {
+        draggingIndex = null;
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+      }
+    }, ScreenSpaceEventType.LEFT_UP);
+
+    handler.setInputAction((event: ScreenSpaceEventHandler.PositionedEvent) => {
+      // If the click was actually a drag-edit, swallow it so we don't append
+      // a duplicate vertex.
+      if (wasDragged) {
+        wasDragged = false;
+        return;
+      }
       const screenPos = event.position;
       const newPt = pickLatLng(screenPos);
       if (!newPt) return;
@@ -155,8 +244,13 @@ export default function BoundaryDrawTool({
 
     return () => {
       handler.destroy();
+      // Always restore camera (defensive against drag-mid-unmount) and cursor.
+      if (!viewer.isDestroyed()) {
+        viewer.scene.screenSpaceCameraController.enableInputs = true;
+        canvas.style.cursor = previousCursor;
+      }
     };
-  }, [viewer, active, onClose, onValidationError]);
+  }, [viewer, active]);
 
   useEffect(() => {
     if (!active) return;
@@ -182,9 +276,12 @@ export default function BoundaryDrawTool({
         collection.add({
           position: Cartesian3.fromDegrees(v.lng, v.lat),
           color: Color.fromCssColorString(isLatest ? "#fde047" : "#facc15"),
-          pixelSize: isLatest ? 14 : 12,
+          pixelSize: isLatest ? 18 : 14,
           outlineColor: Color.BLACK,
-          outlineWidth: 1,
+          outlineWidth: 2,
+          // Always render above 3D Tiles / terrain — without this the discs
+          // get depth-tested away when the camera angle puts terrain in front.
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
         });
       });
     }

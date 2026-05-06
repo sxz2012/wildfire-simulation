@@ -84,6 +84,10 @@ function App() {
   const [boundaryPolygon, setBoundaryPolygon] = useState<LatLng[] | null>(null);
   const [boundaryResult, setBoundaryResult] = useState<ApiQBoundaryResponse | null>(null);
   const [, setShowBreachPreview] = useState(false);
+  // Live vertex count from BoundaryDrawTool, used to enable the Compute button.
+  const [drawingVertices, setDrawingVertices] = useState<LatLng[]>([]);
+  // Incremented to ask BoundaryDrawTool to validate + finalize the polygon.
+  const [computeRequestKey, setComputeRequestKey] = useState(0);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -366,6 +370,8 @@ function App() {
       setBoundaryPolygon(null);
       setBoundaryResult(null);
       setShowBreachPreview(false);
+      setDrawingVertices([]);
+      setComputeRequestKey(0);
       setAppMode("paused-drawing");
     }
   }, [history, ignitionPoint, currentStep]);
@@ -483,6 +489,8 @@ function App() {
     setBoundaryResult(null);
     setPausedGrid(null);
     setShowBreachPreview(false);
+    setDrawingVertices([]);
+    setComputeRequestKey(0);
     setAppMode("simulation");
   }, []);
 
@@ -490,6 +498,8 @@ function App() {
     setBoundaryPolygon(null);
     setBoundaryResult(null);
     setShowBreachPreview(false);
+    setDrawingVertices([]);
+    setComputeRequestKey(0);
     setAppMode("paused-drawing");
   }, []);
 
@@ -729,6 +739,8 @@ function App() {
           onClose={handleBoundaryClose}
           onCancel={handleSuppressionCancel}
           onValidationError={(msg) => console.warn(msg)}
+          onVerticesChange={setDrawingVertices}
+          closeRequest={computeRequestKey}
         />
       )}
 
@@ -754,29 +766,52 @@ function App() {
       {appMode === "paused-computing" && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
           <div
-            className="fire-panel rounded-lg p-6 text-center text-amber-400"
+            className="fire-panel rounded-lg p-6 text-center text-amber-400 min-w-[360px]"
             style={{ fontFamily: "'JetBrains Mono', monospace" }}
           >
-            Searching minimum effective response…
+            <div className="mb-3 text-label uppercase tracking-wide">
+              Searching minimum effective response
+            </div>
+            <div className="text-caption text-gray-400 mb-4">
+              Bisecting on chains/hr capacity… ~5–15s
+            </div>
+            <div className="h-1.5 w-full bg-amber-500/15 rounded-full overflow-hidden">
+              <div className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full animate-progress-stripe" />
+            </div>
           </div>
         </div>
       )}
 
       {appMode === "paused-drawing" && (
         <div
-          className="absolute bottom-3 left-3 right-3 z-50 fire-panel rounded-xl px-4 py-2 flex items-center gap-3"
+          className="absolute bottom-3 left-3 right-3 z-50 fire-panel rounded-xl px-4 py-3 flex items-center gap-3"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
         >
           <span className="text-amber-400 text-label uppercase tracking-wide">
             Draw Containment Boundary
           </span>
-          <span className="text-gray-400 text-caption">
-            Click to place vertices · double-click to close · right-click to undo · Esc to cancel
+          <span className="text-gray-400 text-caption flex-1">
+            Click to place vertex · drag a vertex to adjust · right-click to undo · Esc to cancel
+          </span>
+          <span className="text-gray-300 text-sm tabular-nums">
+            {drawingVertices.length} vertices
           </span>
           <button
             type="button"
+            onClick={() => setComputeRequestKey((k) => k + 1)}
+            disabled={drawingVertices.length < 3}
+            className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
+              drawingVertices.length >= 3
+                ? "bg-amber-500/30 text-amber-200 hover:bg-amber-500/40 cursor-pointer"
+                : "bg-white/5 text-gray-500 cursor-not-allowed"
+            }`}
+          >
+            Compute
+          </button>
+          <button
+            type="button"
             onClick={handleSuppressionCancel}
-            className="ml-auto px-3 py-1 text-caption rounded border border-amber-500/30
+            className="px-3 py-1.5 text-caption rounded border border-amber-500/30
               bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
           >
             Cancel
