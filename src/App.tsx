@@ -72,7 +72,11 @@ function App() {
     [],
   );
 
-  const fullReset = useCallback(() => {
+  // Clears per-run scene state (history, ignition, mode, autoplay) without
+  // touching the user's input choices (suppression toggle, delay, bundle,
+  // scenario pick). Called automatically before starting a new run so the
+  // map is fresh, but the panel keeps what the user just set.
+  const runReset = useCallback(() => {
     reset();
     setCurrentStep(0);
     setIgnitionPoint(null);
@@ -83,12 +87,18 @@ function App() {
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
+  }, [reset]);
+
+  // Full reset: per-run state plus user inputs returned to defaults. Wired
+  // to the explicit Reset button only.
+  const fullReset = useCallback(() => {
+    runReset();
     setSuppressionDelay(30);
     setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
     setActiveScenario(null);
     setNearbyResources(null);
     setLocationDisplay(undefined);
-  }, [reset]);
+  }, [runReset]);
 
   // Convert simulation history to fire frames when the worker finishes a run.
   // Implemented as a real effect (rather than an inline render-time side effect)
@@ -122,7 +132,7 @@ function App() {
     (lat: number, lng: number) => {
       // If a previous run's visualization is still on screen, clear it
       // before placing a fresh pin so the scene resets cleanly.
-      if (appMode === "simulation") fullReset();
+      if (appMode === "simulation") runReset();
       setPendingIgnition({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
       // Best-effort: reverse-geocode the click so the Location input
@@ -136,13 +146,13 @@ function App() {
         .then(setNearbyResources)
         .catch((err) => console.warn("Could not fetch nearby resources:", err));
     },
-    [appMode, fullReset],
+    [appMode, runReset],
   );
 
   const handleStartWildfire = useCallback(
     async (lat: number, lng: number) => {
       setIsPreparingSim(true);
-      fullReset();
+      runReset();
       setAppMode("simulation");
       setIgnitionPoint({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
@@ -265,11 +275,11 @@ function App() {
       );
       setIsPreparingSim(false);
     },
-    [fullReset, startSimulation, suppressionDelay, suppressionResources]
+    [runReset, startSimulation, suppressionDelay, suppressionResources]
   );
 
   const handleScenarioPick = useCallback(async (scenario: ScenarioSummary) => {
-    fullReset();
+    runReset();
     try {
       const loaded = await loadScenario(scenario.jsonPath);
       setActiveScenario(loaded);
@@ -300,12 +310,12 @@ function App() {
     } catch (err) {
       console.error("Scenario load failed:", err);
     }
-  }, [fullReset]);
+  }, [runReset]);
 
   const handleScenarioLive = useCallback(() => {
-    fullReset();
+    runReset();
     setActiveScenario(null);
-  }, [fullReset]);
+  }, [runReset]);
 
   // Bridges the ControlPanel's existing onStart prop into the new flow:
   // - If a pin is placed, this is the "Start the Wildfire" action and we
@@ -350,7 +360,7 @@ function App() {
 
   const handleStartHistorical = useCallback(
     async (fireId: string) => {
-      fullReset();
+      runReset();
       setAppMode("historical");
       const fire = await loadHistoricalFire(fireId);
       setActiveFire(fire);
@@ -358,7 +368,7 @@ function App() {
       setCurrentStep(0);
       setTimeout(() => setAutoPlay(true), 1500);
     },
-    [fullReset]
+    [runReset]
   );
 
   const totalSteps = activeFire ? activeFire.frames.length : 0;
