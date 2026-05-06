@@ -7,6 +7,7 @@ import {
 } from "../simulation/types";
 import type { ResourceCount } from "../simulation/types";
 import type { ApiQBoundaryResponse } from "../services/simulationApi";
+import { classifyRoster } from "../utils/cheapestRoster";
 
 interface RecommendationCardProps {
   result: ApiQBoundaryResponse;
@@ -228,6 +229,29 @@ export default function RecommendationCard(
                 <div className="text-base font-semibold text-amber-200 mb-1">
                   {describeRoster(primaryRoster)}
                 </div>
+                {(() => {
+                  const tier = classifyRoster(primaryRoster);
+                  const isSurge = tier.key === "surge";
+                  return (
+                    <div className="mb-1">
+                      <span
+                        className={`inline-block text-label uppercase tracking-wider px-2 py-0.5 rounded ${
+                          isSurge
+                            ? "bg-red-500/15 text-red-300 border border-red-500/30"
+                            : "bg-amber-500/10 text-amber-300 border border-amber-500/20"
+                        }`}
+                        style={MONO_FONT}
+                      >
+                        {tier.label}
+                      </span>
+                      {tier.caveat && (
+                        <div className="text-micro text-red-200/80 mt-1 leading-snug">
+                          {tier.caveat}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <div
                   className="text-micro text-gray-400 tabular-nums"
                   style={MONO_FONT}

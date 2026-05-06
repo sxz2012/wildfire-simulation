@@ -251,11 +251,11 @@ export interface FindMinRosterForBoundaryResult {
 }
 
 const Q_BOUNDARY_LO = 0;
-// 1000 chains/hr ≈ 13 dozers + 3 crews + 1 helitack + 1 tanker — already
-// at the upper edge of what any realistic IC could field. Anything beyond
-// this is fantasy; the right answer for fires that need more is "redraw
-// the boundary larger" — surface that in the uncontainable card.
-const Q_BOUNDARY_HI = 1000;
+// 2500 chains/hr ≈ 33 dozers + crews + aerial. Past the single-IC max
+// (1000 ch/hr) but covers historical mega-fire surges. Recommendations
+// above 1000 are flagged in the UI as "Multi-jurisdictional surge".
+// Beyond 2500 the right answer is to redraw the boundary larger.
+const Q_BOUNDARY_HI = 2500;
 const Q_BOUNDARY_RESOLUTION = 25;
 
 // 2% slop on the strict-containment criterion. A single rogue ember (1 cell
