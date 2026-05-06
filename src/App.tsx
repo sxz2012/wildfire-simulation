@@ -19,6 +19,8 @@ import { fetchCurrentWeather, getSeasonalWeather, type Season, type WeatherData 
 import { sampleVegetation } from "./services/vegetation";
 import { sampleElevations } from "./services/terrain";
 import { sampleLandCover } from "./services/landCover";
+import { loadScenario, type LoadedScenario } from "./services/scenarioLoader";
+import type { ScenarioSummary } from "./components/ScenarioPicker";
 import type { Viewer as CesiumViewer } from "cesium";
 
 type AppMode = "idle" | "simulation" | "historical";
@@ -37,6 +39,8 @@ function App() {
   // Globe clicks update this; the actual simulation only starts when the
   // user clicks the "Start the Wildfire" button in ControlPanel.
   const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
+  // activeScenario will be consumed by ImpactSection/AnalysisPanel in G2.
+  const [_activeScenario, setActiveScenario] = useState<LoadedScenario | null>(null);
   const [suppressionDelay, setSuppressionDelay] = useState(30);
   const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>(
     SUPPRESSION_BUNDLES.initialAttack,
@@ -78,6 +82,7 @@ function App() {
     setSimKey((k) => k + 1);
     setSuppressionDelay(30);
     setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
+    setActiveScenario(null);
   }, [reset]);
 
   // Convert simulation history to fire frames when the worker finishes a run.
@@ -248,6 +253,44 @@ function App() {
     [fullReset, startSimulation, suppressionDelay, suppressionResources]
   );
 
+  const handleScenarioPick = useCallback(async (scenario: ScenarioSummary) => {
+    fullReset();
+    try {
+      const loaded = await loadScenario(scenario.jsonPath);
+      setActiveScenario(loaded);
+      setIgnitionPoint(loaded.meta.location);
+      const cfg: SimulationConfig = { ...DEFAULT_CONFIG, ...loaded.meta.config };
+      setActiveConfig(cfg);
+      setFlyTo({
+        lat: loaded.meta.location.lat,
+        lng: loaded.meta.location.lng,
+        altitude: 15000,
+        _t: Date.now(),
+      });
+      setAppMode("simulation");
+      // Use the suppressed history when available, otherwise baseline.
+      const activeHistory =
+        loaded.suppressed && loaded.suppressed.history.length > 0
+          ? loaded.suppressed.history
+          : loaded.baseline.history;
+      const fire = convertSimulationToFire(
+        activeHistory,
+        cfg,
+        loaded.meta.location.lat,
+        loaded.meta.location.lng,
+      );
+      setActiveFire(fire);
+      setAutoPlay(true);
+    } catch (err) {
+      console.error("Scenario load failed:", err);
+    }
+  }, [fullReset]);
+
+  const handleScenarioLive = useCallback(() => {
+    fullReset();
+    setActiveScenario(null);
+  }, [fullReset]);
+
   // Bridges the ControlPanel's existing onStart prop into the new flow:
   // - If a pin is placed, this is the "Start the Wildfire" action and we
   //   actually launch the simulation at the pinned location.
@@ -382,6 +425,8 @@ function App() {
       <ControlPanel
         onStart={handleStart}
         onStartHistorical={handleStartHistorical}
+        onScenarioPick={handleScenarioPick}
+        onScenarioLive={handleScenarioLive}
         onReset={fullReset}
         onWeatherSourceChange={handleWeatherSourceChange}
         onLocationSelected={handleLocationSelected}
