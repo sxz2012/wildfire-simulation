@@ -56,7 +56,7 @@ export default function TimeInfoPanel({
   return (
     <div
       className="fire-panel animate-enter-right absolute top-3 z-50 rounded-xl px-4 py-3 min-w-[180px] transition-[right] duration-300 ease-out"
-      style={{ right: shifted ? 372 : 12 }}
+      style={{ right: shifted ? 452 : 12 }}
     >
       {/* Status indicator */}
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/[0.04]">

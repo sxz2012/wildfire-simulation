@@ -21,10 +21,10 @@ export default function ModelDetailsPanel({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`fire-panel fixed top-0 h-screen w-[360px] z-40 flex flex-col transition-[right] duration-300 ease-out shadow-[-12px_0_32px_-8px_rgba(0,0,0,0.6)] ${
+      className={`fire-panel fixed top-0 h-screen w-[440px] z-40 flex flex-col transition-[right] duration-300 ease-out shadow-[-12px_0_32px_-8px_rgba(0,0,0,0.6)] ${
         isOpen ? "" : "pointer-events-none"
       }`}
-      style={{ right: isOpen ? 0 : -360 }}
+      style={{ right: isOpen ? 0 : -440 }}
     >
       {/* Left accent bar — signals the panel as a methodology context. */}
       <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-amber-500/40 via-amber-500/10 to-transparent" />
@@ -52,8 +52,8 @@ export default function ModelDetailsPanel({
         {(
           [
             ["overview", "Overview"],
-            ["params", "Params"],
-            ["references", "Refs"],
+            ["params", "Parameters"],
+            ["references", "References"],
           ] as Array<[TabKey, string]>
         ).map(([key, label]) => {
           const active = activeTab === key;
@@ -61,7 +61,7 @@ export default function ModelDetailsPanel({
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`flex-1 py-2.5 text-caption tracking-[0.18em] uppercase transition-colors ${
+              className={`flex-1 py-2.5 text-caption tracking-[0.15em] uppercase transition-colors whitespace-nowrap ${
                 active
                   ? "text-amber-400 border-b-2 border-amber-400"
                   : "text-gray-500 border-b-2 border-transparent hover:text-gray-200"
