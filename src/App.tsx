@@ -22,7 +22,7 @@ import { rleDecode } from "./utils/rle";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
-import { DEFAULT_CONFIG, FuelType, SUPPRESSION_BUNDLES, type SimulationConfig, type ResourceCount } from "./simulation/types";
+import { DEFAULT_CONFIG, FuelType, type SimulationConfig, type ResourceCount } from "./simulation/types";
 import { dropScheduler, type DropEvent } from "./utils/dropScheduler";
 import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
@@ -60,9 +60,10 @@ function App() {
   const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
   const [activeScenario, setActiveScenario] = useState<LoadedScenario | null>(null);
   const [suppressionDelay, setSuppressionDelay] = useState(30);
-  const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>(
-    SUPPRESSION_BUNDLES.initialAttack,
-  );
+  // Default to wildfire-only ([]). Suppression is applied through the
+  // Suggest Containment flow, not the panel — so live ignites start
+  // unsuppressed and the user opts in via pause → draw → compute → approve.
+  const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>([]);
   const [nearbyResources, setNearbyResources] = useState<NearbyFireResources | null>(null);
   // True between "Start the Wildfire" being clicked and the worker actually
   // running. Bridges the async gap (weather + land cover + terrain fetches)
@@ -123,7 +124,7 @@ function App() {
   const fullReset = useCallback(() => {
     runReset();
     setSuppressionDelay(30);
-    setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
+    setSuppressionResources([]);
     setActiveScenario(null);
     setNearbyResources(null);
     setLocationDisplay(undefined);
@@ -753,7 +754,7 @@ function App() {
         />
       )}
 
-      {viewerRef.current && appMode === "simulation" && boundaryPolygon && (
+      {viewerRef.current && boundaryPolygon && (
         <PolygonOverlay
           viewer={viewerRef.current}
           polygon={boundaryPolygon}
