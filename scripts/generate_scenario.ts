@@ -17,7 +17,8 @@ import * as path from "node:path";
 import { fileURLToPath } from "node:url";
 import { runSimulation } from "../src/simulation/runner.ts";
 import { loadModel } from "../src/simulation/mlModel.ts";
-import { DEFAULT_CONFIG, type FuelType, type SimulationConfig, type SuppressionConfig } from "../src/simulation/types.ts";
+import { DEFAULT_CONFIG, SUPPRESSION_BUNDLES, type FuelType, type SimulationConfig, type SuppressionConfig } from "../src/simulation/types.ts";
+import { findMaxDelay, findMinTier } from "../src/simulation/inverseSearch.ts";
 import { rleEncode } from "../src/utils/rle.ts";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -32,6 +33,9 @@ interface ScenarioSpec {
   weather: { tempMean: number; tempMax: number; humidity: number; windSpeed: number; windDirection: number; precipitation: number; cumulativePrecip: number };
   suppression: SuppressionConfig;
   maxSteps: number;
+  thresholdAreaHa: number;
+  defaultBundleKey: "initialAttack" | "type3" | "type2" | "type1";
+  defaultDelayMin: number;
 }
 
 const SCENARIOS: ScenarioSpec[] = [
@@ -58,6 +62,9 @@ const SCENARIOS: ScenarioSpec[] = [
       ],
     },
     maxSteps: 200,
+    thresholdAreaHa: 500,
+    defaultBundleKey: "initialAttack",
+    defaultDelayMin: 30,
   },
 ];
 
@@ -163,6 +170,82 @@ async function generate(spec: ScenarioSpec): Promise<void> {
   const baselineRle = result.baseline.map((s) => rleEncode(s.grid));
   const suppressedRle = result.suppressed?.history.map((s) => rleEncode(s.grid));
 
+  console.log("  running Q1 (max delay for default bundle)...");
+  const q1 = await findMaxDelay({
+    config: enriched,
+    fuelMap,
+    elevationMap,
+    igniteRow: center,
+    igniteCol: center,
+    centerLat: spec.location.lat,
+    centerLng: spec.location.lng,
+    maxSteps: spec.maxSteps,
+    thresholdAreaHa: spec.thresholdAreaHa,
+    bundle: [...SUPPRESSION_BUNDLES[spec.defaultBundleKey]],
+  });
+  console.log(`    Q1: maxDelayMin = ${q1.maxDelayMin}`);
+
+  console.log("  running Q2 (min tier for default delay)...");
+  const q2 = await findMinTier({
+    config: enriched,
+    fuelMap,
+    elevationMap,
+    igniteRow: center,
+    igniteCol: center,
+    centerLat: spec.location.lat,
+    centerLng: spec.location.lng,
+    maxSteps: spec.maxSteps,
+    thresholdAreaHa: spec.thresholdAreaHa,
+    delayMin: spec.defaultDelayMin,
+  });
+  console.log(`    Q2: minTier = ${q2.minTier}`);
+
+  // Note: justWorks/justFails come from the bisection's last accepted delay
+  // boundary; encode their grids as RLE for size.
+  const compactQ1 = {
+    bundle: spec.defaultBundleKey,
+    maxDelayMin: q1.maxDelayMin,
+    bisectionTrace: q1.bisectionTrace,
+    justWorks: q1.justWorks
+      ? {
+          delayMin: q1.maxDelayMin ?? 0,
+          rleSteps: q1.justWorks.history.map((s) => rleEncode(s.grid)),
+          finalAreaHa: q1.justWorks.finalAreaHa,
+        }
+      : null,
+    justFails: q1.justFails
+      ? {
+          delayMin:
+            q1.bisectionTrace.find((t) => !t.passed)?.delayMin ?? 0,
+          rleSteps: q1.justFails.history.map((s) => rleEncode(s.grid)),
+          finalAreaHa: q1.justFails.finalAreaHa,
+        }
+      : null,
+  };
+
+  const compactQ2 = {
+    delayMin: spec.defaultDelayMin,
+    minTier: q2.minTier,
+    tierTrace: q2.tierTrace,
+    minWorking: q2.minWorking
+      ? {
+          tier: q2.minTier!,
+          rleSteps: q2.minWorking.history.map((s) => rleEncode(s.grid)),
+          finalAreaHa: q2.minWorking.finalAreaHa,
+        }
+      : null,
+    tierBelow: q2.tierBelow
+      ? {
+          tier:
+            q2.tierTrace.findIndex((t) => t.passed) > 0
+              ? q2.tierTrace[q2.tierTrace.findIndex((t) => t.passed) - 1].tier
+              : null,
+          rleSteps: q2.tierBelow.history.map((s) => rleEncode(s.grid)),
+          finalAreaHa: q2.tierBelow.finalAreaHa,
+        }
+      : null,
+  };
+
   // Output payload.
   const payload = {
     meta: {
@@ -180,6 +263,7 @@ async function generate(spec: ScenarioSpec): Promise<void> {
         windDirection: config.windDirection,
         humidity: config.humidity,
       },
+      thresholdAreaHa: spec.thresholdAreaHa,
       generatedAt: new Date().toISOString(),
     },
     fuelMap,
@@ -188,6 +272,7 @@ async function generate(spec: ScenarioSpec): Promise<void> {
     suppressed: result.suppressed
       ? { rleSteps: suppressedRle, diags: result.suppressed.diags }
       : undefined,
+    analysis: { q1: compactQ1, q2: compactQ2 },
   };
 
   const outDir = path.join(ROOT, "src/data/scenarios");
