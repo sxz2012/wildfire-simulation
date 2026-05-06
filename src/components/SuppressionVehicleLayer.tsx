@@ -13,7 +13,7 @@ import {
 import type { Viewer as CesiumViewer, Entity } from "cesium";
 import { CellState } from "../simulation/types";
 import type { SimulationState, SimulationConfig, SuppressionConfig } from "../simulation/types";
-import { groundPositions, type LatLng } from "../utils/groundPositions";
+import type { LatLng } from "../utils/groundPositions";
 import { perTypeCounts } from "../utils/perTypeCounts";
 import type { DropEvent } from "../utils/dropScheduler";
 
@@ -52,17 +52,24 @@ const MODEL_SCALES: Record<VehicleType, number> = {
 };
 
 // minimumPixelSize keeps models legible from far camera positions.
-const MIN_PIXEL_SIZE_GROUND = 32;
-const MIN_PIXEL_SIZE_AIR = 48;
+// Bumped from 32/48 → 80/100 so the staging-line lineup is clearly
+// visible at the demo zoom (10–15 km whole-fire view).
+const MIN_PIXEL_SIZE_GROUND = 80;
+const MIN_PIXEL_SIZE_AIR = 100;
 
 // Cap rendered glTF entity count per type so a max-capacity roster
 // (e.g. 13 dozers from the boundary inverse search) doesn't spike GPU
 // memory past the tab's budget. The HUD still shows the true counts.
-const MAX_VISIBLE_PER_TYPE = 5;
+const MAX_VISIBLE_PER_TYPE = 8;
 
-const HELI_ORBIT_RADIUS_M = 400;
-const HELI_ORBIT_ALT_M = 60;
-const HELI_ORBIT_PERIOD_SEC = 30;
+// Staging-line layout: instead of scattering vehicles across the fire's
+// flipped-cell footprint (hard to spot in a 600x600 grid), all ground
+// vehicles + helitack get lined up at a fixed point south of the fire
+// centroid, ~100 m apart. Tankers continue to do their drop passes.
+const STAGING_OFFSET_METERS_SOUTH = 800;
+const STAGING_VEHICLE_SPACING_METERS = 100;
+const STAGING_HELITACK_ALT_M = 80;
+
 const TANKER_ALT_M = 150;
 
 function bearingRad(from: LatLng, to: LatLng): number {
@@ -186,14 +193,31 @@ export default function SuppressionVehicleLayer({
     });
 
     const cap = (n: number) => Math.min(n, MAX_VISIBLE_PER_TYPE);
-    const enginePositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, cap(counts.engines), lastFramePos.current.engines,
-    );
-    const crewPositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, cap(counts.crews), lastFramePos.current.crews,
-    );
-    const dozerPositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, cap(counts.dozers), lastFramePos.current.dozers,
+
+    // Staging-line layout: lay all ground entities out in a row south of
+    // the fire centroid (or grid center if no fire). Order: engines first,
+    // then crews, then dozers — left to right. Spacing is fixed so the
+    // lineup width scales with vehicle count.
+    const metersPerDegLat = 111_320;
+    const metersPerDegLng = 111_320 * Math.cos((centerLat * Math.PI) / 180);
+    const stagingLat = centerLat - STAGING_OFFSET_METERS_SOUTH / metersPerDegLat;
+    const totalGround = cap(counts.engines) + cap(counts.crews) + cap(counts.dozers);
+    const stagingHalfWidthDeg =
+      ((totalGround - 1) * STAGING_VEHICLE_SPACING_METERS) / 2 / metersPerDegLng;
+    const stagingStartLng = centerLng - stagingHalfWidthDeg;
+    const stepDeg = STAGING_VEHICLE_SPACING_METERS / metersPerDegLng;
+
+    const stagingLine = (offset: number, count: number): LatLng[] =>
+      Array.from({ length: count }, (_, i) => ({
+        lat: stagingLat,
+        lng: stagingStartLng + (offset + i) * stepDeg,
+      }));
+
+    const enginePositions = stagingLine(0, cap(counts.engines));
+    const crewPositions = stagingLine(cap(counts.engines), cap(counts.crews));
+    const dozerPositions = stagingLine(
+      cap(counts.engines) + cap(counts.crews),
+      cap(counts.dozers),
     );
     lastFramePos.current.engines = enginePositions;
     lastFramePos.current.crews = crewPositions;
@@ -288,47 +312,47 @@ export default function SuppressionVehicleLayer({
     }
     while (list.length < visibleHelitack) {
       const idxAtCreation = list.length;
-      const startMs = performance.now();
 
-      const computePose = (): { lng: number; lat: number; headingRad: number } | null => {
-        const centroid = activeFireCentroid(
-          currCachedRef.current,
-          configCachedRef.current,
-          centerLatCachedRef.current,
-          centerLngCachedRef.current,
-        );
-        if (!centroid) return null;
-        const elapsedSec = (performance.now() - startMs) / 1000;
-        const omega = (2 * Math.PI) / HELI_ORBIT_PERIOD_SEC;
-        const N = Math.max(1, list.length);
-        const baseAngle = (idxAtCreation / N) * 2 * Math.PI;
-        const angle = baseAngle + omega * elapsedSec;
+      // Helitack hovers above the staging line, lined up to the right of
+      // the dozers. Static position (no orbit) so it reads cleanly as part
+      // of the deployed-resource lineup. Heading north toward the fire.
+      const computeStagingPose = (): { lng: number; lat: number } => {
+        const cLat = centerLatCachedRef.current;
+        const cLng = centerLngCachedRef.current;
         const metersPerDegLat = 111_320;
-        const metersPerDegLng = 111_320 * Math.cos((centroid.lat * Math.PI) / 180);
-        const dxM = HELI_ORBIT_RADIUS_M * Math.cos(angle);
-        const dyM = HELI_ORBIT_RADIUS_M * Math.sin(angle);
+        const metersPerDegLng = 111_320 * Math.cos((cLat * Math.PI) / 180);
+        const stagingLat = cLat - STAGING_OFFSET_METERS_SOUTH / metersPerDegLat;
+        // Place helitack one slot beyond the rightmost ground vehicle.
+        const ground = perTypeCounts({
+          bundle: suppression.resources,
+          step: currentStepCachedRef.current,
+          deployStep,
+          endStep,
+        });
+        const totalGround = Math.min(ground.engines, MAX_VISIBLE_PER_TYPE)
+          + Math.min(ground.crews, MAX_VISIBLE_PER_TYPE)
+          + Math.min(ground.dozers, MAX_VISIBLE_PER_TYPE);
+        const halfWidthDeg =
+          ((totalGround - 1) * STAGING_VEHICLE_SPACING_METERS) / 2 / metersPerDegLng;
+        const startLng = cLng - halfWidthDeg;
+        const stepDeg = STAGING_VEHICLE_SPACING_METERS / metersPerDegLng;
         return {
-          lat: centroid.lat + dyM / metersPerDegLat,
-          lng: centroid.lng + dxM / metersPerDegLng,
-          headingRad: angle + Math.PI / 2, // tangent to circular orbit
+          lat: stagingLat,
+          lng: startLng + (totalGround + idxAtCreation) * stepDeg,
         };
       };
 
       const e = viewer.entities.add({
         position: new CallbackPositionProperty(() => {
-          const p = computePose();
-          const lng = p ? p.lng : centerLngCachedRef.current;
-          const lat = p ? p.lat : centerLatCachedRef.current;
-          return Cartesian3.fromDegrees(lng, lat, HELI_ORBIT_ALT_M);
+          const p = computeStagingPose();
+          return Cartesian3.fromDegrees(p.lng, p.lat, STAGING_HELITACK_ALT_M);
         }, false),
         orientation: new CallbackProperty(() => {
-          const p = computePose();
-          const lng = p ? p.lng : centerLngCachedRef.current;
-          const lat = p ? p.lat : centerLatCachedRef.current;
-          const heading = p ? p.headingRad : 0;
+          const p = computeStagingPose();
+          // Face north toward the fire.
           return Transforms.headingPitchRollQuaternion(
-            Cartesian3.fromDegrees(lng, lat, HELI_ORBIT_ALT_M),
-            new HeadingPitchRoll(heading, 0, 0),
+            Cartesian3.fromDegrees(p.lng, p.lat, STAGING_HELITACK_ALT_M),
+            new HeadingPitchRoll(0, 0, 0),
           );
         }, false),
         model: {
