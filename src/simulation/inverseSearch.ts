@@ -251,7 +251,10 @@ export interface FindMinRosterForBoundaryResult {
 }
 
 const Q_BOUNDARY_LO = 0;
-const Q_BOUNDARY_HI = 1000;
+// 3000 chains/hr ≈ 40 dozers + crews + aerial — far beyond any realistic
+// IC bundle, but the bisection needs headroom to declare hard fires
+// "containable with extreme effort" rather than "uncontainable" too quickly.
+const Q_BOUNDARY_HI = 3000;
 const Q_BOUNDARY_RESOLUTION = 25;
 
 // 2% slop on the strict-containment criterion. A single rogue ember (1 cell
