@@ -12,6 +12,13 @@ interface NominatimResult {
 interface LocationSearchProps {
   /** Called with the lat/lng when the user picks a result. */
   onSelect: (lat: number, lng: number, label: string) => void;
+  /**
+   * Optional externally-controlled value. When this changes, the input
+   * is updated to show it (e.g. after the user places an ignition pin
+   * on the globe and we reverse-geocode the click). The user can still
+   * type to override; clearing the input goes back to empty.
+   */
+  displayValue?: string;
 }
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -20,7 +27,7 @@ const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
  * Free-form location search using OpenStreetMap Nominatim. No API key
  * required. Rate-limited to ~1 request/sec — debounce keystrokes.
  */
-export default function LocationSearch({ onSelect }: LocationSearchProps) {
+export default function LocationSearch({ onSelect, displayValue }: LocationSearchProps) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<NominatimResult[]>([]);
   const [open, setOpen] = useState(false);
@@ -62,6 +69,16 @@ export default function LocationSearch({ onSelect }: LocationSearchProps) {
     const handle = setTimeout(() => search(query), 350);
     return () => clearTimeout(handle);
   }, [query, search]);
+
+  // Sync the input with externally-controlled displayValue (e.g. when
+  // the parent reverse-geocodes a freshly placed ignition pin).
+  useEffect(() => {
+    if (displayValue !== undefined) {
+      setQuery(displayValue);
+      setOpen(false);
+      setResults([]);
+    }
+  }, [displayValue]);
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -180,4 +197,26 @@ export default function LocationSearch({ onSelect }: LocationSearchProps) {
       )}
     </div>
   );
+}
+
+/**
+ * Reverse-geocode a lat/lng to a human-readable display name via
+ * Nominatim. Returns null on any failure (rate limit, network, etc.).
+ *
+ * Nominatim's free tier has a 1 req/sec policy. We only call this on
+ * ignition-pin placement which is a sparse user action.
+ */
+export async function reverseGeocode(
+  lat: number,
+  lng: number,
+): Promise<string | null> {
+  try {
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=14&addressdetails=0`;
+    const res = await fetch(url, { headers: { Accept: "application/json" } });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { display_name?: string };
+    return data.display_name ?? null;
+  } catch {
+    return null;
+  }
 }

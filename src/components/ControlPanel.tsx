@@ -40,6 +40,8 @@ interface ControlPanelProps {
   };
   thresholdAreaHa?: number;
   nearbyResources?: { stationCount: number; radiusKm: number; suggestedBundle: string };
+  /** Externally-controlled value for the Location search input. */
+  locationDisplay?: string;
 }
 
 export default function ControlPanel({
@@ -67,6 +69,7 @@ export default function ControlPanel({
   analysis,
   thresholdAreaHa,
   nearbyResources,
+  locationDisplay,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -144,7 +147,7 @@ export default function ControlPanel({
             {onLocationSelected && (
               <div>
                 <SectionLabel>Location</SectionLabel>
-                <LocationSearch onSelect={onLocationSelected} />
+                <LocationSearch onSelect={onLocationSelected} displayValue={locationDisplay} />
               </div>
             )}
 

@@ -9,6 +9,7 @@ import FirelineOverlay from "./components/FirelineOverlay";
 import GhostFireOverlay from "./components/GhostFireOverlay";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
+import { reverseGeocode } from "./components/LocationSearch";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
@@ -51,6 +52,7 @@ function App() {
   // so the button reads "Simulating..." continuously instead of flashing
   // back to "Click Globe to Ignite" during loading.
   const [isPreparingSim, setIsPreparingSim] = useState(false);
+  const [locationDisplay, setLocationDisplay] = useState<string | undefined>(undefined);
   const viewerRef = useRef<CesiumViewer | null>(null);
   const [simKey, setSimKey] = useState(0);
   const [activeFire, setActiveFire] = useState<HistoricalFire | null>(null);
@@ -85,6 +87,7 @@ function App() {
     setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
     setActiveScenario(null);
     setNearbyResources(null);
+    setLocationDisplay(undefined);
   }, [reset]);
 
   // Convert simulation history to fire frames when the worker finishes a run.
@@ -122,6 +125,12 @@ function App() {
       if (appMode === "simulation") fullReset();
       setPendingIgnition({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
+      // Best-effort: reverse-geocode the click so the Location input
+      // shows where the user dropped the pin. Failures (rate limit,
+      // offline) silently leave the field empty.
+      reverseGeocode(lat, lng).then((label) => {
+        if (label) setLocationDisplay(label);
+      });
       // Best-effort: fetch nearby fire stations to suggest a bundle.
       fetchNearbyFireStations(lat, lng, 10)
         .then(setNearbyResources)
@@ -265,6 +274,7 @@ function App() {
       const loaded = await loadScenario(scenario.jsonPath);
       setActiveScenario(loaded);
       setIgnitionPoint(loaded.meta.location);
+      setLocationDisplay(loaded.meta.name);
       const cfg: SimulationConfig = { ...DEFAULT_CONFIG, ...loaded.meta.config };
       setActiveConfig(cfg);
       setFlyTo({
@@ -313,10 +323,11 @@ function App() {
   );
 
   const handleLocationSelected = useCallback(
-    (lat: number, lng: number) => {
+    (lat: number, lng: number, label: string) => {
       // Just fly the camera. The user still chooses where to drop the
       // ignition pin by clicking the globe.
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
+      setLocationDisplay(label);
     },
     [],
   );
@@ -453,6 +464,7 @@ function App() {
         analysis={activeScenario?.analysis}
         thresholdAreaHa={activeScenario?.meta.thresholdAreaHa}
         nearbyResources={nearbyResources ?? undefined}
+        locationDisplay={locationDisplay}
       />
 
       <TimelineBar
