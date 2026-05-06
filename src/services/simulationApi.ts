@@ -9,7 +9,10 @@ import type {
   ResourceCount,
   SimulationConfig,
   SuppressionConfig,
+  SuppressionStepDiag,
 } from "../simulation/types";
+import type { LatLng } from "../utils/containmentCheck";
+import { rleEncode } from "../utils/rle";
 
 const API_BASE = "http://localhost:3001";
 
@@ -94,4 +97,66 @@ export async function apiQ2(req: ApiQ2Request) {
     minTier: string | null;
     tierTrace: Array<{ tier: string; finalAreaHa: number; passed: boolean }>;
   }>("/api/q2", req);
+}
+
+export interface ApiExtendRequest {
+  config: SimulationConfig;
+  fuelMap: FuelType[];
+  elevationMap?: number[];
+  centerLat: number;
+  centerLng: number;
+  initialGrid: Uint8Array;
+  initialStep: number;
+  weather?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number };
+  suppression: SuppressionConfig | null;
+  maxSteps: number;
+}
+
+export async function apiExtend(req: ApiExtendRequest) {
+  const { initialGrid, ...rest } = req;
+  return postJson<{
+    elapsedMs: number;
+    gridSize: number;
+    rleSteps: number[][];
+    diags: SuppressionStepDiag[];
+  }>("/api/extend", { ...rest, initialGridRle: rleEncode(initialGrid) });
+}
+
+export interface ApiQBoundaryRequest {
+  config: SimulationConfig;
+  fuelMap: FuelType[];
+  elevationMap?: number[];
+  centerLat: number;
+  centerLng: number;
+  initialGrid: Uint8Array;
+  initialStep: number;
+  polygon: LatLng[];
+  weather?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number };
+  maxSteps: number;
+}
+
+export interface ApiQBoundaryResponse {
+  elapsedMs: number;
+  gridSize: number;
+  recommendedRoster: ResourceCount[] | null;
+  bestEffortRoster: ResourceCount[];
+  passingRun: { rleSteps: number[][]; diags: SuppressionStepDiag[] } | null;
+  failingRun: { rleSteps: number[][]; diags: SuppressionStepDiag[] } | null;
+  breachStep: number | null;
+  breachPercent: number;
+  bisectionTrace: Array<{
+    capacityChainsHr: number;
+    roster: ResourceCount[];
+    passed: boolean;
+    breachStep: number | null;
+    breachPercent: number;
+  }>;
+}
+
+export async function apiQBoundary(req: ApiQBoundaryRequest): Promise<ApiQBoundaryResponse> {
+  const { initialGrid, ...rest } = req;
+  return postJson<ApiQBoundaryResponse>("/api/q-boundary", {
+    ...rest,
+    initialGridRle: rleEncode(initialGrid),
+  });
 }
