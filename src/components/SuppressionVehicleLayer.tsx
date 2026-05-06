@@ -2,6 +2,7 @@ import { useEffect, useRef, useMemo } from "react";
 import {
   Cartesian3,
   BillboardCollection,
+  Color,
   HeightReference,
   VerticalOrigin,
 } from "cesium";
@@ -102,6 +103,19 @@ export default function SuppressionVehicleLayer({
     dozers: [],
   });
 
+  // Cinematic drive-in paths require glTF heading; deferred to Task 10. Fade-in only for billboards.
+  const firstSeenMs = useRef<{
+    engines: number | null;
+    crews: number | null;
+    dozers: number | null;
+    helitack: number | null;
+  }>({
+    engines: null,
+    crews: null,
+    dozers: null,
+    helitack: null,
+  });
+
   const currCachedRef = useRef<SimulationState>(curr);
   const configCachedRef = useRef<SimulationConfig>(config);
   const centerLatCachedRef = useRef<number>(centerLat);
@@ -192,6 +206,24 @@ export default function SuppressionVehicleLayer({
     lastFramePos.current.crews = crewPositions;
     lastFramePos.current.dozers = dozerPositions;
 
+    const arrivalDurationMs = 30 * (config.timestepMinutes / 60) * 1000;
+    const now = performance.now();
+    const computeAlpha = (key: "engines" | "crews" | "dozers", count: number): number => {
+      if (count === 0) {
+        firstSeenMs.current[key] = null;
+        return 1;
+      }
+      if (firstSeenMs.current[key] === null) {
+        firstSeenMs.current[key] = now;
+      }
+      const start = firstSeenMs.current[key]!;
+      const t = (now - start) / arrivalDurationMs;
+      return Math.max(0, Math.min(1, t));
+    };
+    const engineAlpha = computeAlpha("engines", counts.engines);
+    const crewAlpha = computeAlpha("crews", counts.crews);
+    const dozerAlpha = computeAlpha("dozers", counts.dozers);
+
     collection.removeAll();
 
     for (const pos of enginePositions) {
@@ -201,6 +233,7 @@ export default function SuppressionVehicleLayer({
         scale: 1.0,
         verticalOrigin: VerticalOrigin.BOTTOM,
         heightReference: HeightReference.CLAMP_TO_GROUND,
+        color: Color.WHITE.withAlpha(engineAlpha),
       });
     }
     for (const pos of crewPositions) {
@@ -210,6 +243,7 @@ export default function SuppressionVehicleLayer({
         scale: 1.0,
         verticalOrigin: VerticalOrigin.BOTTOM,
         heightReference: HeightReference.CLAMP_TO_GROUND,
+        color: Color.WHITE.withAlpha(crewAlpha),
       });
     }
     for (const pos of dozerPositions) {
@@ -219,6 +253,7 @@ export default function SuppressionVehicleLayer({
         scale: 1.0,
         verticalOrigin: VerticalOrigin.BOTTOM,
         heightReference: HeightReference.CLAMP_TO_GROUND,
+        color: Color.WHITE.withAlpha(dozerAlpha),
       });
     }
   }, [
@@ -246,6 +281,11 @@ export default function SuppressionVehicleLayer({
       deployStep,
       endStep,
     });
+    if (counts.helitack === 0) {
+      firstSeenMs.current.helitack = null;
+    } else if (firstSeenMs.current.helitack === null) {
+      firstSeenMs.current.helitack = performance.now();
+    }
     if (collection.length !== counts.helitack) {
       collection.removeAll();
       helitackBillboardsRef.current = [];
@@ -255,6 +295,7 @@ export default function SuppressionVehicleLayer({
           image: helitackImage,
           scale: 1.0,
           verticalOrigin: VerticalOrigin.BOTTOM,
+          color: Color.WHITE.withAlpha(0),
         });
         helitackBillboardsRef.current.push(bb);
       }
@@ -278,11 +319,15 @@ export default function SuppressionVehicleLayer({
         centerLngCachedRef.current,
       );
       if (!centroid) return;
-      const elapsedSec = (performance.now() - startMs) / 1000;
+      const nowMs = performance.now();
+      const elapsedSec = (nowMs - startMs) / 1000;
       const omega = (2 * Math.PI) / orbitPeriodSec;
       const N = billboards.length;
       const metersPerDegLat = 111_320;
       const metersPerDegLng = 111_320 * Math.cos((centroid.lat * Math.PI) / 180);
+      const aircraftArrivalMs = 3 * (configCachedRef.current.timestepMinutes / 60) * 1000;
+      const seen = firstSeenMs.current.helitack;
+      const alpha = seen === null ? 1 : Math.max(0, Math.min(1, (nowMs - seen) / aircraftArrivalMs));
       for (let i = 0; i < N; i++) {
         const baseAngle = (i / N) * 2 * Math.PI;
         const angle = baseAngle + omega * elapsedSec;
@@ -291,6 +336,7 @@ export default function SuppressionVehicleLayer({
         const lat = centroid.lat + dyMeters / metersPerDegLat;
         const lng = centroid.lng + dxMeters / metersPerDegLng;
         billboards[i].position = Cartesian3.fromDegrees(lng, lat, orbitAltitudeMeters);
+        billboards[i].color = Color.WHITE.withAlpha(alpha);
       }
     };
     viewer.scene.preRender.addEventListener(callback);
