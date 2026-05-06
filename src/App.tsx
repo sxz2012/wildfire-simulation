@@ -13,6 +13,9 @@ import Legend from "./components/Legend";
 import BoundaryDrawTool from "./components/BoundaryDrawTool";
 import RecommendationCard from "./components/RecommendationCard";
 import PolygonOverlay from "./components/PolygonOverlay";
+import ModelDetailsPanel from "./components/ModelDetailsPanel";
+import ModelDetailsButton from "./components/ModelDetailsButton";
+import { useModelConfig } from "./contexts/ModelConfig";
 import { reverseGeocode } from "./components/LocationSearch";
 import { apiExtend, apiQBoundary, type ApiQBoundaryResponse } from "./services/simulationApi";
 import type { LatLng } from "./utils/containmentCheck";
@@ -44,6 +47,8 @@ type AppMode =
 
 function App() {
   const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
+  const { config: modelConfig } = useModelConfig();
+  const [modelPanelOpen, setModelPanelOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -397,6 +402,14 @@ function App() {
           initialStep: pausedStep,
           polygon,
           maxSteps,
+          modelConfig: {
+            breachTolerancePct: modelConfig.breachTolerancePct,
+            searchCeilingChainsHr: modelConfig.searchCeilingChainsHr,
+            rosterOverrides: {
+              dozerChainsHr: modelConfig.dozerChainsHr,
+              crewChainsHr: modelConfig.crewChainsHr,
+            },
+          },
         });
         setBoundaryResult(result);
         setAppMode("paused-recommendation");
@@ -408,7 +421,7 @@ function App() {
         );
       }
     },
-    [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length],
+    [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length, modelConfig],
   );
 
   const handleApproveRoster = useCallback(
@@ -423,10 +436,9 @@ function App() {
       // on it, so we just keep the mode as "simulation".
       try {
         const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
-        // Resume cap: 30 post-pause steps (90 sim-min at 3-min steps =
-        // 1.5 hours of fire). Enough for the audience to see whether the
-        // polygon holds. Larger windows OOM the tab during render.
-        const remainingSteps = 30;
+        // Resume window length is user-tunable via Model Details panel.
+        // Default 30 steps (90 sim-min at 3-min steps).
+        const remainingSteps = modelConfig.resumeWindowSteps;
         const maxSteps = pausedStep + remainingSteps;
         const extended = await apiExtend({
           config: activeConfig,
@@ -504,6 +516,7 @@ function App() {
       activeFuelMap,
       history.baseline,
       setHistory,
+      modelConfig,
     ],
   );
 
@@ -904,6 +917,15 @@ function App() {
       <Legend
         mode={isHistorical ? "historical" : "simulation"}
         visible={totalSteps > 0}
+      />
+
+      <ModelDetailsButton
+        isOpen={modelPanelOpen}
+        onClick={() => setModelPanelOpen((v) => !v)}
+      />
+      <ModelDetailsPanel
+        isOpen={modelPanelOpen}
+        onClose={() => setModelPanelOpen(false)}
       />
     </div>
   );
