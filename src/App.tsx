@@ -425,9 +425,10 @@ function App() {
       // on it, so we just keep the mode as "simulation".
       try {
         const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
-        // Resume cap: at least an hour of post-pause runway so the user has
-        // time to watch the suppression play out after Approve.
-        const remainingSteps = Math.max(60, history.baseline.length - pausedStep);
+        // Resume cap: 30 post-pause steps (90 sim-min at 3-min steps =
+        // 1.5 hours of fire). Enough for the audience to see whether the
+        // polygon holds. Larger windows OOM the tab during render.
+        const remainingSteps = 30;
         const maxSteps = pausedStep + remainingSteps;
         const extended = await apiExtend({
           config: activeConfig,
