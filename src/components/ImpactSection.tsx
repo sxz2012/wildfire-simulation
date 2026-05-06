@@ -3,6 +3,7 @@ import type { HistoricalFire } from "../data/historicalFires";
 import type { SimulationState, SuppressionStepDiag } from "../simulation/types";
 import { useCountUp } from "../hooks/useCountUp";
 import EmissionsDetailModal from "./EmissionsDetailModal";
+import AnalysisPanel from "./AnalysisPanel";
 
 const HOTSPOT_AREA_HA = 14;
 const CO2_PER_HA = 15;
@@ -76,6 +77,11 @@ interface ImpactSectionProps {
   suppressionDiags?: SuppressionStepDiag[];
   baselineHistory?: SimulationState[];
   suppressedHistory?: SimulationState[];
+  analysis?: {
+    q1?: { bundle: string; maxDelayMin: number | null };
+    q2?: { delayMin: number; minTier: string | null };
+  };
+  thresholdAreaHa?: number;
 }
 
 export default function ImpactSection({
@@ -84,6 +90,8 @@ export default function ImpactSection({
   suppressionDiags,
   baselineHistory,
   suppressedHistory,
+  analysis,
+  thresholdAreaHa,
 }: ImpactSectionProps) {
   const stats = useMemo(() => {
     const dailyHotspots: number[] = [];
@@ -212,6 +220,14 @@ export default function ImpactSection({
             />
           )}
         </div>
+      )}
+
+      {analysis && thresholdAreaHa !== undefined && (
+        <AnalysisPanel
+          q1={analysis.q1}
+          q2={analysis.q2}
+          thresholdAreaHa={thresholdAreaHa}
+        />
       )}
 
       {/* Emissions — click for breakdown */}

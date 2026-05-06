@@ -39,8 +39,7 @@ function App() {
   // Globe clicks update this; the actual simulation only starts when the
   // user clicks the "Start the Wildfire" button in ControlPanel.
   const [pendingIgnition, setPendingIgnition] = useState<{ lat: number; lng: number } | null>(null);
-  // activeScenario will be consumed by ImpactSection/AnalysisPanel in G2.
-  const [_activeScenario, setActiveScenario] = useState<LoadedScenario | null>(null);
+  const [activeScenario, setActiveScenario] = useState<LoadedScenario | null>(null);
   const [suppressionDelay, setSuppressionDelay] = useState(30);
   const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>(
     SUPPRESSION_BUNDLES.initialAttack,
@@ -444,6 +443,8 @@ function App() {
         suppressionDiags={history.diags}
         baselineHistory={history.baseline}
         suppressedHistory={history.suppressed}
+        analysis={activeScenario?.analysis}
+        thresholdAreaHa={activeScenario?.meta.thresholdAreaHa}
       />
 
       <TimelineBar

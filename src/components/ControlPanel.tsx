@@ -34,6 +34,11 @@ interface ControlPanelProps {
   suppressionDiags?: SuppressionStepDiag[];
   baselineHistory?: SimulationState[];
   suppressedHistory?: SimulationState[];
+  analysis?: {
+    q1?: { bundle: string; maxDelayMin: number | null };
+    q2?: { delayMin: number; minTier: string | null };
+  };
+  thresholdAreaHa?: number;
 }
 
 export default function ControlPanel({
@@ -58,6 +63,8 @@ export default function ControlPanel({
   suppressionDiags,
   baselineHistory,
   suppressedHistory,
+  analysis,
+  thresholdAreaHa,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -266,6 +273,8 @@ export default function ControlPanel({
               suppressionDiags={suppressionDiags}
               baselineHistory={baselineHistory}
               suppressedHistory={suppressedHistory}
+              analysis={analysis}
+              thresholdAreaHa={thresholdAreaHa}
             />
           </div>
         )}
