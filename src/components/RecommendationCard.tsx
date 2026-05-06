@@ -8,6 +8,7 @@ import {
 import type { ResourceCount } from "../simulation/types";
 import type { ApiQBoundaryResponse } from "../services/simulationApi";
 import { classifyRoster } from "../utils/cheapestRoster";
+import { useModelConfig, DEFAULT_MODEL_CONFIG } from "../contexts/ModelConfig";
 
 interface RecommendationCardProps {
   result: ApiQBoundaryResponse;
@@ -108,6 +109,10 @@ export default function RecommendationCard(
     onCancel,
     onRedraw,
   } = props;
+
+  const { config: modelConfig, setConfig: setModelConfig, resetAll: resetModel, isModified: modelIsModified } = useModelConfig();
+  const [methodOpen, setMethodOpen] = useState(false);
+  const [breachDetailOpen, setBreachDetailOpen] = useState(false);
 
   const containable = result.recommendedRoster !== null;
   const primaryRoster: ResourceCount[] = containable
@@ -273,13 +278,37 @@ export default function RecommendationCard(
                   </div>
                   <button
                     type="button"
-                    onClick={onShowBreachPreview}
+                    onClick={() => {
+                      setBreachDetailOpen((v) => !v);
+                      onShowBreachPreview();
+                    }}
                     className="text-label uppercase tracking-wider text-amber-400
                       hover:text-amber-300 underline cursor-pointer"
                     style={MONO_FONT}
                   >
-                    Show breach preview
+                    {breachDetailOpen ? "Hide breach detail" : "Show breach detail"}
                   </button>
+                  {breachDetailOpen && (
+                    <div
+                      className="mt-2 rounded-lg bg-red-500/10 border border-red-500/20 px-3 py-2 text-micro text-red-200/90 leading-relaxed"
+                      style={MONO_FONT}
+                    >
+                      Failing capacity:{" "}
+                      <span className="text-red-200 font-semibold">
+                        {result.bisectionTrace.find((b) => !b.passed)?.capacityChainsHr ?? 0} ch/hr
+                      </span>
+                      <br />
+                      Breach moment:{" "}
+                      <span className="text-red-200 font-semibold">
+                        {formatBreachTime(result.breachStep, timestepMinutes)}
+                      </span>
+                      <br />
+                      Outside boundary:{" "}
+                      <span className="text-red-200 font-semibold">
+                        {formatBreachPercent(result.breachPercent)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               )}
             </>
@@ -403,6 +432,88 @@ export default function RecommendationCard(
             )}
           </div>
 
+          <div className="border-t border-white/[0.06] pt-3">
+            <button
+              type="button"
+              onClick={() => setMethodOpen((v) => !v)}
+              className="w-full flex items-center justify-between text-label
+                uppercase tracking-[0.15em] text-gray-300 hover:text-amber-200
+                transition-colors cursor-pointer"
+              style={MONO_FONT}
+            >
+              <span className="flex items-center gap-2">
+                <span className="text-amber-400">{methodOpen ? "▼" : "▶"}</span>
+                Methodology &amp; Parameters
+                {modelIsModified && (
+                  <span className="text-micro text-amber-400/80 normal-case tracking-normal">(modified — auto-recomputing)</span>
+                )}
+              </span>
+              {modelIsModified && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    resetModel();
+                  }}
+                  className="text-micro normal-case tracking-normal
+                    text-amber-400 hover:text-amber-200 underline"
+                >
+                  Reset
+                </button>
+              )}
+            </button>
+
+            {methodOpen && (
+              <div className="mt-3 space-y-4">
+                <p className="text-sm text-gray-300 leading-relaxed">
+                  Bisection on chains/hr capacity. For each candidate the system
+                  builds a cheapest-mix roster (greedy by $/chain), runs a
+                  {" "}{modelConfig.resumeWindowSteps}-step extension simulation,
+                  and accepts the result if at most {modelConfig.breachTolerancePct}%
+                  of burning cells fall outside your polygon. Tweaks below
+                  re-run the bisection automatically.
+                </p>
+
+                <ParamSection title="Resource production rates">
+                  <ParamSlider label="Type 1 Dozer" units="ch/hr" value={modelConfig.dozerChainsHr}
+                    defaultValue={DEFAULT_MODEL_CONFIG.dozerChainsHr}
+                    min={0} max={150} step={1}
+                    onChange={(v) => setModelConfig({ dozerChainsHr: v })} />
+                  <ParamSlider label="Type 1 Crew" units="ch/hr" value={modelConfig.crewChainsHr}
+                    defaultValue={DEFAULT_MODEL_CONFIG.crewChainsHr}
+                    min={0} max={18} step={1}
+                    onChange={(v) => setModelConfig({ crewChainsHr: v })} />
+                  <ParamSlider label="Engine" units="ch/hr" value={modelConfig.engineChainsHr}
+                    defaultValue={DEFAULT_MODEL_CONFIG.engineChainsHr}
+                    min={0} max={8} step={1}
+                    onChange={(v) => setModelConfig({ engineChainsHr: v })} />
+                  <ParamSlider label="Helitack swath" units="chains" value={modelConfig.helitackSwathChains}
+                    defaultValue={DEFAULT_MODEL_CONFIG.helitackSwathChains}
+                    min={0} max={16} step={1}
+                    onChange={(v) => setModelConfig({ helitackSwathChains: v })} />
+                </ParamSection>
+
+                <ParamSection title="Inverse search">
+                  <ParamSlider label="Breach tolerance" units="%" value={modelConfig.breachTolerancePct}
+                    defaultValue={DEFAULT_MODEL_CONFIG.breachTolerancePct}
+                    min={0} max={10} step={1}
+                    onChange={(v) => setModelConfig({ breachTolerancePct: v })} />
+                  <ParamSlider label="Search ceiling" units="ch/hr" value={modelConfig.searchCeilingChainsHr}
+                    defaultValue={DEFAULT_MODEL_CONFIG.searchCeilingChainsHr}
+                    min={500} max={5000} step={100}
+                    onChange={(v) => setModelConfig({ searchCeilingChainsHr: v })} />
+                </ParamSection>
+
+                <ParamSection title="Resume window">
+                  <ParamSlider label="Post-pause sim duration" units="steps" value={modelConfig.resumeWindowSteps}
+                    defaultValue={DEFAULT_MODEL_CONFIG.resumeWindowSteps}
+                    min={10} max={60} step={5}
+                    onChange={(v) => setModelConfig({ resumeWindowSteps: v })} />
+                </ParamSection>
+              </div>
+            )}
+          </div>
+
           <div className="border-t border-white/[0.06] pt-3 flex items-center gap-2">
             <button
               type="button"
@@ -440,6 +551,90 @@ export default function RecommendationCard(
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+function ParamSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}): ReactElement {
+  return (
+    <div>
+      <div
+        className="text-label uppercase tracking-[0.15em] text-gray-500 mb-1.5"
+        style={MONO_FONT}
+      >
+        {title}
+      </div>
+      <div className="space-y-2">{children}</div>
+    </div>
+  );
+}
+
+interface ParamSliderProps {
+  label: string;
+  units: string;
+  value: number;
+  defaultValue: number;
+  min: number;
+  max: number;
+  step: number;
+  onChange: (next: number) => void;
+}
+
+function ParamSlider({
+  label,
+  units,
+  value,
+  defaultValue,
+  min,
+  max,
+  step,
+  onChange,
+}: ParamSliderProps): ReactElement {
+  const modified = value !== defaultValue;
+  return (
+    <div>
+      <div className="flex items-baseline justify-between mb-0.5">
+        <span className="text-sm text-gray-300">{label}</span>
+        <div className="flex items-baseline gap-2">
+          <span
+            className={`text-sm tabular-nums ${
+              modified ? "text-amber-300" : "text-gray-300"
+            }`}
+            style={MONO_FONT}
+          >
+            {value} {units}
+          </span>
+          <button
+            type="button"
+            onClick={() => onChange(defaultValue)}
+            className={`text-micro ${
+              modified
+                ? "text-amber-400/70 hover:text-amber-300 cursor-pointer"
+                : "text-gray-600 cursor-not-allowed"
+            }`}
+            disabled={!modified}
+            title="Reset to default"
+            style={MONO_FONT}
+          >
+            ↺
+          </button>
+        </div>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(parseInt(e.target.value, 10))}
+        className="w-full accent-amber-500"
+      />
     </div>
   );
 }

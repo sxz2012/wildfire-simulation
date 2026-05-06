@@ -13,8 +13,6 @@ import Legend from "./components/Legend";
 import BoundaryDrawTool from "./components/BoundaryDrawTool";
 import RecommendationCard from "./components/RecommendationCard";
 import PolygonOverlay from "./components/PolygonOverlay";
-import ModelDetailsPanel from "./components/ModelDetailsPanel";
-import ModelDetailsButton from "./components/ModelDetailsButton";
 import { useModelConfig } from "./contexts/ModelConfig";
 import { reverseGeocode } from "./components/LocationSearch";
 import { apiExtend, apiQBoundary, type ApiQBoundaryResponse } from "./services/simulationApi";
@@ -48,7 +46,6 @@ type AppMode =
 function App() {
   const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
   const { config: modelConfig } = useModelConfig();
-  const [modelPanelOpen, setModelPanelOpen] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -129,7 +126,6 @@ function App() {
     setBoundaryResult(null);
     setDrawingVertices([]);
     setComputeRequestKey(0);
-    setModelPanelOpen(false);
   }, [reset]);
 
   // Full reset: per-run state plus user inputs returned to defaults. Wired
@@ -944,7 +940,7 @@ function App() {
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
         historicalDates={dateLabels}
-        shifted={boundaryResult !== null && modelPanelOpen}
+        shifted={false}
       />
 
       <Legend
@@ -952,22 +948,10 @@ function App() {
         visible={totalSteps > 0}
       />
 
-      {/* Model Details panel + trigger button are gated on having a
-          computation result. They surface AS PART OF the recommendation
-          flow, not as a global tool. Once the boundaryResult is cleared
-          (Cancel / Approve / Redraw), the panel goes away. */}
-      {boundaryResult && (
-        <>
-          <ModelDetailsButton
-            isOpen={modelPanelOpen}
-            onClick={() => setModelPanelOpen((v) => !v)}
-          />
-          <ModelDetailsPanel
-            isOpen={modelPanelOpen}
-            onClose={() => setModelPanelOpen(false)}
-          />
-        </>
-      )}
+      {/* Model Details (parameters + methodology) is now embedded inside
+          the RecommendationCard as a collapsible section. No separate
+          panel — keeps the methodology context tied to the recommendation
+          it pertains to. */}
     </div>
   );
 }
