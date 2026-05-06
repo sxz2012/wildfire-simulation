@@ -120,6 +120,16 @@ function App() {
     setAppMode("idle");
     setAutoPlay(false);
     setSimKey((k) => k + 1);
+    // Clear any in-flight boundary-search state so the cyan polygon
+    // outline (PolygonOverlay), the Model Details button, and the
+    // recommendation card all unmount cleanly on Reset / new ignition.
+    setPausedGrid(null);
+    setPausedStep(0);
+    setBoundaryPolygon(null);
+    setBoundaryResult(null);
+    setDrawingVertices([]);
+    setComputeRequestKey(0);
+    setModelPanelOpen(false);
   }, [reset]);
 
   // Full reset: per-run state plus user inputs returned to defaults. Wired
