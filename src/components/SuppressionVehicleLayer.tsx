@@ -27,20 +27,24 @@ interface SuppressionVehicleLayerProps {
   dropEvents: DropEvent[];
 }
 
-function createColoredDisc(size: number, fillColor: string, letter: string): HTMLCanvasElement {
+function createEmojiBillboard(size: number, fillColor: string, emoji: string): HTMLCanvasElement {
   const canvas = document.createElement("canvas");
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d")!;
+
   ctx.fillStyle = fillColor;
   ctx.beginPath();
   ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `bold ${Math.floor(size * 0.55)}px sans-serif`;
+  ctx.strokeStyle = "rgba(255,255,255,0.85)";
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  ctx.font = `${Math.floor(size * 0.6)}px "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif`;
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(letter, size / 2, size / 2 + 1);
+  ctx.fillText(emoji, size / 2, size / 2 + 1);
   return canvas;
 }
 
@@ -123,11 +127,11 @@ export default function SuppressionVehicleLayer({
   const dropEventsCachedRef = useRef<DropEvent[]>(dropEvents);
   const currentStepCachedRef = useRef<number>(currentStep);
 
-  const engineImage = useMemo(() => createColoredDisc(48, "#dc2626", "E"), []);
-  const crewImage = useMemo(() => createColoredDisc(48, "#facc15", "C"), []);
-  const dozerImage = useMemo(() => createColoredDisc(48, "#f97316", "D"), []);
-  const helitackImage = useMemo(() => createColoredDisc(48, "#3b82f6", "H"), []);
-  const tankerImage = useMemo(() => createColoredDisc(48, "#38bdf8", "T"), []);
+  const engineImage = useMemo(() => createEmojiBillboard(64, "#dc2626", "🚒"), []);
+  const crewImage = useMemo(() => createEmojiBillboard(64, "#facc15", "👷"), []);
+  const dozerImage = useMemo(() => createEmojiBillboard(64, "#f97316", "🚜"), []);
+  const helitackImage = useMemo(() => createEmojiBillboard(64, "#3b82f6", "🚁"), []);
+  const tankerImage = useMemo(() => createEmojiBillboard(64, "#38bdf8", "✈️"), []);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
