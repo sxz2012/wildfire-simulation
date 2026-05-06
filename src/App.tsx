@@ -678,14 +678,7 @@ function App() {
         />
       )}
 
-      {/* Heavy suppression-visualization layers (cyan rim + glTF vehicles +
-          retardant trails) are gated OFF during the IC-recommend resume
-          flow because their combined GPU pressure during the long stitched
-          autoplay was OOMing the tab. The polygon outline + HUD + bounded
-          HistoricalFireOverlay carry the resume's visual story. Live-
-          ignite suppression sandbox runs (no boundary polygon) still get
-          the full visualization. */}
-      {!boundaryPolygon && suppressedSnapshot && ignitionPoint && (
+      {suppressedSnapshot && ignitionPoint && (
         <ContainmentLineLayer
           key={`containment-${simKey}`}
           gridSnapshot={suppressedSnapshot}
@@ -696,7 +689,7 @@ function App() {
         />
       )}
 
-      {!boundaryPolygon && suppressionActive && history.suppressed && ignitionPoint && (
+      {suppressionActive && history.suppressed && ignitionPoint && (
         <>
           <RetardantTrailLayer
             key={`retardant-${simKey}`}
@@ -751,8 +744,15 @@ function App() {
             currentFrame={currentStep}
             viewer={viewerRef.current}
           />
+          {/* Stable key — was `effects-${simKey}-${currentStep}` which
+              forced a full Cesium ParticleSystem unmount + remount on every
+              timeline tick. At autoplay 5 Hz that churned thousands of
+              GPU particle buffers per minute and OOMed the tab during
+              long resumed-suppression playbacks. The internal useEffect
+              still picks up new activePositions; only the React shell is
+              now stable. */}
           <FireEffects
-            key={`effects-${simKey}-${currentStep}`}
+            key={`effects-${simKey}`}
             activePositions={
               activeFire.frames[currentStep]?.hotspots.map((h) => ({ lat: h.lat, lng: h.lng })) ?? []
             }
