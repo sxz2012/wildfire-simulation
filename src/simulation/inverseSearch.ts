@@ -16,10 +16,13 @@ import type {
   SimulationConfig,
   SimulationState,
   SuppressionConfig,
+  SuppressionResult,
   SuppressionStepDiag,
 } from "./types";
 import { CellState, SUPPRESSION_BUNDLES } from "./types";
-import { runSimulation } from "./runner";
+import { runSimulation, extendSimulation } from "./runner";
+import { cheapestRosterForCapacity } from "../utils/cheapestRoster";
+import { containmentCheck, type LatLng } from "../utils/containmentCheck";
 
 export type BundleKey = keyof typeof SUPPRESSION_BUNDLES;
 
@@ -214,5 +217,187 @@ export async function findMinTier(
     minWorking: null,
     tierBelow: lastFailingRun,
     tierTrace: trace,
+  };
+}
+
+export interface FindMinRosterForBoundaryInput {
+  config: SimulationConfig;
+  fuelMap: FuelType[];
+  elevationMap?: Float32Array;
+  centerLat: number;
+  centerLng: number;
+  initialGrid: Uint8Array;
+  initialStep: number;
+  polygon: LatLng[];
+  maxSteps: number;
+}
+
+export interface BisectionTraceEntry {
+  capacityChainsHr: number;
+  roster: ResourceCount[];
+  passed: boolean;
+  breachStep: number | null;
+  breachPercent: number;
+}
+
+export interface FindMinRosterForBoundaryResult {
+  recommendedRoster: ResourceCount[] | null;
+  bestEffortRoster: ResourceCount[];
+  passingRun: SuppressionResult | null;
+  failingRun: SuppressionResult | null;
+  breachStep: number | null;
+  breachPercent: number;
+  bisectionTrace: BisectionTraceEntry[];
+}
+
+const Q_BOUNDARY_LO = 0;
+const Q_BOUNDARY_HI = 1000;
+const Q_BOUNDARY_RESOLUTION = 25;
+
+function runOnceFromGrid(
+  input: FindMinRosterForBoundaryInput,
+  roster: ResourceCount[],
+): SuppressionResult {
+  const responseDelayMin = input.initialStep * input.config.timestepMinutes;
+  const suppression: SuppressionConfig | null =
+    roster.length > 0 ? { responseDelayMin, resources: roster } : null;
+  return extendSimulation(
+    input.config,
+    input.initialGrid,
+    input.initialStep,
+    input.fuelMap,
+    input.elevationMap,
+    input.centerLat,
+    input.centerLng,
+    () => 0,
+    suppression,
+    input.maxSteps,
+  );
+}
+
+function scanForBreach(
+  result: SuppressionResult,
+  input: FindMinRosterForBoundaryInput,
+): { breachStep: number | null; breachPercent: number } {
+  for (let i = 0; i < result.history.length; i++) {
+    const check = containmentCheck(
+      result.history[i],
+      input.polygon,
+      input.config,
+      input.centerLat,
+      input.centerLng,
+    );
+    if (!check.ok) {
+      return { breachStep: result.history[i].timestep, breachPercent: check.breachPercent };
+    }
+  }
+  return { breachStep: null, breachPercent: 0 };
+}
+
+export async function findMinRosterForBoundary(
+  input: FindMinRosterForBoundaryInput,
+): Promise<FindMinRosterForBoundaryResult> {
+  // Special case: try baseline (no suppression) first. If the fire never
+  // escapes the polygon even unsuppressed, recommend an empty roster.
+  const baselineRun = runOnceFromGrid(input, []);
+  const baselineFinal = baselineRun.history[baselineRun.history.length - 1];
+  const baselineFinalCheck = containmentCheck(
+    baselineFinal,
+    input.polygon,
+    input.config,
+    input.centerLat,
+    input.centerLng,
+  );
+  const baselineScan = scanForBreach(baselineRun, input);
+  if (baselineFinalCheck.ok && baselineScan.breachStep === null) {
+    return {
+      recommendedRoster: [],
+      bestEffortRoster: [],
+      passingRun: baselineRun,
+      failingRun: null,
+      breachStep: null,
+      breachPercent: 0,
+      bisectionTrace: [
+        {
+          capacityChainsHr: 0,
+          roster: [],
+          passed: true,
+          breachStep: null,
+          breachPercent: 0,
+        },
+      ],
+    };
+  }
+
+  const trace: BisectionTraceEntry[] = [];
+  const runCache = new Map<number, SuppressionResult>();
+  const passCache = new Map<number, boolean>();
+
+  const tryCapacity = (capacity: number): { passed: boolean; run: SuppressionResult } => {
+    if (runCache.has(capacity)) {
+      return { passed: passCache.get(capacity)!, run: runCache.get(capacity)! };
+    }
+    const roster = cheapestRosterForCapacity(capacity);
+    const run = runOnceFromGrid(input, roster);
+    const finalState = run.history[run.history.length - 1];
+    const finalCheck = containmentCheck(
+      finalState,
+      input.polygon,
+      input.config,
+      input.centerLat,
+      input.centerLng,
+    );
+    const passed = finalCheck.ok;
+    const scan = scanForBreach(run, input);
+    trace.push({
+      capacityChainsHr: capacity,
+      roster,
+      passed,
+      breachStep: scan.breachStep,
+      breachPercent: scan.breachPercent,
+    });
+    runCache.set(capacity, run);
+    passCache.set(capacity, passed);
+    return { passed, run };
+  };
+
+  let lo = Q_BOUNDARY_LO;
+  let hi = Q_BOUNDARY_HI;
+  while (hi - lo > Q_BOUNDARY_RESOLUTION) {
+    const mid = Math.round((lo + hi) / 2 / Q_BOUNDARY_RESOLUTION) * Q_BOUNDARY_RESOLUTION;
+    if (mid === lo || mid === hi) break;
+    const { passed } = tryCapacity(mid);
+    if (passed) hi = mid;
+    else lo = mid;
+  }
+
+  const hiResult = tryCapacity(hi);
+  const loResult = passCache.has(lo) ? { passed: passCache.get(lo)!, run: runCache.get(lo)! } : null;
+
+  if (hiResult.passed) {
+    const recommendedRoster = cheapestRosterForCapacity(hi);
+    const failingRun = loResult && !loResult.passed ? loResult.run : null;
+    const breach = failingRun ? scanForBreach(failingRun, input) : { breachStep: null, breachPercent: 0 };
+    return {
+      recommendedRoster,
+      bestEffortRoster: recommendedRoster,
+      passingRun: hiResult.run,
+      failingRun,
+      breachStep: breach.breachStep,
+      breachPercent: breach.breachPercent,
+      bisectionTrace: trace,
+    };
+  }
+
+  const bestEffortRoster = cheapestRosterForCapacity(Q_BOUNDARY_HI);
+  const breach = scanForBreach(hiResult.run, input);
+  return {
+    recommendedRoster: null,
+    bestEffortRoster,
+    passingRun: null,
+    failingRun: hiResult.run,
+    breachStep: breach.breachStep,
+    breachPercent: breach.breachPercent,
+    bisectionTrace: trace,
   };
 }
