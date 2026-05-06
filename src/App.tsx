@@ -424,6 +424,28 @@ function App() {
     [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length, modelConfig],
   );
 
+  // Auto-recompute on parameter change. When a recommendation is on screen
+  // and the user adjusts a Model Details slider, debounce 600 ms then re-run
+  // the boundary search with the new modelConfig. Skips the initial render
+  // after a fresh compute (when modelConfig matches what was computed with).
+  const lastComputeConfigRef = useRef<typeof modelConfig | null>(null);
+  useEffect(() => {
+    if (!boundaryResult || !boundaryPolygon) {
+      lastComputeConfigRef.current = null;
+      return;
+    }
+    if (lastComputeConfigRef.current === null) {
+      lastComputeConfigRef.current = modelConfig;
+      return;
+    }
+    if (lastComputeConfigRef.current === modelConfig) return;
+    const timer = setTimeout(() => {
+      lastComputeConfigRef.current = modelConfig;
+      handleBoundaryClose(boundaryPolygon);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [modelConfig, boundaryResult, boundaryPolygon, handleBoundaryClose]);
+
   const handleApproveRoster = useCallback(
     async (roster: ResourceCount[]) => {
       if (!pausedGrid || !ignitionPoint || !boundaryPolygon) return;
@@ -912,6 +934,7 @@ function App() {
         timestepMinutes={activeConfig.timestepMinutes}
         visible={totalSteps > 0}
         historicalDates={dateLabels}
+        shifted={boundaryResult !== null && modelPanelOpen}
       />
 
       <Legend
@@ -919,14 +942,22 @@ function App() {
         visible={totalSteps > 0}
       />
 
-      <ModelDetailsButton
-        isOpen={modelPanelOpen}
-        onClick={() => setModelPanelOpen((v) => !v)}
-      />
-      <ModelDetailsPanel
-        isOpen={modelPanelOpen}
-        onClose={() => setModelPanelOpen(false)}
-      />
+      {/* Model Details panel + trigger button are gated on having a
+          computation result. They surface AS PART OF the recommendation
+          flow, not as a global tool. Once the boundaryResult is cleared
+          (Cancel / Approve / Redraw), the panel goes away. */}
+      {boundaryResult && (
+        <>
+          <ModelDetailsButton
+            isOpen={modelPanelOpen}
+            onClick={() => setModelPanelOpen((v) => !v)}
+          />
+          <ModelDetailsPanel
+            isOpen={modelPanelOpen}
+            onClose={() => setModelPanelOpen(false)}
+          />
+        </>
+      )}
     </div>
   );
 }

@@ -3,6 +3,9 @@ interface TimeInfoPanelProps {
   timestepMinutes: number;
   visible: boolean;
   historicalDates?: string[];
+  /** True when the ModelDetailsPanel is open. Slides this panel left to
+   *  yield the right edge to the model panel without losing context. */
+  shifted?: boolean;
 }
 
 function formatDayTime(totalMinutes: number): string {
@@ -36,6 +39,7 @@ export default function TimeInfoPanel({
   timestepMinutes,
   visible,
   historicalDates,
+  shifted = false,
 }: TimeInfoPanelProps) {
   if (!visible) return null;
 
@@ -50,7 +54,10 @@ export default function TimeInfoPanel({
     : formatDayTime(currentStep * timestepMinutes);
 
   return (
-    <div className="fire-panel animate-enter-right absolute top-3 right-3 z-50 rounded-xl px-4 py-3 min-w-[180px]">
+    <div
+      className="fire-panel animate-enter-right absolute top-3 z-50 rounded-xl px-4 py-3 min-w-[180px] transition-[right] duration-300 ease-out"
+      style={{ right: shifted ? 372 : 12 }}
+    >
       {/* Status indicator */}
       <div className="flex items-center gap-2 mb-3 pb-2 border-b border-white/[0.04]">
         <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shadow-[0_0_6px_rgba(245,158,11,0.5)] animate-pulse" />

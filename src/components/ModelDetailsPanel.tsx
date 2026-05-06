@@ -21,21 +21,27 @@ export default function ModelDetailsPanel({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`fire-panel fixed top-0 h-screen w-[360px] z-40 flex flex-col transition-[right] duration-250 ease-out ${
+      className={`fire-panel fixed top-0 h-screen w-[360px] z-40 flex flex-col transition-[right] duration-300 ease-out shadow-[-12px_0_32px_-8px_rgba(0,0,0,0.6)] ${
         isOpen ? "" : "pointer-events-none"
       }`}
       style={{ right: isOpen ? 0 : -360 }}
     >
+      {/* Left accent bar — signals the panel as a methodology context. */}
+      <div className="absolute left-0 top-0 bottom-0 w-[2px] bg-gradient-to-b from-amber-500/40 via-amber-500/10 to-transparent" />
+
       <div
         className="flex items-center justify-between px-4 py-3 border-b border-white/[0.06]"
         style={MONO_FONT}
       >
-        <span className="text-sm tracking-[0.18em] uppercase text-amber-400">
-          Model Details
-        </span>
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-amber-400 shadow-[0_0_6px_rgba(245,158,11,0.6)]" />
+          <span className="text-sm tracking-[0.2em] uppercase text-amber-400 font-semibold">
+            Model Details
+          </span>
+        </div>
         <button
           onClick={onClose}
-          className="text-gray-400 hover:text-white text-lg leading-none w-6 h-6 flex items-center justify-center"
+          className="text-gray-500 hover:text-amber-200 text-xl leading-none w-7 h-7 flex items-center justify-center rounded hover:bg-white/[0.04] transition-colors"
           aria-label="Close model details"
         >
           ×
@@ -46,8 +52,8 @@ export default function ModelDetailsPanel({
         {(
           [
             ["overview", "Overview"],
-            ["params", "Parameters"],
-            ["references", "References"],
+            ["params", "Params"],
+            ["references", "Refs"],
           ] as Array<[TabKey, string]>
         ).map(([key, label]) => {
           const active = activeTab === key;
@@ -55,10 +61,10 @@ export default function ModelDetailsPanel({
             <button
               key={key}
               onClick={() => setActiveTab(key)}
-              className={`flex-1 py-2 text-label tracking-[0.15em] uppercase transition-colors ${
+              className={`flex-1 py-2.5 text-caption tracking-[0.18em] uppercase transition-colors ${
                 active
                   ? "text-amber-400 border-b-2 border-amber-400"
-                  : "text-gray-400 border-b-2 border-transparent hover:text-gray-200"
+                  : "text-gray-500 border-b-2 border-transparent hover:text-gray-200"
               }`}
             >
               {label}
