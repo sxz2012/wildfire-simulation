@@ -25,14 +25,33 @@ export function convertSimulationToFire(
   const frames: FireFrame[] = history.map((state, stepIdx) => {
     const hotspots: { lat: number; lng: number; frp: number }[] = [];
 
-    for (let row = 0; row < gridSize; row++) {
-      for (let col = 0; col < gridSize; col++) {
-        if (state.grid[row * gridSize + col] === CellState.Burning) {
-          const lat = centerLat + (row - halfGrid) * cellLat;
-          const lng = centerLng + (col - halfGrid) * cellLng;
-          hotspots.push({ lat: Math.round(lat * 100000) / 100000, lng: Math.round(lng * 100000) / 100000, frp: 10 });
-        }
-      }
+    // Memory cap: a fully-developed fire on a 600x600 grid can have
+    // 50k+ Burning cells per frame. Materializing every cell as an
+    // object for 200 frames produces 10M+ tiny objects and OOMs the
+    // tab. We uniform-sample down to MAX_HOTSPOTS_PER_FRAME — the
+    // renderer (HistoricalFireOverlay) already further subsamples for
+    // billboards, so 500 here looks continuous on screen.
+    const MAX_HOTSPOTS_PER_FRAME = 500;
+    const burningIndices: number[] = [];
+    const grid = state.grid;
+    const total = grid.length;
+    for (let i = 0; i < total; i++) {
+      if (grid[i] === CellState.Burning) burningIndices.push(i);
+    }
+    const sampleStep = burningIndices.length > MAX_HOTSPOTS_PER_FRAME
+      ? Math.ceil(burningIndices.length / MAX_HOTSPOTS_PER_FRAME)
+      : 1;
+    for (let k = 0; k < burningIndices.length; k += sampleStep) {
+      const idx = burningIndices[k];
+      const row = Math.floor(idx / gridSize);
+      const col = idx - row * gridSize;
+      const lat = centerLat + (row - halfGrid) * cellLat;
+      const lng = centerLng + (col - halfGrid) * cellLng;
+      hotspots.push({
+        lat: Math.round(lat * 100000) / 100000,
+        lng: Math.round(lng * 100000) / 100000,
+        frp: 10,
+      });
     }
 
     let date: string;
