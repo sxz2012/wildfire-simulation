@@ -416,7 +416,17 @@ function App() {
       ? history.suppressed.length - 1
       : 0;
 
-  // dropScheduler is precomputed once per run; depend on the actual array reference + bundle so we recompute on a new sim.
+  // Stable suppression-config object — without memoization a fresh
+  // {responseDelayMin, resources} reference would land in every layer/HUD on
+  // every render, causing the SuppressionVehicleLayer effects to clear and
+  // re-add Cesium billboards at parent-render rate (sometimes 60 Hz under
+  // autoplay). That churn was the OOM trigger when paired with HMR-leaked
+  // primitives.
+  const suppressionConfig = useMemo(
+    () => ({ responseDelayMin: suppressionDelay, resources: suppressionResources }),
+    [suppressionDelay, suppressionResources],
+  );
+
   const dropEvents: DropEvent[] = useMemo(() => {
     if (!suppressionActive || !ignitionPoint || !history.suppressed) return [];
     return dropScheduler(
@@ -424,10 +434,10 @@ function App() {
       activeConfig,
       ignitionPoint.lat,
       ignitionPoint.lng,
-      { responseDelayMin: suppressionDelay, resources: suppressionResources },
+      suppressionConfig,
       deployStep,
     );
-  }, [suppressionActive, history.suppressed, activeConfig, ignitionPoint?.lat, ignitionPoint?.lng, suppressionDelay, suppressionResources, deployStep]);
+  }, [suppressionActive, history.suppressed, activeConfig, ignitionPoint?.lat, ignitionPoint?.lng, suppressionConfig, deployStep]);
 
   // Derive a short bundle label by total resource count (the four canonical bundles have unique totals).
   const bundleLabel = useMemo(() => {
@@ -498,7 +508,7 @@ function App() {
             config={activeConfig}
             centerLat={ignitionPoint.lat}
             centerLng={ignitionPoint.lng}
-            suppression={{ responseDelayMin: suppressionDelay, resources: suppressionResources }}
+            suppression={suppressionConfig}
             deployStep={deployStep}
             endStep={suppressionEndStep}
             currentStep={suppressedCurrIdx}
@@ -543,7 +553,7 @@ function App() {
             <SuppressionHUD
               diags={history.diags}
               config={activeConfig}
-              suppression={{ responseDelayMin: suppressionDelay, resources: suppressionResources }}
+              suppression={suppressionConfig}
               deployStep={deployStep}
               endStep={suppressionEndStep}
               currentStep={suppressedCurrIdx}
