@@ -27,6 +27,8 @@ interface UseSimulationReturn {
     suppressionConfig?: SuppressionConfig,
   ) => void;
   reset: () => void;
+  /** Inject a precomputed history (used by the scenario loader). */
+  setHistory: (h: DualHistory) => void;
 }
 
 export function useSimulation(): UseSimulationReturn {
@@ -197,5 +199,5 @@ export function useSimulation(): UseSimulationReturn {
     setIsRunning(false);
   }, []);
 
-  return { history, isRunning, startSimulation, reset };
+  return { history, isRunning, startSimulation, reset, setHistory };
 }

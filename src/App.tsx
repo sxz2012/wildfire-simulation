@@ -32,7 +32,7 @@ import type { Viewer as CesiumViewer } from "cesium";
 type AppMode = "idle" | "simulation" | "historical";
 
 function App() {
-  const { history, isRunning, startSimulation, reset } = useSimulation();
+  const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -298,6 +298,20 @@ function App() {
         _t: Date.now(),
       });
       setAppMode("simulation");
+      // Sync useSimulation history so the suppression-visualization layers
+      // and HUD see the baked scenario as if it were a live run.
+      setHistory({
+        baseline: loaded.baseline.history,
+        suppressed: loaded.suppressed?.history,
+        diags: loaded.suppressed?.diags,
+      });
+      // Sync the panel inputs to the bundle the scenario was actually baked
+      // with — otherwise the HUD and vehicle layer would render against the
+      // user's panel state instead of what's playing on screen.
+      if (loaded.meta.suppression) {
+        setSuppressionDelay(loaded.meta.suppression.responseDelayMin);
+        setSuppressionResources(loaded.meta.suppression.resources);
+      }
       // Use the suppressed history when available, otherwise baseline.
       const activeHistory =
         loaded.suppressed && loaded.suppressed.history.length > 0

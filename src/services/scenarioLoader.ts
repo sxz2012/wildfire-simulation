@@ -5,7 +5,7 @@
  * loading is instant.
  */
 import { rleDecode } from "../utils/rle";
-import type { SimulationState, SuppressionStepDiag } from "../simulation/types";
+import type { SimulationState, SuppressionStepDiag, ResourceCount } from "../simulation/types";
 
 export interface LoadedScenarioMeta {
   id: string;
@@ -21,6 +21,7 @@ export interface LoadedScenarioMeta {
     humidity: number;
   };
   thresholdAreaHa: number;
+  suppression?: { responseDelayMin: number; resources: ResourceCount[] };
 }
 
 export interface LoadedScenarioAnalysis {
