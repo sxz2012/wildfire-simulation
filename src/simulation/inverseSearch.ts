@@ -254,6 +254,13 @@ const Q_BOUNDARY_LO = 0;
 const Q_BOUNDARY_HI = 1000;
 const Q_BOUNDARY_RESOLUTION = 25;
 
+// 2% slop on the strict-containment criterion. A single rogue ember (1 cell
+// out of thousands) flips ok=false under strict containment but is
+// operationally indistinguishable from "contained" for IC decisions. Without
+// this, the system reports "uncontainable" with a "0%" breach (rounded), which
+// is the rogue-ember pathology the brainstorm flagged.
+const BREACH_TOLERANCE = 0.02;
+
 function runOnceFromGrid(
   input: FindMinRosterForBoundaryInput,
   roster: ResourceCount[],
@@ -278,6 +285,7 @@ function runOnceFromGrid(
           polygon: input.polygon,
           centerLat: input.centerLat,
           centerLng: input.centerLng,
+          breachToleranceFraction: BREACH_TOLERANCE,
         }
       : undefined,
   );
@@ -295,7 +303,7 @@ function scanForBreach(
       input.centerLat,
       input.centerLng,
     );
-    if (!check.ok) {
+    if (!check.ok && check.breachPercent > BREACH_TOLERANCE) {
       return { breachStep: result.history[i].timestep, breachPercent: check.breachPercent };
     }
   }
@@ -325,7 +333,7 @@ function scanForBreachAborted(
     input.centerLat,
     input.centerLng,
   );
-  if (!check.ok) {
+  if (!check.ok && check.breachPercent > BREACH_TOLERANCE) {
     return { breachStep: last.timestep, breachPercent: check.breachPercent };
   }
   return { breachStep: null, breachPercent: 0 };

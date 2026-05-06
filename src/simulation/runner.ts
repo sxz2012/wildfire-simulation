@@ -25,6 +25,13 @@ export interface AbortOnBreachOptions {
   polygon: LatLng[];
   centerLat: number;
   centerLng: number;
+  /**
+   * Fraction of total burning cells allowed outside the polygon before the
+   * sim aborts. Mitigates the rogue-ember pathology where a single cell
+   * outside an otherwise-perfect containment line flips ok=false. Defaults to
+   * 0 (strict). The boundary inverse search passes 0.02 (2%).
+   */
+  breachToleranceFraction?: number;
 }
 
 function snapshotGrid(grid: GridCell[], gridSize: number): Uint8Array {
@@ -109,7 +116,8 @@ function runOnePassFromGrid(
         abortOnBreach.centerLat,
         abortOnBreach.centerLng,
       );
-      if (!check.ok) break;
+      const tol = abortOnBreach.breachToleranceFraction ?? 0;
+      if (!check.ok && check.breachPercent > tol) break;
     }
 
     const hasBurning = grid.some((c) => c.state === CellState.Burning);
