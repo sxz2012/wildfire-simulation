@@ -98,7 +98,7 @@ export default function ControlPanel({
   }
 
   return (
-    <div className="fire-panel animate-enter-left absolute top-3 left-3 z-50 w-80 rounded-xl text-white flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
+    <div className="fire-panel animate-enter-left absolute top-3 left-3 z-50 w-[440px] rounded-xl text-white flex flex-col max-h-[calc(100vh-80px)] overflow-hidden">
       {/* Header */}
       <div className="px-5 pt-4 pb-3 border-b border-amber-500/10">
         <div className="flex justify-between items-center">
