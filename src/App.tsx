@@ -585,13 +585,21 @@ function App() {
   const dateLabels = activeFire ? activeFire.frames.map((f) => f.date) : undefined;
   const isHistorical = appMode === "historical";
 
+  // Throttle the canvas-imagery layers (ContainmentLineLayer +
+  // GhostFireOverlay) to repaint every 3 steps instead of every step.
+  // Each repaint is a full 600x600 canvas + PNG encode + GPU texture upload;
+  // doing that at autoplay's 5 Hz over 100+ steps OOMs the tab. The cyan
+  // rim grows incrementally so missing intermediate steps is invisible.
+  const SNAPSHOT_STRIDE = 3;
+  const throttledStep = Math.floor(currentStep / SNAPSHOT_STRIDE) * SNAPSHOT_STRIDE;
+
   const baselineSnapshot =
     history.baseline.length > 0
-      ? history.baseline[Math.min(currentStep, history.baseline.length - 1)].grid
+      ? history.baseline[Math.min(throttledStep, history.baseline.length - 1)].grid
       : null;
   const suppressedSnapshot =
     history.suppressed && history.suppressed.length > 0
-      ? history.suppressed[Math.min(currentStep, history.suppressed.length - 1)].grid
+      ? history.suppressed[Math.min(throttledStep, history.suppressed.length - 1)].grid
       : null;
 
   // Suppression run is active when we have both a suppressed history and ignition point.
