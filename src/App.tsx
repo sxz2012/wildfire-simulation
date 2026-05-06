@@ -12,7 +12,12 @@ import SuppressionVehicleLayer from "./components/SuppressionVehicleLayer";
 import SuppressionHUD from "./components/SuppressionHUD";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
+import BoundaryDrawTool from "./components/BoundaryDrawTool";
+import RecommendationCard from "./components/RecommendationCard";
+import PolygonOverlay from "./components/PolygonOverlay";
 import { reverseGeocode } from "./components/LocationSearch";
+import { apiExtend, apiQBoundary, type ApiQBoundaryResponse } from "./services/simulationApi";
+import type { LatLng } from "./utils/containmentCheck";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
@@ -29,7 +34,14 @@ import { fetchNearbyFireStations, type NearbyFireResources } from "./services/fi
 import type { ScenarioSummary } from "./components/ScenarioPicker";
 import type { Viewer as CesiumViewer } from "cesium";
 
-type AppMode = "idle" | "simulation" | "historical";
+type AppMode =
+  | "idle"
+  | "simulation"
+  | "historical"
+  | "paused-drawing"
+  | "paused-computing"
+  | "paused-recommendation"
+  | "simulation-resumed";
 
 function App() {
   const { history, isRunning, startSimulation, reset } = useSimulation();
@@ -63,6 +75,14 @@ function App() {
   const [autoPlay, setAutoPlay] = useState(false);
   const [weatherInfo, setWeatherInfo] = useState<string>("");
   const weatherSourceRef = useRef<{ source: "live" | "seasonal" | "custom"; season?: Season }>({ source: "live" });
+
+  // Pause-draw-compute-resume flow state.
+  const [timelinePlaying, setTimelinePlaying] = useState(false);
+  const [pausedGrid, setPausedGrid] = useState<Uint8Array | null>(null);
+  const [pausedStep, setPausedStep] = useState<number>(0);
+  const [boundaryPolygon, setBoundaryPolygon] = useState<LatLng[] | null>(null);
+  const [boundaryResult, setBoundaryResult] = useState<ApiQBoundaryResponse | null>(null);
+  const [, setShowBreachPreview] = useState(false);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -334,6 +354,118 @@ function App() {
     setActiveScenario(null);
   }, [runReset]);
 
+  const handleSuggestContainment = useCallback(() => {
+    if (!history.suppressed && history.baseline.length > 0 && ignitionPoint) {
+      // Wildfire-only run: snapshot from baseline at currentStep.
+      const snapshot =
+        history.baseline[Math.min(currentStep, history.baseline.length - 1)].grid;
+      // Defensive copy so subsequent step changes don't mutate our paused grid.
+      setPausedGrid(new Uint8Array(snapshot));
+      setPausedStep(currentStep);
+      setBoundaryPolygon(null);
+      setBoundaryResult(null);
+      setShowBreachPreview(false);
+      setAppMode("paused-drawing");
+    }
+  }, [history, ignitionPoint, currentStep]);
+
+  const handleBoundaryClose = useCallback(
+    async (polygon: LatLng[]) => {
+      if (!pausedGrid || !ignitionPoint) return;
+      setBoundaryPolygon(polygon);
+      setAppMode("paused-computing");
+      try {
+        const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
+        const remainingSteps = Math.max(50, history.baseline.length - pausedStep);
+        const maxSteps = pausedStep + remainingSteps;
+        const result = await apiQBoundary({
+          config: activeConfig,
+          fuelMap: fuelArr,
+          elevationMap: undefined,
+          centerLat: ignitionPoint.lat,
+          centerLng: ignitionPoint.lng,
+          initialGrid: pausedGrid,
+          initialStep: pausedStep,
+          polygon,
+          maxSteps,
+        });
+        setBoundaryResult(result);
+        setAppMode("paused-recommendation");
+      } catch (err) {
+        console.error("findMinRosterForBoundary failed:", err);
+        setAppMode("simulation");
+        alert(
+          `Containment search failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    },
+    [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length],
+  );
+
+  const handleApproveRoster = useCallback(
+    async (roster: ResourceCount[]) => {
+      if (!pausedGrid || !ignitionPoint || !boundaryPolygon) return;
+      const responseDelayMin = pausedStep * activeConfig.timestepMinutes;
+      setSuppressionResources(roster);
+      setSuppressionDelay(responseDelayMin);
+      setAppMode("simulation-resumed");
+      try {
+        const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
+        const remainingSteps = Math.max(50, history.baseline.length - pausedStep);
+        const maxSteps = pausedStep + remainingSteps;
+        const extended = await apiExtend({
+          config: activeConfig,
+          fuelMap: fuelArr,
+          centerLat: ignitionPoint.lat,
+          centerLng: ignitionPoint.lng,
+          initialGrid: pausedGrid,
+          initialStep: pausedStep,
+          suppression: { responseDelayMin, resources: roster },
+          maxSteps,
+        });
+        // PLACEHOLDER for Task 12: stitch extended into the live history.
+        // For Task 11 we just log so the smoke test confirms the call worked.
+        console.log(
+          "apiExtend returned",
+          extended.elapsedMs,
+          "ms;",
+          extended.rleSteps.length,
+          "steps",
+        );
+      } catch (err) {
+        console.error("apiExtend failed:", err);
+        alert(
+          `Resume sim failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        setAppMode("simulation");
+      }
+    },
+    [
+      pausedGrid,
+      pausedStep,
+      ignitionPoint,
+      boundaryPolygon,
+      activeConfig,
+      activeFuelMap,
+      history.baseline.length,
+    ],
+  );
+
+  const handleSuppressionCancel = useCallback(() => {
+    setBoundaryPolygon(null);
+    setBoundaryResult(null);
+    setPausedGrid(null);
+    setShowBreachPreview(false);
+    setAppMode("simulation");
+  }, []);
+
+  const handleRedrawBoundary = useCallback(() => {
+    setBoundaryPolygon(null);
+    setBoundaryResult(null);
+    setShowBreachPreview(false);
+    setAppMode("paused-drawing");
+  }, []);
+
   // Bridges the ControlPanel's existing onStart prop into the new flow:
   // - If a pin is placed, this is the "Start the Wildfire" action and we
   //   actually launch the simulation at the pinned location.
@@ -563,6 +695,83 @@ function App() {
         </div>
       )}
 
+      {viewerRef.current && (
+        <BoundaryDrawTool
+          viewer={viewerRef.current}
+          active={appMode === "paused-drawing"}
+          onClose={handleBoundaryClose}
+          onCancel={handleSuppressionCancel}
+          onValidationError={(msg) => console.warn(msg)}
+        />
+      )}
+
+      {viewerRef.current && appMode === "simulation-resumed" && boundaryPolygon && (
+        <PolygonOverlay
+          viewer={viewerRef.current}
+          polygon={boundaryPolygon}
+          contained={false}
+        />
+      )}
+
+      {appMode === "paused-recommendation" && boundaryResult && (
+        <RecommendationCard
+          result={boundaryResult}
+          timestepMinutes={activeConfig.timestepMinutes}
+          onApprove={handleApproveRoster}
+          onShowBreachPreview={() => setShowBreachPreview((v) => !v)}
+          onCancel={handleSuppressionCancel}
+          onRedraw={handleRedrawBoundary}
+        />
+      )}
+
+      {appMode === "paused-computing" && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40">
+          <div
+            className="fire-panel rounded-lg p-6 text-center text-amber-400"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            Searching minimum effective response…
+          </div>
+        </div>
+      )}
+
+      {appMode === "paused-drawing" && (
+        <div
+          className="absolute bottom-3 left-3 right-3 z-50 fire-panel rounded-xl px-4 py-2 flex items-center gap-3"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          <span className="text-amber-400 text-label uppercase tracking-wide">
+            Draw Containment Boundary
+          </span>
+          <span className="text-gray-400 text-caption">
+            Click to place vertices · double-click to close · right-click to undo · Esc to cancel
+          </span>
+          <button
+            type="button"
+            onClick={handleSuppressionCancel}
+            className="ml-auto px-3 py-1 text-caption rounded border border-amber-500/30
+              bg-amber-500/10 text-amber-400 hover:bg-amber-500/20"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+
+      {appMode === "simulation"
+        && !timelinePlaying
+        && !history.suppressed
+        && history.baseline.length > 0 && (
+        <button
+          type="button"
+          onClick={handleSuggestContainment}
+          className="absolute bottom-[80px] left-3 z-50 fire-panel rounded-lg px-4 py-2
+            text-amber-400 text-sm font-medium hover:bg-amber-500/15 transition-colors"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          🛡 Suggest Containment
+        </button>
+      )}
+
       <ControlPanel
         onStart={handleStart}
         onStartHistorical={handleStartHistorical}
@@ -591,14 +800,17 @@ function App() {
         locationDisplay={locationDisplay}
       />
 
-      <TimelineBar
-        totalSteps={totalSteps}
-        currentStep={currentStep}
-        onStepChange={setCurrentStep}
-        timestepMinutes={activeConfig.timestepMinutes}
-        dateLabels={dateLabels}
-        autoPlay={autoPlay}
-      />
+      {!appMode.startsWith("paused-") && (
+        <TimelineBar
+          totalSteps={totalSteps}
+          currentStep={currentStep}
+          onStepChange={setCurrentStep}
+          timestepMinutes={activeConfig.timestepMinutes}
+          dateLabels={dateLabels}
+          autoPlay={autoPlay}
+          onPlayingChange={setTimelinePlaying}
+        />
+      )}
 
       <TimeInfoPanel
         currentStep={currentStep}
