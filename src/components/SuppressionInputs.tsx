@@ -12,12 +12,14 @@ interface SuppressionInputsProps {
   responseDelayMin: number;
   resources: ResourceCount[];
   onChange: (delay: number, resources: ResourceCount[]) => void;
+  nearbyResources?: { stationCount: number; radiusKm: number; suggestedBundle: string };
 }
 
 export default function SuppressionInputs({
   responseDelayMin,
   resources,
   onChange,
+  nearbyResources,
 }: SuppressionInputsProps) {
   const [bundleKey, setBundleKey] = useState<string>("initialAttack");
   const [showCustom, setShowCustom] = useState(false);
@@ -134,6 +136,29 @@ export default function SuppressionInputs({
               <option value="custom">Custom...</option>
             </select>
           </div>
+
+          {nearbyResources && (
+            <div className="text-micro text-gray-500 mb-2 leading-relaxed">
+              <span className="text-amber-400/80">{nearbyResources.stationCount}</span> fire
+              {" "}stations within {nearbyResources.radiusKm} km of ignition.
+              {" "}Suggests <span className="text-amber-400/80">
+                {BUNDLE_DISPLAY_LABELS[nearbyResources.suggestedBundle]?.split(" — ")[0] ?? nearbyResources.suggestedBundle}
+              </span>.{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  const preset = SUPPRESSION_BUNDLES[nearbyResources.suggestedBundle];
+                  if (preset) {
+                    onChange(responseDelayMin, [...preset]);
+                    setBundleKey(nearbyResources.suggestedBundle);
+                  }
+                }}
+                className="text-amber-400 hover:text-amber-300 underline cursor-pointer"
+              >
+                Apply
+              </button>
+            </div>
+          )}
 
           {/* Custom roster (when shown) */}
           {showCustom && (

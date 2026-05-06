@@ -20,6 +20,7 @@ import { sampleVegetation } from "./services/vegetation";
 import { sampleElevations } from "./services/terrain";
 import { sampleLandCover } from "./services/landCover";
 import { loadScenario, type LoadedScenario } from "./services/scenarioLoader";
+import { fetchNearbyFireStations, type NearbyFireResources } from "./services/fireResources";
 import type { ScenarioSummary } from "./components/ScenarioPicker";
 import type { Viewer as CesiumViewer } from "cesium";
 
@@ -44,6 +45,7 @@ function App() {
   const [suppressionResources, setSuppressionResources] = useState<ResourceCount[]>(
     SUPPRESSION_BUNDLES.initialAttack,
   );
+  const [nearbyResources, setNearbyResources] = useState<NearbyFireResources | null>(null);
   // True between "Start the Wildfire" being clicked and the worker actually
   // running. Bridges the async gap (weather + land cover + terrain fetches)
   // so the button reads "Simulating..." continuously instead of flashing
@@ -82,6 +84,7 @@ function App() {
     setSuppressionDelay(30);
     setSuppressionResources(SUPPRESSION_BUNDLES.initialAttack);
     setActiveScenario(null);
+    setNearbyResources(null);
   }, [reset]);
 
   // Convert simulation history to fire frames when the worker finishes a run.
@@ -119,6 +122,10 @@ function App() {
       if (appMode === "simulation") fullReset();
       setPendingIgnition({ lat, lng });
       setFlyTo({ lat, lng, altitude: 15000, _t: Date.now() });
+      // Best-effort: fetch nearby fire stations to suggest a bundle.
+      fetchNearbyFireStations(lat, lng, 10)
+        .then(setNearbyResources)
+        .catch((err) => console.warn("Could not fetch nearby resources:", err));
     },
     [appMode, fullReset],
   );
@@ -445,6 +452,7 @@ function App() {
         suppressedHistory={history.suppressed}
         analysis={activeScenario?.analysis}
         thresholdAreaHa={activeScenario?.meta.thresholdAreaHa}
+        nearbyResources={nearbyResources ?? undefined}
       />
 
       <TimelineBar

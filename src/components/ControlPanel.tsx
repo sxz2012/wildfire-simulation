@@ -39,6 +39,7 @@ interface ControlPanelProps {
     q2?: { delayMin: number; minTier: string | null };
   };
   thresholdAreaHa?: number;
+  nearbyResources?: { stationCount: number; radiusKm: number; suggestedBundle: string };
 }
 
 export default function ControlPanel({
@@ -65,6 +66,7 @@ export default function ControlPanel({
   suppressedHistory,
   analysis,
   thresholdAreaHa,
+  nearbyResources,
 }: ControlPanelProps) {
   const [config, setConfig] = useState<SimulationConfig>({ ...DEFAULT_CONFIG });
   const [mode, setMode] = useState<"ignite" | "historical">("historical");
@@ -201,6 +203,7 @@ export default function ControlPanel({
                 responseDelayMin={suppressionDelay}
                 resources={suppressionResources}
                 onChange={onSuppressionChange}
+                nearbyResources={nearbyResources}
               />
             )}
 
