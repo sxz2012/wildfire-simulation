@@ -22,6 +22,7 @@ import type {
 import { CellState, SUPPRESSION_BUNDLES } from "./types";
 import { runSimulation, extendSimulation } from "./runner";
 import { cheapestRosterForCapacity } from "../utils/cheapestRoster";
+import type { RosterRateOverrides } from "../utils/cheapestRoster";
 import { containmentCheck, type LatLng } from "../utils/containmentCheck";
 
 export type BundleKey = keyof typeof SUPPRESSION_BUNDLES;
@@ -220,6 +221,15 @@ export async function findMinTier(
   };
 }
 
+export interface BoundarySearchOverrides {
+  /** Percent units 0..100. Defaults to 2 (i.e. 2%). */
+  breachTolerancePct?: number;
+  /** Overrides Q_BOUNDARY_HI (default 2500 chains/hr). */
+  searchCeilingChainsHr?: number;
+  /** Passed through to cheapestRosterForCapacity. */
+  rosterOverrides?: RosterRateOverrides;
+}
+
 export interface FindMinRosterForBoundaryInput {
   config: SimulationConfig;
   fuelMap: FuelType[];
@@ -230,6 +240,7 @@ export interface FindMinRosterForBoundaryInput {
   initialStep: number;
   polygon: LatLng[];
   maxSteps: number;
+  modelConfig?: BoundarySearchOverrides;
 }
 
 export interface BisectionTraceEntry {
@@ -269,6 +280,7 @@ function runOnceFromGrid(
   input: FindMinRosterForBoundaryInput,
   roster: ResourceCount[],
   enableAbortOnBreach: boolean,
+  tolerance: number,
 ): SuppressionResult {
   const responseDelayMin = input.initialStep * input.config.timestepMinutes;
   const suppression: SuppressionConfig | null =
@@ -289,7 +301,7 @@ function runOnceFromGrid(
           polygon: input.polygon,
           centerLat: input.centerLat,
           centerLng: input.centerLng,
-          breachToleranceFraction: BREACH_TOLERANCE,
+          breachToleranceFraction: tolerance,
         }
       : undefined,
   );
@@ -298,6 +310,7 @@ function runOnceFromGrid(
 function scanForBreach(
   result: SuppressionResult,
   input: FindMinRosterForBoundaryInput,
+  tolerance: number,
 ): { breachStep: number | null; breachPercent: number } {
   for (let i = 0; i < result.history.length; i++) {
     const check = containmentCheck(
@@ -307,7 +320,7 @@ function scanForBreach(
       input.centerLat,
       input.centerLng,
     );
-    if (!check.ok && check.breachPercent > BREACH_TOLERANCE) {
+    if (!check.ok && check.breachPercent > tolerance) {
       return { breachStep: result.history[i].timestep, breachPercent: check.breachPercent };
     }
   }
@@ -325,6 +338,7 @@ function scanForBreach(
 function scanForBreachAborted(
   result: SuppressionResult,
   input: FindMinRosterForBoundaryInput,
+  tolerance: number,
 ): { breachStep: number | null; breachPercent: number } {
   if (result.history.length === 0) {
     return { breachStep: null, breachPercent: 0 };
@@ -337,7 +351,7 @@ function scanForBreachAborted(
     input.centerLat,
     input.centerLng,
   );
-  if (!check.ok && check.breachPercent > BREACH_TOLERANCE) {
+  if (!check.ok && check.breachPercent > tolerance) {
     return { breachStep: last.timestep, breachPercent: check.breachPercent };
   }
   return { breachStep: null, breachPercent: 0 };
@@ -346,11 +360,18 @@ function scanForBreachAborted(
 export async function findMinRosterForBoundary(
   input: FindMinRosterForBoundaryInput,
 ): Promise<FindMinRosterForBoundaryResult> {
+  const tolerance =
+    input.modelConfig?.breachTolerancePct !== undefined
+      ? input.modelConfig.breachTolerancePct / 100
+      : BREACH_TOLERANCE;
+  const ceiling = input.modelConfig?.searchCeilingChainsHr ?? Q_BOUNDARY_HI;
+  const rosterOverrides = input.modelConfig?.rosterOverrides;
+
   // Special case: try baseline (no suppression) first. If the fire never
   // escapes the polygon even unsuppressed, recommend an empty roster.
   // Run WITHOUT abortOnBreach so we keep the full history for the
   // "passing" return path (the user sees the visualization).
-  const baselineRun = runOnceFromGrid(input, [], false);
+  const baselineRun = runOnceFromGrid(input, [], false, tolerance);
   const baselineFinal = baselineRun.history[baselineRun.history.length - 1];
   const baselineFinalCheck = containmentCheck(
     baselineFinal,
@@ -359,7 +380,7 @@ export async function findMinRosterForBoundary(
     input.centerLat,
     input.centerLng,
   );
-  const baselineScan = scanForBreach(baselineRun, input);
+  const baselineScan = scanForBreach(baselineRun, input, tolerance);
   if (baselineFinalCheck.ok && baselineScan.breachStep === null) {
     return {
       recommendedRoster: [],
@@ -388,12 +409,12 @@ export async function findMinRosterForBoundary(
     if (runCache.has(capacity)) {
       return { passed: passCache.get(capacity)!, run: runCache.get(capacity)! };
     }
-    const roster = cheapestRosterForCapacity(capacity);
+    const roster = cheapestRosterForCapacity(capacity, rosterOverrides);
     // Bisection candidates: enable abortOnBreach so failing sims fail fast.
     // History will be truncated at the first-breach step, which is exactly
     // what scanForBreachAborted needs.
-    const run = runOnceFromGrid(input, roster, true);
-    const scan = scanForBreachAborted(run, input);
+    const run = runOnceFromGrid(input, roster, true, tolerance);
+    const scan = scanForBreachAborted(run, input, tolerance);
     const passed = scan.breachStep === null;
     trace.push({
       capacityChainsHr: capacity,
@@ -408,7 +429,7 @@ export async function findMinRosterForBoundary(
   };
 
   let lo = Q_BOUNDARY_LO;
-  let hi = Q_BOUNDARY_HI;
+  let hi = ceiling;
   while (hi - lo > Q_BOUNDARY_RESOLUTION) {
     const mid = Math.round((lo + hi) / 2 / Q_BOUNDARY_RESOLUTION) * Q_BOUNDARY_RESOLUTION;
     if (mid === lo || mid === hi) break;
@@ -421,9 +442,11 @@ export async function findMinRosterForBoundary(
   const loResult = passCache.has(lo) ? { passed: passCache.get(lo)!, run: runCache.get(lo)! } : null;
 
   if (hiResult.passed) {
-    const recommendedRoster = cheapestRosterForCapacity(hi);
+    const recommendedRoster = cheapestRosterForCapacity(hi, rosterOverrides);
     const failingRun = loResult && !loResult.passed ? loResult.run : null;
-    const breach = failingRun ? scanForBreach(failingRun, input) : { breachStep: null, breachPercent: 0 };
+    const breach = failingRun
+      ? scanForBreach(failingRun, input, tolerance)
+      : { breachStep: null, breachPercent: 0 };
     return {
       recommendedRoster,
       bestEffortRoster: recommendedRoster,
@@ -435,8 +458,8 @@ export async function findMinRosterForBoundary(
     };
   }
 
-  const bestEffortRoster = cheapestRosterForCapacity(Q_BOUNDARY_HI);
-  const breach = scanForBreach(hiResult.run, input);
+  const bestEffortRoster = cheapestRosterForCapacity(ceiling, rosterOverrides);
+  const breach = scanForBreach(hiResult.run, input, tolerance);
   return {
     recommendedRoster: null,
     bestEffortRoster,
