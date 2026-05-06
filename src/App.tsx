@@ -430,27 +430,30 @@ function App() {
     [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length, modelConfig],
   );
 
-  // Auto-recompute on parameter change. When a recommendation is on screen
-  // and the user adjusts a Model Details slider, debounce 600 ms then re-run
-  // the boundary search with the new modelConfig. Skips the initial render
-  // after a fresh compute (when modelConfig matches what was computed with).
+  // Track which modelConfig snapshot the current recommendation was computed
+  // with. RecommendationCard reads this to show whether parameters have
+  // diverged from the result on screen — and whether the Recompute button
+  // should be enabled.
   const lastComputeConfigRef = useRef<typeof modelConfig | null>(null);
   useEffect(() => {
-    if (!boundaryResult || !boundaryPolygon) {
+    if (!boundaryResult) {
       lastComputeConfigRef.current = null;
       return;
     }
     if (lastComputeConfigRef.current === null) {
       lastComputeConfigRef.current = modelConfig;
-      return;
     }
-    if (lastComputeConfigRef.current === modelConfig) return;
-    const timer = setTimeout(() => {
-      lastComputeConfigRef.current = modelConfig;
-      handleBoundaryClose(boundaryPolygon);
-    }, 600);
-    return () => clearTimeout(timer);
-  }, [modelConfig, boundaryResult, boundaryPolygon, handleBoundaryClose]);
+  }, [boundaryResult, modelConfig]);
+
+  const recomputeNeeded =
+    lastComputeConfigRef.current !== null &&
+    lastComputeConfigRef.current !== modelConfig;
+
+  const handleRecompute = useCallback(() => {
+    if (!boundaryPolygon) return;
+    lastComputeConfigRef.current = modelConfig;
+    handleBoundaryClose(boundaryPolygon);
+  }, [boundaryPolygon, modelConfig, handleBoundaryClose]);
 
   const handleApproveRoster = useCallback(
     async (roster: ResourceCount[]) => {
@@ -821,6 +824,8 @@ function App() {
           onShowBreachPreview={() => setShowBreachPreview((v) => !v)}
           onCancel={handleSuppressionCancel}
           onRedraw={handleRedrawBoundary}
+          onRecompute={handleRecompute}
+          recomputeNeeded={recomputeNeeded}
         />
       )}
 

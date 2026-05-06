@@ -17,6 +17,10 @@ interface RecommendationCardProps {
   onShowBreachPreview: () => void;
   onCancel: () => void;
   onRedraw: () => void;
+  onRecompute: () => void;
+  /** True when the user has tweaked any modelConfig slider since the last
+   *  compute — i.e. the result on screen is stale. */
+  recomputeNeeded: boolean;
 }
 
 interface RosterOption {
@@ -108,6 +112,8 @@ export default function RecommendationCard(
     onShowBreachPreview,
     onCancel,
     onRedraw,
+    onRecompute,
+    recomputeNeeded,
   } = props;
 
   const { config: modelConfig, setConfig: setModelConfig, resetAll: resetModel, isModified: modelIsModified } = useModelConfig();
@@ -444,22 +450,24 @@ export default function RecommendationCard(
               <span className="flex items-center gap-2">
                 <span className="text-amber-400">{methodOpen ? "▼" : "▶"}</span>
                 Methodology &amp; Parameters
-                {modelIsModified && (
-                  <span className="text-micro text-amber-400/80 normal-case tracking-normal">(modified — auto-recomputing)</span>
+                {recomputeNeeded && (
+                  <span className="text-micro text-amber-400 normal-case tracking-normal">
+                    (modified — click Recompute to re-run)
+                  </span>
                 )}
               </span>
               {modelIsModified && (
-                <button
-                  type="button"
+                <span
+                  role="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     resetModel();
                   }}
                   className="text-micro normal-case tracking-normal
-                    text-amber-400 hover:text-amber-200 underline"
+                    text-amber-400 hover:text-amber-200 underline cursor-pointer"
                 >
                   Reset
-                </button>
+                </span>
               )}
             </button>
 
@@ -470,8 +478,9 @@ export default function RecommendationCard(
                   builds a cheapest-mix roster (greedy by $/chain), runs a
                   {" "}{modelConfig.resumeWindowSteps}-step extension simulation,
                   and accepts the result if at most {modelConfig.breachTolerancePct}%
-                  of burning cells fall outside your polygon. Tweaks below
-                  re-run the bisection automatically.
+                  of burning cells fall outside your polygon. Click{" "}
+                  <span className="text-amber-400">Recompute</span> below to
+                  re-run the bisection with your edits.
                 </p>
 
                 <ParamSection title="Resource production rates">
@@ -514,18 +523,32 @@ export default function RecommendationCard(
             )}
           </div>
 
-          <div className="border-t border-white/[0.06] pt-3 flex items-center gap-2">
-            <button
-              type="button"
-              onClick={handleApprove}
-              className="flex-1 px-3 py-2 rounded-lg text-label uppercase tracking-wider
-                font-semibold cursor-pointer transition-colors
-                bg-amber-500/15 text-amber-300 hover:bg-amber-500/25
-                border border-amber-500/30"
-              style={MONO_FONT}
-            >
-              {containable ? "Approve & Deploy" : "Deploy (best effort)"}
-            </button>
+          <div className="border-t border-white/[0.06] pt-3 flex items-center gap-2 flex-wrap">
+            {recomputeNeeded ? (
+              <button
+                type="button"
+                onClick={onRecompute}
+                className="flex-1 px-3 py-2 rounded-lg text-label uppercase tracking-wider
+                  font-semibold cursor-pointer transition-colors
+                  bg-amber-500/30 text-amber-100 hover:bg-amber-500/45
+                  border border-amber-500/60 shadow-[0_0_12px_rgba(245,158,11,0.25)]"
+                style={MONO_FONT}
+              >
+                Recompute with new parameters
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleApprove}
+                className="flex-1 px-3 py-2 rounded-lg text-label uppercase tracking-wider
+                  font-semibold cursor-pointer transition-colors
+                  bg-amber-500/15 text-amber-300 hover:bg-amber-500/25
+                  border border-amber-500/30"
+                style={MONO_FONT}
+              >
+                {containable ? "Approve & Deploy" : "Deploy (best effort)"}
+              </button>
+            )}
             <button
               type="button"
               onClick={onRedraw}
