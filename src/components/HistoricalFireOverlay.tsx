@@ -136,7 +136,14 @@ export default function HistoricalFireOverlay({
     const driftLat = Math.cos(windAngle) * 0.008;
     const driftLng = Math.sin(windAngle) * 0.008;
 
-    for (let f = 0; f <= currentFrame && f < framePositions.length; f++) {
+    // Cap the historical-burn trail to the last 30 frames. Without this
+    // bound, every step re-creates a primitive collection containing one
+    // PointPrimitive per hotspot per past frame — for 100+ step playbacks
+    // (resumed suppression sim) that's 50k+ GPU primitives destroyed and
+    // rebuilt per step, which OOMs the tab.
+    const HISTORICAL_FRAME_WINDOW = 30;
+    const fStart = Math.max(0, currentFrame - HISTORICAL_FRAME_WINDOW);
+    for (let f = fStart; f <= currentFrame && f < framePositions.length; f++) {
       const isCurrent = f === currentFrame;
       const hotspots = framePositions[f];
 
