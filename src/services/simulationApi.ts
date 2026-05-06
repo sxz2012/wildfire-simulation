@@ -122,6 +122,17 @@ export async function apiExtend(req: ApiExtendRequest) {
   }>("/api/extend", { ...rest, initialGridRle: rleEncode(initialGrid) });
 }
 
+export interface ApiQBoundaryModelConfig {
+  breachTolerancePct?: number;
+  searchCeilingChainsHr?: number;
+  rosterOverrides?: {
+    dozerChainsHr?: number;
+    crewChainsHr?: number;
+    helitackThresholdChainsHr?: number;
+    tankerThresholdChainsHr?: number;
+  };
+}
+
 export interface ApiQBoundaryRequest {
   config: SimulationConfig;
   fuelMap: FuelType[];
@@ -133,6 +144,7 @@ export interface ApiQBoundaryRequest {
   polygon: LatLng[];
   weather?: { tempMean: number; tempMax: number; precipitation: number; cumulativePrecip: number };
   maxSteps: number;
+  modelConfig?: ApiQBoundaryModelConfig;
 }
 
 export interface ApiQBoundaryResponse {

@@ -24,6 +24,7 @@ import {
   findMinRosterForBoundary,
   finalAreaHa,
 } from "../src/simulation/inverseSearch.ts";
+import type { BoundarySearchOverrides } from "../src/simulation/inverseSearch.ts";
 import { rleEncode, rleDecode } from "../src/utils/rle.ts";
 import type {
   SimulationConfig,
@@ -202,6 +203,7 @@ interface QBoundaryRequest {
   polygon: LatLng[];
   weather?: SimRequest["weather"];
   maxSteps: number;
+  modelConfig?: BoundarySearchOverrides;
 }
 
 app.post("/api/extend", async (req: Request, res: Response) => {
@@ -253,6 +255,7 @@ app.post("/api/q-boundary", async (req: Request, res: Response) => {
       initialStep: body.initialStep,
       polygon: body.polygon,
       maxSteps: body.maxSteps,
+      modelConfig: body.modelConfig,
     });
     res.json({
       elapsedMs: Date.now() - t0,
