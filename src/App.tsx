@@ -415,7 +415,10 @@ function App() {
       const responseDelayMin = pausedStep * activeConfig.timestepMinutes;
       setSuppressionResources(roster);
       setSuppressionDelay(responseDelayMin);
-      setAppMode("simulation-resumed");
+      // Stay in "simulation" mode so the existing suppressionActive gate +
+      // convertSimulationToFire effect both fire on the new history. The
+      // "simulation-resumed" enum was a transient label; nothing else gates
+      // on it, so we just keep the mode as "simulation".
       try {
         const fuelArr = activeFuelMap ? Array.from(activeFuelMap) : [];
         const remainingSteps = Math.max(50, history.baseline.length - pausedStep);
@@ -464,12 +467,18 @@ function App() {
           suppressed: stitchedSuppressed,
           diags: stitchedDiags,
         });
+        // Drop the polygon-draw scaffolding so the recommendation card,
+        // computing modal, and drawing banner all unmount cleanly.
+        setBoundaryResult(null);
+        // Resume playback from the paused step. The convertSimulationToFire
+        // effect is gated on appMode === "simulation" + history change, so
+        // it'll fire and rebuild activeFire with the stitched history.
+        setAutoPlay(true);
       } catch (err) {
         console.error("apiExtend failed:", err);
         alert(
           `Resume sim failed: ${err instanceof Error ? err.message : String(err)}`,
         );
-        setAppMode("simulation");
       }
     },
     [
@@ -744,7 +753,7 @@ function App() {
         />
       )}
 
-      {viewerRef.current && appMode === "simulation-resumed" && boundaryPolygon && (
+      {viewerRef.current && appMode === "simulation" && boundaryPolygon && (
         <PolygonOverlay
           viewer={viewerRef.current}
           polygon={boundaryPolygon}
