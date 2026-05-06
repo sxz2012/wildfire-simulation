@@ -640,7 +640,9 @@ function App() {
 
       <IgnitionPin
         viewer={viewerRef.current}
-        position={pendingIgnition ?? ignitionPoint}
+        position={
+          appMode.startsWith("paused-") ? null : pendingIgnition ?? ignitionPoint
+        }
       />
 
       {activeFuelMap && ignitionPoint && appMode === "simulation" && (
