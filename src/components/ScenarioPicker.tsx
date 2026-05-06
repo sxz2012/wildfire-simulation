@@ -13,7 +13,7 @@ const SCENARIOS: ScenarioSummary[] = [
     name: "Cupertino WUI",
     description:
       "Westerly wind pushes a fire from the Santa Cruz foothills toward Cupertino.",
-    jsonPath: new URL("../data/scenarios/cupertino-wui.json", import.meta.url).href,
+    jsonPath: "/scenarios/cupertino-wui.json",
   },
 ];
 

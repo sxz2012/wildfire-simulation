@@ -275,7 +275,7 @@ async function generate(spec: ScenarioSpec): Promise<void> {
     analysis: { q1: compactQ1, q2: compactQ2 },
   };
 
-  const outDir = path.join(ROOT, "src/data/scenarios");
+  const outDir = path.join(ROOT, "public/scenarios");
   fs.mkdirSync(outDir, { recursive: true });
   const outPath = path.join(outDir, `${spec.id}.json`);
   fs.writeFileSync(outPath, JSON.stringify(payload));
