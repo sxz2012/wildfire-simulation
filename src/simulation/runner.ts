@@ -1,5 +1,6 @@
 import {
   CellState,
+  FUEL_PROPERTIES,
   type FuelType,
   type SimulationConfig,
   type SimulationState,
@@ -25,27 +26,21 @@ function snapshotGrid(grid: GridCell[], gridSize: number): Uint8Array {
   return snapshot;
 }
 
-function runOnePass(
+function runOnePassFromGrid(
+  initialGrid: GridCell[],
+  initialStep: number,
   config: SimulationConfig,
-  igniteRow: number,
-  igniteCol: number,
-  elevationFn: (lat: number, lng: number) => number,
   maxSteps: number,
-  centerLat: number,
-  centerLng: number,
-  fuelMap: FuelType[] | undefined,
-  elevationMap: Float32Array | undefined,
-  suppression: SuppressionConfig | undefined,
+  suppression: SuppressionConfig | null | undefined,
 ): { history: SimulationState[]; diags: SuppressionStepDiag[] } {
-  let grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
-  igniteCell(grid, igniteRow, igniteCol, config.gridSize);
+  let grid = initialGrid;
   const history: SimulationState[] = [
-    { grid: snapshotGrid(grid, config.gridSize), timestep: 0 },
+    { grid: snapshotGrid(grid, config.gridSize), timestep: initialStep },
   ];
   const diags: SuppressionStepDiag[] = [];
   let cumulativeChains = 0;
 
-  for (let step = 1; step <= maxSteps; step++) {
+  for (let step = initialStep + 1; step <= maxSteps; step++) {
     grid = simulateStep(grid, config, step);
 
     if (suppression && suppression.resources.length > 0) {
@@ -103,6 +98,23 @@ function runOnePass(
   return { history, diags };
 }
 
+function runOnePass(
+  config: SimulationConfig,
+  igniteRow: number,
+  igniteCol: number,
+  elevationFn: (lat: number, lng: number) => number,
+  maxSteps: number,
+  centerLat: number,
+  centerLng: number,
+  fuelMap: FuelType[] | undefined,
+  elevationMap: Float32Array | undefined,
+  suppression: SuppressionConfig | undefined,
+): { history: SimulationState[]; diags: SuppressionStepDiag[] } {
+  const grid = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
+  igniteCell(grid, igniteRow, igniteCol, config.gridSize);
+  return runOnePassFromGrid(grid, 0, config, maxSteps, suppression);
+}
+
 export function runSimulation(
   config: SimulationConfig,
   igniteRow: number,
@@ -129,4 +141,38 @@ export function runSimulation(
       : undefined;
 
   return { config, baseline, suppressed };
+}
+
+/**
+ * Resume simulation from an arbitrary mid-state grid snapshot.
+ * Used by the inverse-search-on-boundary flow: when the user pauses a
+ * wildfire-only sim, we extend from the paused grid rather than re-igniting.
+ *
+ * NOTE on suppression timing: `responseDelayMin` is interpreted as
+ * time-since-ignition (step * timestepMinutes), NOT time-since-resume. The
+ * caller controls "deploy now" semantics by passing
+ * `responseDelayMin = initialStep * timestepMinutes`.
+ */
+export function extendSimulation(
+  config: SimulationConfig,
+  initialGrid: Uint8Array,
+  initialStep: number,
+  fuelMap: FuelType[] | undefined,
+  elevationMap: Float32Array | undefined,
+  centerLat: number,
+  centerLng: number,
+  elevationFn: (lat: number, lng: number) => number,
+  suppression: SuppressionConfig | null,
+  maxSteps: number,
+): SuppressionResult {
+  const fresh = createGrid(config, centerLat, centerLng, elevationFn, fuelMap, elevationMap);
+  for (let i = 0; i < fresh.length; i++) {
+    fresh[i].state = initialGrid[i] as CellState;
+    if (fresh[i].state === CellState.Burning) {
+      // Lossy: original burnTimer is not preserved across snapshots, so we
+      // refill it. Over-estimates remaining burn time by < 1 step on average.
+      fresh[i].burnTimer = FUEL_PROPERTIES[fresh[i].fuel].burnDuration;
+    }
+  }
+  return runOnePassFromGrid(fresh, initialStep, config, maxSteps, suppression);
 }
