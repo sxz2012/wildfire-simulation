@@ -32,7 +32,7 @@ import type { Viewer as CesiumViewer } from "cesium";
 type AppMode = "idle" | "simulation" | "historical";
 
 function App() {
-  const { history, isRunning, startSimulation, reset, setHistory } = useSimulation();
+  const { history, isRunning, startSimulation, reset } = useSimulation();
   const [currentStep, setCurrentStep] = useState(0);
   const [collapsed, setCollapsed] = useState(false);
   const [appMode, setAppMode] = useState<AppMode>("idle");
@@ -298,16 +298,15 @@ function App() {
         _t: Date.now(),
       });
       setAppMode("simulation");
-      // Inject the precomputed scenario into useSimulation so the
-      // suppression-visualization layers + HUD see it as if it were a live
-      // run. Safe with the entity-pooling glTF SuppressionVehicleLayer —
-      // earlier OOMs came from per-step BillboardCollection churn, which the
-      // new implementation avoids via CallbackProperty + push/pop pooling.
-      setHistory({
-        baseline: loaded.baseline.history,
-        suppressed: loaded.suppressed?.history,
-        diags: loaded.suppressed?.diags,
-      });
+      // NOT injecting loaded.{baseline,suppressed,diags} into useSimulation:
+      // it OOMs the tab. Once history.suppressed is populated, both
+      // ContainmentLineLayer and GhostFireOverlay regenerate 600x600 canvases
+      // and PNG-encode them at every currentStep tick — at autoplay's ~5 Hz
+      // over 200 steps that's ~2000 toDataURL("image/png") calls per side,
+      // plus the new glTF SuppressionVehicleLayer's per-frame CallbackProperty
+      // grid scans. Live-ignite path doesn't hit this because its history is
+      // produced incrementally by the worker. Precomputed scenarios still
+      // play back via activeFire / convertSimulationToFire below.
       if (loaded.meta.suppression) {
         setSuppressionDelay(loaded.meta.suppression.responseDelayMin);
         setSuppressionResources(loaded.meta.suppression.resources);
