@@ -289,6 +289,13 @@ export default function RecommendationCard(
                   .
                 </div>
               </div>
+              <div className="border-t border-white/[0.06] pt-3">
+                <div className="text-sm text-gray-300 leading-relaxed">
+                  No realistic resource bundle holds this line. Consider
+                  drawing a <span className="text-amber-400">larger boundary</span>{" "}
+                  with more standoff, or deploy best effort to minimize loss.
+                </div>
+              </div>
             </>
           )}
 
