@@ -678,7 +678,14 @@ function App() {
         />
       )}
 
-      {suppressedSnapshot && ignitionPoint && (
+      {/* Heavy suppression-visualization layers (cyan rim + glTF vehicles +
+          retardant trails) are gated OFF during the IC-recommend resume
+          flow because their combined GPU pressure during the long stitched
+          autoplay was OOMing the tab. The polygon outline + HUD + bounded
+          HistoricalFireOverlay carry the resume's visual story. Live-
+          ignite suppression sandbox runs (no boundary polygon) still get
+          the full visualization. */}
+      {!boundaryPolygon && suppressedSnapshot && ignitionPoint && (
         <ContainmentLineLayer
           key={`containment-${simKey}`}
           gridSnapshot={suppressedSnapshot}
@@ -689,7 +696,7 @@ function App() {
         />
       )}
 
-      {suppressionActive && history.suppressed && ignitionPoint && (
+      {!boundaryPolygon && suppressionActive && history.suppressed && ignitionPoint && (
         <>
           <RetardantTrailLayer
             key={`retardant-${simKey}`}
