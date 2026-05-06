@@ -131,9 +131,11 @@ export default function SuppressionVehicleLayer({
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
-    const groundCollection = new BillboardCollection();
-    const helitackCollection = new BillboardCollection();
-    const tankerCollection = new BillboardCollection();
+    // BillboardCollection needs `scene` so heightReference (CLAMP_TO_GROUND)
+    // can sample terrain. Without it Cesium throws on first add().
+    const groundCollection = new BillboardCollection({ scene: viewer.scene });
+    const helitackCollection = new BillboardCollection({ scene: viewer.scene });
+    const tankerCollection = new BillboardCollection({ scene: viewer.scene });
     viewer.scene.primitives.add(groundCollection);
     viewer.scene.primitives.add(helitackCollection);
     viewer.scene.primitives.add(tankerCollection);
