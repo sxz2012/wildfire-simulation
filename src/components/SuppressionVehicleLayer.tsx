@@ -10,6 +10,7 @@ import { CellState } from "../simulation/types";
 import type { SimulationState, SimulationConfig, SuppressionConfig } from "../simulation/types";
 import { groundPositions, type LatLng } from "../utils/groundPositions";
 import { perTypeCounts } from "../utils/perTypeCounts";
+import type { DropEvent } from "../utils/dropScheduler";
 
 interface SuppressionVehicleLayerProps {
   viewer: CesiumViewer | null;
@@ -22,6 +23,7 @@ interface SuppressionVehicleLayerProps {
   deployStep: number;
   endStep: number;
   currentStep: number;
+  dropEvents: DropEvent[];
 }
 
 function createColoredDisc(size: number, fillColor: string, letter: string): HTMLCanvasElement {
@@ -87,10 +89,13 @@ export default function SuppressionVehicleLayer({
   deployStep,
   endStep,
   currentStep,
+  dropEvents,
 }: SuppressionVehicleLayerProps): null {
   const groundCollectionRef = useRef<BillboardCollection | null>(null);
   const helitackCollectionRef = useRef<BillboardCollection | null>(null);
+  const tankerCollectionRef = useRef<BillboardCollection | null>(null);
   const helitackBillboardsRef = useRef<Billboard[]>([]);
+  const tankerBillboardsRef = useRef<Map<number, Billboard>>(new Map());
   const lastFramePos = useRef<{ engines: LatLng[]; crews: LatLng[]; dozers: LatLng[] }>({
     engines: [],
     crews: [],
@@ -101,28 +106,37 @@ export default function SuppressionVehicleLayer({
   const configCachedRef = useRef<SimulationConfig>(config);
   const centerLatCachedRef = useRef<number>(centerLat);
   const centerLngCachedRef = useRef<number>(centerLng);
+  const dropEventsCachedRef = useRef<DropEvent[]>(dropEvents);
+  const currentStepCachedRef = useRef<number>(currentStep);
 
   const engineImage = useMemo(() => createColoredDisc(48, "#dc2626", "E"), []);
   const crewImage = useMemo(() => createColoredDisc(48, "#facc15", "C"), []);
   const dozerImage = useMemo(() => createColoredDisc(48, "#f97316", "D"), []);
   const helitackImage = useMemo(() => createColoredDisc(48, "#3b82f6", "H"), []);
+  const tankerImage = useMemo(() => createColoredDisc(48, "#38bdf8", "T"), []);
 
   useEffect(() => {
     if (!viewer || viewer.isDestroyed()) return;
     const groundCollection = new BillboardCollection();
     const helitackCollection = new BillboardCollection();
+    const tankerCollection = new BillboardCollection();
     viewer.scene.primitives.add(groundCollection);
     viewer.scene.primitives.add(helitackCollection);
+    viewer.scene.primitives.add(tankerCollection);
     groundCollectionRef.current = groundCollection;
     helitackCollectionRef.current = helitackCollection;
+    tankerCollectionRef.current = tankerCollection;
     return () => {
       if (viewer && !viewer.isDestroyed()) {
         viewer.scene.primitives.remove(groundCollection);
         viewer.scene.primitives.remove(helitackCollection);
+        viewer.scene.primitives.remove(tankerCollection);
       }
       groundCollectionRef.current = null;
       helitackCollectionRef.current = null;
+      tankerCollectionRef.current = null;
       helitackBillboardsRef.current = [];
+      tankerBillboardsRef.current = new Map();
     };
   }, [viewer]);
 
@@ -131,7 +145,9 @@ export default function SuppressionVehicleLayer({
     configCachedRef.current = config;
     centerLatCachedRef.current = centerLat;
     centerLngCachedRef.current = centerLng;
-  }, [curr, config, centerLat, centerLng]);
+    dropEventsCachedRef.current = dropEvents;
+    currentStepCachedRef.current = currentStep;
+  }, [curr, config, centerLat, centerLng, dropEvents, currentStep]);
 
   useEffect(() => {
     const collection = groundCollectionRef.current;
@@ -275,6 +291,56 @@ export default function SuppressionVehicleLayer({
         const lat = centroid.lat + dyMeters / metersPerDegLat;
         const lng = centroid.lng + dxMeters / metersPerDegLng;
         billboards[i].position = Cartesian3.fromDegrees(lng, lat, orbitAltitudeMeters);
+      }
+    };
+    viewer.scene.preRender.addEventListener(callback);
+    return () => {
+      if (viewer && !viewer.isDestroyed()) {
+        viewer.scene.preRender.removeEventListener(callback);
+      }
+    };
+  }, [viewer]);
+
+  useEffect(() => {
+    if (!viewer || viewer.isDestroyed()) return;
+    const tankerAltitudeMeters = 150;
+
+    const callback = () => {
+      const collection = tankerCollectionRef.current;
+      if (!collection) return;
+      const dropEvts = dropEventsCachedRef.current;
+      const cs = currentStepCachedRef.current;
+      const billboards = tankerBillboardsRef.current;
+
+      const activeDrops = dropEvts.filter((e) => cs >= e.startStep && cs <= e.endStep);
+      const activeTankerIdxs = new Set(activeDrops.map((e) => e.tankerIdx));
+
+      for (const [idx, bb] of billboards) {
+        if (!activeTankerIdxs.has(idx)) {
+          collection.remove(bb);
+          billboards.delete(idx);
+        }
+      }
+
+      for (const drop of activeDrops) {
+        const span = drop.endStep - drop.startStep;
+        const t = span > 0 ? (cs - drop.startStep) / span : 0;
+        const lat = drop.axisStart.lat + (drop.axisEnd.lat - drop.axisStart.lat) * t;
+        const lng = drop.axisStart.lng + (drop.axisEnd.lng - drop.axisStart.lng) * t;
+        const newPosition = Cartesian3.fromDegrees(lng, lat, tankerAltitudeMeters);
+
+        let bb = billboards.get(drop.tankerIdx);
+        if (!bb) {
+          bb = collection.add({
+            position: newPosition,
+            image: tankerImage,
+            scale: 1.0,
+            verticalOrigin: VerticalOrigin.BOTTOM,
+          });
+          billboards.set(drop.tankerIdx, bb);
+        } else {
+          bb.position = newPosition;
+        }
       }
     };
     viewer.scene.preRender.addEventListener(callback);
