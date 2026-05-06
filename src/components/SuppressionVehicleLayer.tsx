@@ -55,6 +55,11 @@ const MODEL_SCALES: Record<VehicleType, number> = {
 const MIN_PIXEL_SIZE_GROUND = 32;
 const MIN_PIXEL_SIZE_AIR = 48;
 
+// Cap rendered glTF entity count per type so a max-capacity roster
+// (e.g. 13 dozers from the boundary inverse search) doesn't spike GPU
+// memory past the tab's budget. The HUD still shows the true counts.
+const MAX_VISIBLE_PER_TYPE = 5;
+
 const HELI_ORBIT_RADIUS_M = 400;
 const HELI_ORBIT_ALT_M = 60;
 const HELI_ORBIT_PERIOD_SEC = 30;
@@ -180,14 +185,15 @@ export default function SuppressionVehicleLayer({
       endStep,
     });
 
+    const cap = (n: number) => Math.min(n, MAX_VISIBLE_PER_TYPE);
     const enginePositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, counts.engines, lastFramePos.current.engines,
+      prev, curr, config, centerLat, centerLng, cap(counts.engines), lastFramePos.current.engines,
     );
     const crewPositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, counts.crews, lastFramePos.current.crews,
+      prev, curr, config, centerLat, centerLng, cap(counts.crews), lastFramePos.current.crews,
     );
     const dozerPositions = groundPositions(
-      prev, curr, config, centerLat, centerLng, counts.dozers, lastFramePos.current.dozers,
+      prev, curr, config, centerLat, centerLng, cap(counts.dozers), lastFramePos.current.dozers,
     );
     lastFramePos.current.engines = enginePositions;
     lastFramePos.current.crews = crewPositions;
@@ -274,12 +280,13 @@ export default function SuppressionVehicleLayer({
     }
 
     const list = helitackEntitiesRef.current;
+    const visibleHelitack = Math.min(counts.helitack, MAX_VISIBLE_PER_TYPE);
 
-    while (list.length > counts.helitack) {
+    while (list.length > visibleHelitack) {
       const e = list.pop()!;
       viewer.entities.remove(e);
     }
-    while (list.length < counts.helitack) {
+    while (list.length < visibleHelitack) {
       const idxAtCreation = list.length;
       const startMs = performance.now();
 
