@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import GlobeView from "./components/GlobeView";
 import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
@@ -7,6 +7,9 @@ import FireEffects from "./components/FireEffects";
 import WaterOverlay from "./components/WaterOverlay";
 import ContainmentLineLayer from "./components/ContainmentLineLayer";
 import GhostFireOverlay from "./components/GhostFireOverlay";
+import RetardantTrailLayer from "./components/RetardantTrailLayer";
+import SuppressionVehicleLayer from "./components/SuppressionVehicleLayer";
+import SuppressionHUD from "./components/SuppressionHUD";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
 import { reverseGeocode } from "./components/LocationSearch";
@@ -14,6 +17,7 @@ import { reverseGeocode } from "./components/LocationSearch";
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
 import { DEFAULT_CONFIG, FuelType, SUPPRESSION_BUNDLES, type SimulationConfig, type ResourceCount } from "./simulation/types";
+import { dropScheduler, type DropEvent } from "./utils/dropScheduler";
 import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
 import { fetchCurrentWeather, getSeasonalWeather, type Season, type WeatherData } from "./services/weather";
@@ -384,6 +388,46 @@ function App() {
       ? history.suppressed[Math.min(currentStep, history.suppressed.length - 1)].grid
       : null;
 
+  // Suppression run is active when we have both a suppressed history and ignition point.
+  const suppressionActive =
+    appMode === "simulation" &&
+    ignitionPoint !== null &&
+    history.suppressed !== undefined &&
+    history.suppressed.length > 0 &&
+    suppressionResources.length > 0;
+
+  const deployStep = Math.ceil(suppressionDelay / activeConfig.timestepMinutes);
+  const suppressionEndStep =
+    history.suppressed && history.suppressed.length > 0
+      ? history.suppressed.length - 1
+      : 0;
+
+  // dropScheduler is precomputed once per run; depend on the actual array reference + bundle so we recompute on a new sim.
+  const dropEvents: DropEvent[] = useMemo(() => {
+    if (!suppressionActive || !ignitionPoint || !history.suppressed) return [];
+    return dropScheduler(
+      history.suppressed,
+      activeConfig,
+      ignitionPoint.lat,
+      ignitionPoint.lng,
+      { responseDelayMin: suppressionDelay, resources: suppressionResources },
+      deployStep,
+    );
+  }, [suppressionActive, history.suppressed, activeConfig, ignitionPoint?.lat, ignitionPoint?.lng, suppressionDelay, suppressionResources, deployStep]);
+
+  // Derive a short bundle label by total resource count (the four canonical bundles have unique totals).
+  const bundleLabel = useMemo(() => {
+    const total = suppressionResources.reduce((s, r) => s + r.count, 0);
+    if (total === 0) return "None";
+    if (total === 3) return "Initial Attack";
+    if (total === 7) return "Type 3";
+    if (total === 11) return "Type 2";
+    if (total === 20) return "Type 1";
+    return "Custom";
+  }, [suppressionResources]);
+
+  const suppressedCurrIdx = Math.min(currentStep, suppressionEndStep);
+
   return (
     <div className="h-screen w-screen relative">
       <GlobeView
@@ -419,6 +463,36 @@ function App() {
         />
       )}
 
+      {suppressionActive && history.suppressed && ignitionPoint && (
+        <>
+          <RetardantTrailLayer
+            key={`retardant-${simKey}`}
+            viewer={viewerRef.current}
+            dropEvents={dropEvents}
+            currentStep={suppressedCurrIdx}
+            timestepMinutes={activeConfig.timestepMinutes}
+          />
+          <SuppressionVehicleLayer
+            key={`vehicles-${simKey}`}
+            viewer={viewerRef.current}
+            prev={
+              currentStep > 0
+                ? history.suppressed[Math.min(currentStep - 1, suppressionEndStep)]
+                : null
+            }
+            curr={history.suppressed[suppressedCurrIdx]}
+            config={activeConfig}
+            centerLat={ignitionPoint.lat}
+            centerLng={ignitionPoint.lng}
+            suppression={{ responseDelayMin: suppressionDelay, resources: suppressionResources }}
+            deployStep={deployStep}
+            endStep={suppressionEndStep}
+            currentStep={suppressedCurrIdx}
+            dropEvents={dropEvents}
+          />
+        </>
+      )}
+
       {baselineSnapshot && suppressedSnapshot && ignitionPoint && (
         <GhostFireOverlay
           key={`ghost-${simKey}`}
@@ -447,6 +521,23 @@ function App() {
             viewer={viewerRef.current}
           />
         </>
+      )}
+
+      {suppressionActive && history.suppressed && history.diags && (
+        <div className="absolute top-[200px] right-3 z-40 pointer-events-none">
+          <div className="pointer-events-auto">
+            <SuppressionHUD
+              diags={history.diags}
+              config={activeConfig}
+              suppression={{ responseDelayMin: suppressionDelay, resources: suppressionResources }}
+              deployStep={deployStep}
+              endStep={suppressionEndStep}
+              currentStep={suppressedCurrIdx}
+              dropEvents={dropEvents}
+              bundleLabel={bundleLabel}
+            />
+          </div>
+        </div>
       )}
 
       <ControlPanel
