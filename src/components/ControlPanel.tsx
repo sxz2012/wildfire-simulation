@@ -4,6 +4,7 @@ import { HISTORICAL_FIRE_LIST, type HistoricalFire } from "../data/historicalFir
 import { SEASONS, type Season } from "../services/weather";
 import ImpactSection from "./ImpactSection";
 import LocationSearch from "./LocationSearch";
+import ScenarioPicker, { type ScenarioSummary } from "./ScenarioPicker";
 import SuppressionInputs from "./SuppressionInputs";
 import type { ResourceCount, SimulationState, SuppressionStepDiag } from "../simulation/types";
 
@@ -16,6 +17,8 @@ interface ControlPanelProps {
   onWeatherSourceChange: (source: WeatherSource, season?: Season) => void;
   /** Fly the camera to a search-selected location. */
   onLocationSelected?: (lat: number, lng: number, label: string) => void;
+  onScenarioPick?: (scenario: ScenarioSummary) => void;
+  onScenarioLive?: () => void;
   isRunning: boolean;
   /** True when the user has dropped a flame pin and is ready to start. */
   hasPendingIgnition?: boolean;
@@ -39,6 +42,8 @@ export default function ControlPanel({
   onReset,
   onWeatherSourceChange,
   onLocationSelected,
+  onScenarioPick,
+  onScenarioLive,
   isRunning,
   hasPendingIgnition = false,
   collapsed,
@@ -120,6 +125,13 @@ export default function ControlPanel({
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
         {mode === "ignite" && (
           <>
+            {onScenarioPick && onScenarioLive && (
+              <ScenarioPicker
+                onPick={onScenarioPick}
+                onLive={onScenarioLive}
+              />
+            )}
+
             {onLocationSelected && (
               <div>
                 <SectionLabel>Location</SectionLabel>
