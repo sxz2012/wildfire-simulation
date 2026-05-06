@@ -473,13 +473,22 @@ function App() {
           suppressed: stitchedSuppressed,
           diags: stitchedDiags,
         });
-        // Drop the polygon-draw scaffolding so the recommendation card,
-        // computing modal, and drawing banner all unmount cleanly.
+        // Drop the polygon-draw scaffolding so the recommendation card and
+        // computing modal unmount cleanly.
         setBoundaryResult(null);
-        // Resume playback from the paused step. The convertSimulationToFire
-        // effect is gated on appMode === "simulation" + history change, so
-        // it'll fire and rebuild activeFire with the stitched history.
-        setAutoPlay(true);
+        // Anchor the timeline at the paused step so the user sees the
+        // deployment moment first, not the end of the resumed sim.
+        setCurrentStep(pausedStep);
+        // Transition back to "simulation" mode so the TimelineBar remounts,
+        // the convertSimulationToFire effect fires (rebuilds activeFire with
+        // the longer stitched history), and suppressionActive flips true so
+        // the cyan rim / vehicle / HUD layers all activate.
+        setAppMode("simulation");
+        // Force autoplay to restart by toggling false → true. autoPlay was
+        // already true from the original wildfire-only sim, so a single
+        // setAutoPlay(true) wouldn't trigger TimelineBar's deps-based effect.
+        setAutoPlay(false);
+        setTimeout(() => setAutoPlay(true), 50);
       } catch (err) {
         console.error("apiExtend failed:", err);
         alert(

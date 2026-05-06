@@ -27,17 +27,29 @@ export default function RetardantTrailLayer({
     for (const event of dropEvents) {
       if (event.centerStep > currentStep) continue;
       const elapsed = currentStep - event.centerStep;
-      const opacity = Math.max(0.3, 1 - elapsed / decaySteps);
+      // Floor at 0.1 (was 0.3) so older trails fade further out of the way.
+      const opacity = Math.max(0.1, 1 - elapsed / decaySteps);
+
+      // The dropEvent's axis runs 5 km past each end of the burning bbox to
+      // model the tanker's approach + exit. Retardant only gets dropped over
+      // the actual fire — clip the trail to the inner 30% of the flight
+      // axis so we paint just the drop zone, not the whole flight path.
+      const t0 = 0.35;
+      const t1 = 0.65;
+      const trailStartLng = event.axisStart.lng + (event.axisEnd.lng - event.axisStart.lng) * t0;
+      const trailStartLat = event.axisStart.lat + (event.axisEnd.lat - event.axisStart.lat) * t0;
+      const trailEndLng = event.axisStart.lng + (event.axisEnd.lng - event.axisStart.lng) * t1;
+      const trailEndLat = event.axisStart.lat + (event.axisEnd.lat - event.axisStart.lat) * t1;
 
       const entity = viewer.entities.add({
         polyline: {
           positions: Cartesian3.fromDegreesArray([
-            event.axisStart.lng,
-            event.axisStart.lat,
-            event.axisEnd.lng,
-            event.axisEnd.lat,
+            trailStartLng,
+            trailStartLat,
+            trailEndLng,
+            trailEndLat,
           ]),
-          width: 8,
+          width: 4,
           material: Color.fromCssColorString("#d92121").withAlpha(opacity),
           clampToGround: true,
         },
