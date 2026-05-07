@@ -458,53 +458,114 @@ export default function RecommendationCard(
             </button>
 
             {methodOpen && (
-              <div className="mt-3 space-y-4">
-                <p className="text-sm text-gray-300 leading-relaxed">
-                  Bisection on chains/hr capacity. For each candidate the system
-                  builds a cheapest-mix roster (greedy by $/chain), runs a
-                  {" "}{modelConfig.resumeWindowSteps}-step extension simulation,
-                  and accepts the result if at most {modelConfig.breachTolerancePct}%
-                  of burning cells fall outside your polygon. Click{" "}
-                  <span className="text-amber-400">Recompute</span> below to
-                  re-run the bisection with your edits.
-                </p>
+              <div className="mt-3 space-y-5">
+                <div className="text-sm text-gray-300 leading-relaxed space-y-2">
+                  <p>
+                    The system bisects on total <span className="text-amber-400">chains/hr</span>{" "}
+                    capacity (1 chain = 20 m of fireline). For each candidate
+                    capacity it builds the <span className="text-amber-400">cheapest-mix roster</span>{" "}
+                    (dozers first because they're 8× faster per dollar than crews),
+                    runs a <span className="text-amber-400">{modelConfig.resumeWindowSteps}-step
+                    extension simulation</span> from your pause point, and
+                    accepts the result if at most <span className="text-amber-400">
+                    {modelConfig.breachTolerancePct}%</span> of burning cells
+                    fall outside your polygon. Bisection converges in ≤ 8 sim
+                    runs.
+                  </p>
+                  <p className="text-micro text-gray-500" style={MONO_FONT}>
+                    Click 📚 Resources (bottom right) for full audience-friendly
+                    photos + descriptions of each resource type.
+                  </p>
+                </div>
 
                 <ParamSection title="Resource production rates">
-                  <ParamSlider label="Type 1 Dozer" units="ch/hr" value={modelConfig.dozerChainsHr}
+                  <ParamSlider
+                    label="Type 1 Dozer"
+                    units="ch/hr"
+                    value={modelConfig.dozerChainsHr}
                     defaultValue={DEFAULT_MODEL_CONFIG.dozerChainsHr}
                     min={0} max={150} step={1}
-                    onChange={(v) => setModelConfig({ dozerChainsHr: v })} />
-                  <ParamSlider label="Type 1 Crew" units="ch/hr" value={modelConfig.crewChainsHr}
+                    onChange={(v) => setModelConfig({ dozerChainsHr: v })}
+                    description="Heavy tracked bulldozer (CAT D7/D8). Cuts wide fireline through brush + small timber. NWCG default 75 ch/hr ≈ 1,500 m of new line per hour — the fastest line-builder in the inventory and cheapest per chain ($67/chain)."
+                    reference="NWCG Standards"
+                  />
+                  <ParamSlider
+                    label="Type 1 Crew (hand crew)"
+                    units="ch/hr"
+                    value={modelConfig.crewChainsHr}
                     defaultValue={DEFAULT_MODEL_CONFIG.crewChainsHr}
                     min={0} max={18} step={1}
-                    onChange={(v) => setModelConfig({ crewChainsHr: v })} />
-                  <ParamSlider label="Engine" units="ch/hr" value={modelConfig.engineChainsHr}
+                    onChange={(v) => setModelConfig({ crewChainsHr: v })}
+                    description="20-person Interagency Hotshot Crew (IHC). Builds direct line by hand with chainsaws and pulaskis. Slower than dozers but fits anywhere — including steep terrain dozers can't access."
+                    reference="NWCG Standards"
+                  />
+                  <ParamSlider
+                    label="Engine"
+                    units="ch/hr"
+                    value={modelConfig.engineChainsHr}
                     defaultValue={DEFAULT_MODEL_CONFIG.engineChainsHr}
                     min={0} max={8} step={1}
-                    onChange={(v) => setModelConfig({ engineChainsHr: v })} />
-                  <ParamSlider label="Helitack swath" units="chains" value={modelConfig.helitackSwathChains}
+                    onChange={(v) => setModelConfig({ engineChainsHr: v })}
+                    description="Type 3/Type 6 wildland engine, 3-4 person crew. Lower direct-line rate (4 ch/hr) because engines are primarily for water support and structure protection, not new line construction."
+                    reference="NWCG Standards"
+                  />
+                  <ParamSlider
+                    label="Helitack swath"
+                    units="chains"
+                    value={modelConfig.helitackSwathChains}
                     defaultValue={DEFAULT_MODEL_CONFIG.helitackSwathChains}
                     min={0} max={16} step={1}
-                    onChange={(v) => setModelConfig({ helitackSwathChains: v })} />
+                    onChange={(v) => setModelConfig({ helitackSwathChains: v })}
+                    description="Helicopter water/foam drop length. Inside this swath, fire spread rate is reduced by 0.4× (i.e. spreads 60% slower). Helitack doesn't build line directly; it slows the fire while ground crews catch up."
+                    reference="NWCG aerial production"
+                  />
                 </ParamSection>
 
                 <ParamSection title="Inverse search">
-                  <ParamSlider label="Breach tolerance" units="%" value={modelConfig.breachTolerancePct}
+                  <ParamSlider
+                    label="Breach tolerance"
+                    units="%"
+                    value={modelConfig.breachTolerancePct}
                     defaultValue={DEFAULT_MODEL_CONFIG.breachTolerancePct}
                     min={0} max={10} step={1}
-                    onChange={(v) => setModelConfig({ breachTolerancePct: v })} />
-                  <ParamSlider label="Search ceiling" units="ch/hr" value={modelConfig.searchCeilingChainsHr}
+                    onChange={(v) => setModelConfig({ breachTolerancePct: v })}
+                    description="Fraction of burning cells allowed outside your polygon before a candidate roster is declared 'failed'. 2% accommodates rogue-ember escapes; raise it to accept noisier containment, lower for strict containment."
+                    reference="Reed–McCool 2000"
+                  />
+                  <ParamSlider
+                    label="Search ceiling"
+                    units="ch/hr"
+                    value={modelConfig.searchCeilingChainsHr}
                     defaultValue={DEFAULT_MODEL_CONFIG.searchCeilingChainsHr}
                     min={500} max={5000} step={100}
-                    onChange={(v) => setModelConfig({ searchCeilingChainsHr: v })} />
+                    onChange={(v) => setModelConfig({ searchCeilingChainsHr: v })}
+                    description="Maximum line capacity the bisection considers. 1000 ch/hr is the upper edge of single-IC capacity. Above 1000 = multi-jurisdictional surge. Beyond 2500 ch/hr the right answer is to redraw the polygon larger."
+                    reference="NWCG Type 1 incident definitions"
+                  />
                 </ParamSection>
 
                 <ParamSection title="Resume window">
-                  <ParamSlider label="Post-pause sim duration" units="steps" value={modelConfig.resumeWindowSteps}
+                  <ParamSlider
+                    label="Post-pause sim duration"
+                    units="steps"
+                    value={modelConfig.resumeWindowSteps}
                     defaultValue={DEFAULT_MODEL_CONFIG.resumeWindowSteps}
                     min={10} max={60} step={5}
-                    onChange={(v) => setModelConfig({ resumeWindowSteps: v })} />
+                    onChange={(v) => setModelConfig({ resumeWindowSteps: v })}
+                    description={`How many timesteps to simulate forward from your pause point. ${modelConfig.resumeWindowSteps} × 3 min = ${modelConfig.resumeWindowSteps * 3} min ≈ ${(modelConfig.resumeWindowSteps * 3 / 60).toFixed(1)}h of fire. Enough to see whether the polygon holds; larger windows = more compute.`}
+                    reference="internal calibration"
+                  />
                 </ParamSection>
+
+                <div
+                  className="text-micro text-gray-500 leading-relaxed pt-2 border-t border-white/[0.04]"
+                  style={MONO_FONT}
+                >
+                  References — NWCG Standards for Interagency Incident Business
+                  Management (production rates, costs); Rothermel 1972 (fire
+                  spread base equation); Hirsch &amp; Martell 1996 (response delay
+                  decay); Reed &amp; McCool 2000 (containment probability).
+                </div>
               </div>
             )}
           </div>
@@ -609,6 +670,8 @@ interface ParamSliderProps {
   max: number;
   step: number;
   onChange: (next: number) => void;
+  description?: string;
+  reference?: string;
 }
 
 function ParamSlider({
@@ -620,12 +683,14 @@ function ParamSlider({
   max,
   step,
   onChange,
+  description,
+  reference,
 }: ParamSliderProps): ReactElement {
   const modified = value !== defaultValue;
   return (
-    <div>
+    <div className="pb-2">
       <div className="flex items-baseline justify-between mb-0.5">
-        <span className="text-sm text-gray-300">{label}</span>
+        <span className="text-sm text-gray-200 font-medium">{label}</span>
         <div className="flex items-baseline gap-2">
           <span
             className={`text-sm tabular-nums ${
@@ -660,6 +725,22 @@ function ParamSlider({
         onChange={(e) => onChange(parseInt(e.target.value, 10))}
         className="w-full accent-amber-500"
       />
+      {description && (
+        <p className="text-micro text-gray-400 mt-1 leading-relaxed">
+          {description}
+          {reference && (
+            <>
+              {" "}
+              <span
+                className="text-amber-400/70 ml-1"
+                style={MONO_FONT}
+              >
+                — {reference}
+              </span>
+            </>
+          )}
+        </p>
+      )}
     </div>
   );
 }
