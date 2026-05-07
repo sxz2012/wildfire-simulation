@@ -10,6 +10,7 @@ import GhostFireOverlay from "./components/GhostFireOverlay";
 import SuppressionHUD from "./components/SuppressionHUD";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
+import ResourcesReference from "./components/ResourcesReference";
 import BoundaryDrawTool from "./components/BoundaryDrawTool";
 import RecommendationCard from "./components/RecommendationCard";
 import PolygonOverlay from "./components/PolygonOverlay";
@@ -89,6 +90,7 @@ function App() {
   const [drawingVertices, setDrawingVertices] = useState<LatLng[]>([]);
   // Incremented to ask BoundaryDrawTool to validate + finalize the polygon.
   const [computeRequestKey, setComputeRequestKey] = useState(0);
+  const [resourcesReferenceOpen, setResourcesReferenceOpen] = useState(false);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -957,6 +959,27 @@ function App() {
           the RecommendationCard as a collapsible section. No separate
           panel — keeps the methodology context tied to the recommendation
           it pertains to. */}
+
+      {/* Resources reference modal — for demo audiences (firefighters / kids).
+          Trigger button anchored bottom-right above the timeline. */}
+      <button
+        type="button"
+        onClick={() => setResourcesReferenceOpen(true)}
+        className="fixed bottom-[80px] right-3 z-50 fire-panel rounded-lg
+          px-3 py-2 text-caption tracking-[0.18em] uppercase font-medium
+          text-amber-400 hover:bg-amber-500/15 hover:text-amber-300
+          transition-colors cursor-pointer flex items-center gap-2
+          shadow-[0_4px_16px_-4px_rgba(0,0,0,0.5)]"
+        style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        title="Show resource reference (firefighter & audience-friendly)"
+      >
+        <span aria-hidden="true">📚</span>
+        <span>Resources</span>
+      </button>
+      <ResourcesReference
+        isOpen={resourcesReferenceOpen}
+        onClose={() => setResourcesReferenceOpen(false)}
+      />
     </div>
   );
 }
