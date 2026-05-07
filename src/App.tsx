@@ -11,6 +11,7 @@ import SuppressionHUD from "./components/SuppressionHUD";
 import IgnitionPin from "./components/IgnitionPin";
 import Legend from "./components/Legend";
 import ResourcesReference from "./components/ResourcesReference";
+import SplitCompareView from "./components/SplitCompareView";
 import BoundaryDrawTool from "./components/BoundaryDrawTool";
 import RecommendationCard from "./components/RecommendationCard";
 import PolygonOverlay from "./components/PolygonOverlay";
@@ -91,6 +92,7 @@ function App() {
   // Incremented to ask BoundaryDrawTool to validate + finalize the polygon.
   const [computeRequestKey, setComputeRequestKey] = useState(0);
   const [resourcesReferenceOpen, setResourcesReferenceOpen] = useState(false);
+  const [splitCompareOpen, setSplitCompareOpen] = useState(false);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -980,6 +982,42 @@ function App() {
         isOpen={resourcesReferenceOpen}
         onClose={() => setResourcesReferenceOpen(false)}
       />
+
+      {/* Split compare trigger — appears once both baseline + suppressed
+          histories exist. Sits just above the Resources button so the two
+          demo CTAs cluster together. */}
+      {history.suppressed && history.suppressed.length > 0 && history.baseline.length > 0 && ignitionPoint && (
+        <button
+          type="button"
+          onClick={() => setSplitCompareOpen(true)}
+          className="fixed bottom-[130px] right-3 z-50 fire-panel rounded-lg
+            px-3 py-2 text-caption tracking-[0.18em] uppercase font-medium
+            text-amber-400 hover:bg-amber-500/15 hover:text-amber-300
+            transition-colors cursor-pointer flex items-center gap-2
+            shadow-[0_4px_16px_-4px_rgba(0,0,0,0.5)]"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          title="Side-by-side comparison: without control vs with control"
+        >
+          <span aria-hidden="true">⇆</span>
+          <span>Compare</span>
+        </button>
+      )}
+      {history.suppressed && history.suppressed.length > 0 && history.baseline.length > 0 && ignitionPoint && (
+        <SplitCompareView
+          isOpen={splitCompareOpen}
+          onClose={() => setSplitCompareOpen(false)}
+          baselineHistory={history.baseline}
+          suppressedHistory={history.suppressed}
+          config={activeConfig}
+          ignitionPoint={ignitionPoint}
+          fuelMap={activeFuelMap}
+          boundaryPolygon={boundaryPolygon}
+          currentStep={currentStep}
+          onStepChange={setCurrentStep}
+          timestepMinutes={activeConfig.timestepMinutes}
+          originDate={activeOriginDate}
+        />
+      )}
     </div>
   );
 }
