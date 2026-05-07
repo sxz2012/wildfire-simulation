@@ -52,20 +52,55 @@ export default function SuppressionHUD({
     endStep,
   });
 
-  let dropTimeLabel = "n/a";
-  let lastDropCenter: number | null = null;
-  for (const ev of dropEvents) {
-    if (ev.centerStep <= currentStep) {
-      if (lastDropCenter === null || ev.centerStep > lastDropCenter) {
-        lastDropCenter = ev.centerStep;
+  // Build the chronological drop log. Each entry carries a status relative
+  // to currentStep (past / live / upcoming) and a human-readable elapsed.
+  const formatRelativeMin = (min: number): string => {
+    if (min < 1) return "just now";
+    if (min < 60) return `${min}m`;
+    const h = Math.floor(min / 60);
+    const m = min % 60;
+    return m === 0 ? `${h}h` : `${h}h ${m}m`;
+  };
+  type DropLogEntry = {
+    tankerIdx: number;
+    centerStep: number;
+    simTimeLabel: string; // HH:MM into the run
+    relativeLabel: string; // "30m ago" / "live" / "in 15m"
+    status: "past" | "live" | "upcoming";
+  };
+  const dropLog: DropLogEntry[] = dropEvents
+    .slice()
+    .sort((a, b) => a.centerStep - b.centerStep)
+    .map((ev) => {
+      let status: DropLogEntry["status"];
+      if (currentStep >= ev.endStep) status = "past";
+      else if (currentStep >= ev.startStep) status = "live";
+      else status = "upcoming";
+
+      const centerMin = ev.centerStep * config.timestepMinutes;
+      const simTimeLabel = `${pad2(Math.floor(centerMin / 60))}:${pad2(centerMin % 60)}`;
+
+      let relativeLabel: string;
+      if (status === "live") {
+        relativeLabel = "live";
+      } else if (status === "past") {
+        const elapsedMin = (currentStep - ev.centerStep) * config.timestepMinutes;
+        relativeLabel = formatRelativeMin(elapsedMin) + " ago";
+      } else {
+        const aheadMin = (ev.centerStep - currentStep) * config.timestepMinutes;
+        relativeLabel = "in " + formatRelativeMin(aheadMin);
       }
-    }
-  }
-  if (lastDropCenter !== null) {
-    const elapsedSteps = currentStep - lastDropCenter;
-    const elapsedMin = elapsedSteps * config.timestepMinutes;
-    dropTimeLabel = `${pad2(Math.floor(elapsedMin / 60))}:${pad2(elapsedMin % 60)} ago`;
-  }
+
+      return {
+        tankerIdx: ev.tankerIdx,
+        centerStep: ev.centerStep,
+        simTimeLabel,
+        relativeLabel,
+        status,
+      };
+    });
+  const dropsPast = dropLog.filter((d) => d.status === "past").length;
+  const dropsLive = dropLog.filter((d) => d.status === "live").length;
 
   const lineMeters = diags[currentStep]?.cumulativeLineMeters ?? 0;
   const lineLabel = formatMeters(lineMeters);
@@ -124,10 +159,84 @@ export default function SuppressionHUD({
         <div>🚁 {counts.helitack} helitack</div>
         {hasTanker && (
           <div className="col-span-2">
-            ✈️ {counts.tankers} tanker{counts.tankers === 1 ? "" : "s"} ({dropTimeLabel})
+            ✈️ {counts.tankers} tanker{counts.tankers === 1 ? "" : "s"}
+            {dropLog.length > 0 && (
+              <span className="text-micro text-gray-500 ml-1.5">
+                · {dropsPast}
+                {dropsLive > 0 ? ` + ${dropsLive} live` : ""} of {dropLog.length} drops
+              </span>
+            )}
           </div>
         )}
       </div>
+
+      {hasTanker && dropLog.length > 0 && (
+        <div className="border-t border-white/[0.06] pt-2 mb-3">
+          <div
+            className="flex items-center justify-between text-micro tracking-[0.15em] uppercase text-amber-400/80 mb-1.5"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            <span>Drop log</span>
+            <span className="text-gray-500 normal-case tracking-normal">
+              every {Math.round(30)} sim min
+            </span>
+          </div>
+          <div
+            ref={(el) => {
+              // Auto-scroll so the most-recent past / live drop stays visible.
+              if (!el) return;
+              const liveOrLast = el.querySelector(
+                "[data-drop-status='live']",
+              ) as HTMLElement | null;
+              const target =
+                liveOrLast ??
+                (el.querySelector(
+                  "[data-drop-status='past']:last-of-type",
+                ) as HTMLElement | null);
+              if (target) {
+                el.scrollTop = target.offsetTop - el.offsetTop - 8;
+              }
+            }}
+            className="max-h-[140px] overflow-y-auto pr-1 space-y-0.5 text-micro"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            {dropLog.map((d, i) => {
+              const dot =
+                d.status === "live" ? "●" : d.status === "past" ? "✓" : "○";
+              const dotColor =
+                d.status === "live"
+                  ? "text-amber-400"
+                  : d.status === "past"
+                    ? "text-emerald-400"
+                    : "text-gray-500";
+              const rowColor =
+                d.status === "live"
+                  ? "text-amber-300"
+                  : d.status === "past"
+                    ? "text-gray-300"
+                    : "text-gray-500";
+              return (
+                <div
+                  key={`${d.tankerIdx}-${d.centerStep}-${i}`}
+                  data-drop-status={d.status}
+                  className={`flex items-center gap-2 tabular-nums ${rowColor}`}
+                >
+                  <span
+                    className={`${dotColor} ${
+                      d.status === "live" ? "animate-pulse" : ""
+                    }`}
+                  >
+                    {dot}
+                  </span>
+                  <span className="text-gray-500">T{d.tankerIdx + 1}</span>
+                  <span>{d.simTimeLabel}</span>
+                  <span className="text-gray-500 ml-auto">{d.relativeLabel}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="border-t border-white/[0.06] pt-2 space-y-1.5 text-gray-300">
         <Row
