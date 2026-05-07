@@ -127,18 +127,12 @@ export default function RecommendationCard(
 
   const options: RosterOption[] = useMemo(() => {
     return [
-      {
-        label: `Recommended (${describeRoster(primaryRoster)})`,
-        roster: primaryRoster,
-      },
-      {
-        label: "Initial Attack (Type2Crew + Engine + Helitack)",
-        roster: SUPPRESSION_BUNDLES.initialAttack,
-      },
-      { label: "Type 3 Medium", roster: SUPPRESSION_BUNDLES.type3 },
-      { label: "Type 2 Large", roster: SUPPRESSION_BUNDLES.type2 },
-      { label: "Type 1 Maximum", roster: SUPPRESSION_BUNDLES.type1 },
-      { label: "Custom...", roster: [] },
+      { label: "Recommended", roster: primaryRoster },
+      { label: "Initial Attack", roster: SUPPRESSION_BUNDLES.initialAttack },
+      { label: "Type 3 (Medium)", roster: SUPPRESSION_BUNDLES.type3 },
+      { label: "Type 2 (Large)", roster: SUPPRESSION_BUNDLES.type2 },
+      { label: "Type 1 (Maximum)", roster: SUPPRESSION_BUNDLES.type1 },
+      { label: "Custom roster...", roster: [] },
     ];
   }, [primaryRoster]);
 
@@ -199,8 +193,8 @@ export default function RecommendationCard(
       }}
     >
       <div
-        className="fire-panel rounded-2xl text-white"
-        style={{ width: 480, maxWidth: "92vw", ...SANS_FONT }}
+        className="fire-panel rounded-2xl text-white max-h-[92vh] overflow-y-auto"
+        style={{ width: 560, maxWidth: "94vw", ...SANS_FONT }}
         onClick={(e) => e.stopPropagation()}
       >
         <div
@@ -237,16 +231,16 @@ export default function RecommendationCard(
           {containable ? (
             <>
               <div>
-                <div className="text-base font-semibold text-amber-200 mb-1">
+                <div className="text-lg font-semibold text-amber-200 leading-tight mb-1.5">
                   {describeRoster(primaryRoster)}
                 </div>
                 {(() => {
                   const tier = classifyRoster(primaryRoster);
                   const isSurge = tier.key === "surge";
                   return (
-                    <div className="mb-1">
+                    <div className="mb-2.5">
                       <span
-                        className={`inline-block text-label uppercase tracking-wider px-2 py-0.5 rounded ${
+                        className={`inline-block text-label uppercase tracking-[0.12em] px-2 py-0.5 rounded ${
                           isSurge
                             ? "bg-red-500/15 text-red-300 border border-red-500/30"
                             : "bg-amber-500/10 text-amber-300 border border-amber-500/20"
@@ -256,24 +250,16 @@ export default function RecommendationCard(
                         {tier.label}
                       </span>
                       {tier.caveat && (
-                        <div className="text-micro text-red-200/80 mt-1 leading-snug">
+                        <div className="text-micro text-red-200/80 mt-1.5 leading-snug">
                           {tier.caveat}
                         </div>
                       )}
                     </div>
                   );
                 })()}
-                <div
-                  className="text-micro text-gray-400 tabular-nums"
-                  style={MONO_FONT}
-                >
-                  Total line capacity: {recommendedCapacity} chains/hr
-                </div>
-                <div
-                  className="text-micro text-gray-400 tabular-nums"
-                  style={MONO_FONT}
-                >
-                  Estimated cost: {formatCost(totalCostPerHour(primaryRoster))}
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2">
+                  <Metric label="Line capacity" value={`${recommendedCapacity} ch/hr`} />
+                  <Metric label="Cost" value={formatCost(totalCostPerHour(primaryRoster))} />
                 </div>
               </div>
 
@@ -573,6 +559,22 @@ export default function RecommendationCard(
             </button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }): ReactElement {
+  return (
+    <div>
+      <div
+        className="text-label uppercase tracking-[0.12em] text-gray-500"
+        style={MONO_FONT}
+      >
+        {label}
+      </div>
+      <div className="text-base text-amber-100 tabular-nums" style={MONO_FONT}>
+        {value}
       </div>
     </div>
   );
