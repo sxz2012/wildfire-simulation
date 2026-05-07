@@ -128,9 +128,19 @@ select.fire-select:focus {
 }
 
 /* ─── Typography Scale ─── */
-.text-micro  { font-size: 10px; }
-.text-label  { font-size: 11px; }
-.text-caption { font-size: 12px; }
+.text-micro  { font-size: 13px; }
+.text-label  { font-size: 14px; }
+.text-caption { font-size: 15px; }
+
+/* Bump body text size inside any fire-panel chrome so the dense
+ * IC-control panels read clearly at viewing distance. Targets text-sm
+ * (Tailwind default 14px) and text-base (16px) without touching the
+ * map / timeline. */
+.fire-panel { font-size: 16px; }
+.fire-panel .text-sm  { font-size: 15px; line-height: 1.45; }
+.fire-panel .text-base { font-size: 17px; line-height: 1.45; }
+.fire-panel .text-lg  { font-size: 19px; line-height: 1.45; }
+.fire-panel .text-xl  { font-size: 22px; line-height: 1.4; }
 
 /* ─── Panel Entrance Animations ─── */
 @keyframes panel-enter-left {
