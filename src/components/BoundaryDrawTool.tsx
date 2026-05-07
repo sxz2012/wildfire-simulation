@@ -145,7 +145,6 @@ export default function BoundaryDrawTool({
 
     // Crosshair cursor while drawing.
     const canvas = viewer.scene.canvas;
-    const previousCursor = canvas.style.cursor;
     canvas.style.cursor = "crosshair";
 
     const handler = new ScreenSpaceEventHandler(canvas);
@@ -244,10 +243,13 @@ export default function BoundaryDrawTool({
 
     return () => {
       handler.destroy();
-      // Always restore camera (defensive against drag-mid-unmount) and cursor.
+      // Always restore default cursor + re-enable camera input on cleanup.
+      // Hard-set to empty string instead of capturing the prior value, which
+      // could already have been "crosshair" from a previous activation that
+      // didn't clean up (HMR, error boundary, etc.).
       if (!viewer.isDestroyed()) {
         viewer.scene.screenSpaceCameraController.enableInputs = true;
-        canvas.style.cursor = previousCursor;
+        canvas.style.cursor = "";
       }
     };
   }, [viewer, active]);
