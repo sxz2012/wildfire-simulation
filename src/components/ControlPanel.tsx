@@ -4,7 +4,7 @@ import { HISTORICAL_FIRE_LIST, type HistoricalFire } from "../data/historicalFir
 import { SEASONS, type Season } from "../services/weather";
 import ImpactSection from "./ImpactSection";
 import LocationSearch from "./LocationSearch";
-import ScenarioPicker, { type ScenarioSummary } from "./ScenarioPicker";
+import type { ScenarioSummary } from "./ScenarioPicker";
 import SuppressionInputs from "./SuppressionInputs";
 import type { ResourceCount, SimulationState, SuppressionStepDiag } from "../simulation/types";
 
@@ -17,6 +17,7 @@ interface ControlPanelProps {
   onWeatherSourceChange: (source: WeatherSource, season?: Season) => void;
   /** Fly the camera to a search-selected location. */
   onLocationSelected?: (lat: number, lng: number, label: string) => void;
+  /** Callbacks retained for backward compatibility — no longer wired in UI. */
   onScenarioPick?: (scenario: ScenarioSummary) => void;
   onScenarioLive?: () => void;
   isRunning: boolean;
@@ -50,8 +51,6 @@ export default function ControlPanel({
   onReset,
   onWeatherSourceChange,
   onLocationSelected,
-  onScenarioPick,
-  onScenarioLive,
   isRunning,
   hasPendingIgnition = false,
   collapsed,
@@ -106,7 +105,7 @@ export default function ControlPanel({
             <div className="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)] animate-pulse" />
             <h2 className="text-base font-bold tracking-[0.15em] uppercase"
               style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--fire-amber)" }}>
-              Wildfire Ops
+              Wildfire Study
             </h2>
           </div>
           <button onClick={onToggleCollapse}
@@ -137,13 +136,6 @@ export default function ControlPanel({
       <div className="flex-1 overflow-y-auto px-5 py-4 flex flex-col gap-4">
         {mode === "ignite" && (
           <>
-            {onScenarioPick && onScenarioLive && (
-              <ScenarioPicker
-                onPick={onScenarioPick}
-                onLive={onScenarioLive}
-              />
-            )}
-
             {onLocationSelected && (
               <div>
                 <SectionLabel>Location</SectionLabel>

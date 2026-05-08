@@ -27,12 +27,6 @@ export default function ScenarioPicker({ onPick, onLive }: ScenarioPickerProps) 
 
   return (
     <div>
-      <div
-        className="text-label font-medium tracking-[0.15em] uppercase mb-1.5"
-        style={{ fontFamily: "'JetBrains Mono', monospace", color: "var(--text-dim)" }}
-      >
-        Quick Start
-      </div>
       <select
         value={selectedId}
         onChange={(e) => {

@@ -21,9 +21,8 @@ interface ResourceEntry {
 const RESOURCE_ENTRIES: ResourceEntry[] = [
   {
     emoji: "🧯",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/6/6e/Idaho_City_Hotshots_-_2010_-_USFS.jpg/640px-Idaho_City_Hotshots_-_2010_-_USFS.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/type1Crew.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.Type1Crew,
     childExplanation:
       "A 20-person team of the most experienced firefighters. They hike into the wilderness with hand tools and chainsaws to dig a fireline — a strip of bare ground that fire can't cross.",
@@ -32,9 +31,8 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
   },
   {
     emoji: "👷",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c1/Hand_crew_at_Wood_Hollow_Fire.jpg/640px-Hand_crew_at_Wood_Hollow_Fire.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/type2Crew.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.Type2Crew,
     childExplanation:
       "A 20-person hand crew, similar to a hotshot crew but a little less specialized. They also dig fireline by hand with shovels, pulaskis (a special tool that's half-axe, half-hoe), and chainsaws.",
@@ -43,9 +41,8 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
   },
   {
     emoji: "🚒",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9d/Fire_engine_-_Spencer_Hill_Wildfire.jpg/640px-Fire_engine_-_Spencer_Hill_Wildfire.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/engine.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.Engine,
     childExplanation:
       "A wildland fire engine with 3-4 firefighters. It carries water and foam, and sprays the edge of the fire to cool it down. Engines work best on roads and near houses where they can pump water.",
@@ -54,9 +51,8 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
   },
   {
     emoji: "🚜",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/a/aa/CAT_D7_dozer_-_2018_Carr_Fire.jpg/640px-CAT_D7_dozer_-_2018_Carr_Fire.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/dozer.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.Type1Dozer,
     childExplanation:
       "A giant tracked bulldozer (like the ones at construction sites) that pushes brush and small trees aside to make a wide road of bare dirt — the dozer line. It's the fastest way to build fireline by far.",
@@ -65,9 +61,8 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
   },
   {
     emoji: "🚁",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/USFS_helitack_water_drop.jpg/640px-USFS_helitack_water_drop.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/helitack.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.Helitack,
     childExplanation:
       "A helicopter with a water bucket hanging underneath, plus a small crew of firefighters who can rappel out to remote spots. The helicopter scoops water from a lake or a portable pond and dumps it on the hottest part of the fire to slow it down.",
@@ -76,9 +71,8 @@ const RESOURCE_ENTRIES: ResourceEntry[] = [
   },
   {
     emoji: "✈️",
-    imageUrl:
-      "https://upload.wikimedia.org/wikipedia/commons/thumb/2/24/Tanker_910_DC-10_Phos-Chek_drop.jpg/640px-Tanker_910_DC-10_Phos-Chek_drop.jpg",
-    imageCredit: "USFS / Wikimedia Commons",
+    imageUrl: "/images/resources/airTanker.jpg",
+    imageCredit: "Illustration",
     type: ResourceType.AirTanker,
     childExplanation:
       "A huge airplane (like a converted DC-10 jetliner) that drops a long red line of fire retardant (a kind of fire-slowing slurry called Phos-Chek). It can drop up to 12,000 gallons in a single pass — enough to cover a long stretch of forest. Ground crews then build line behind the retardant.",
@@ -142,7 +136,7 @@ export default function ResourcesReference({
       onClick={onClose}
     >
       <div
-        className="fire-panel rounded-2xl text-white max-h-[92vh] w-[min(960px,94vw)] flex flex-col"
+        className="fire-panel rounded-2xl text-white max-h-[96vh] w-[min(1280px,96vw)] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <header
@@ -371,14 +365,16 @@ function ResourceCard({ entry }: { entry: ResourceEntry }): ReactElement {
   const meta = RESOURCE_RATES[entry.type];
   return (
     <article className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden flex flex-col">
-      <div
-        className="relative h-44 bg-black/40 flex items-center justify-center overflow-hidden"
-        style={{
-          backgroundImage: `linear-gradient(180deg, transparent 40%, rgba(0,0,0,0.4) 100%), url("${entry.imageUrl}")`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
+      <div className="relative h-56 bg-black/40 overflow-hidden">
+        <img
+          src={entry.imageUrl}
+          alt={entry.type}
+          loading="lazy"
+          className="w-full h-full object-contain"
+        />
+        {/* Bottom darkening gradient so the credit pill stays readable
+            against bright illustration content. */}
+        <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50 pointer-events-none" />
         <span
           className="absolute top-3 left-3 text-3xl drop-shadow-lg"
           aria-hidden="true"

@@ -6,6 +6,7 @@ import type {
 } from "../simulation/types";
 import type { DropEvent } from "../utils/dropScheduler";
 import { perTypeCounts } from "../utils/perTypeCounts";
+import InfoButton from "../info/InfoButton";
 
 interface SuppressionHUDProps {
   diags: SuppressionStepDiag[];
@@ -138,11 +139,14 @@ export default function SuppressionHUD({
       className="fire-panel rounded-lg p-3 w-[280px] text-sm"
       style={{ fontFamily: "'DM Sans', sans-serif" }}
     >
-      <div
-        className="text-label font-medium tracking-[0.15em] uppercase mb-2 text-amber-400"
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-      >
-        Active Response
+      <div className="flex items-center justify-between mb-2">
+        <div
+          className="text-label font-medium tracking-[0.15em] uppercase text-amber-400"
+          style={{ fontFamily: "'JetBrains Mono', monospace" }}
+        >
+          Active Response
+        </div>
+        <InfoButton modal="suppression" title="How firefighters stop a wildfire" />
       </div>
 
       <div
@@ -153,10 +157,18 @@ export default function SuppressionHUD({
       </div>
 
       <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-gray-300 mb-3">
-        <div>👷 {counts.crews} crews</div>
-        <div>🚒 {counts.engines} engines</div>
-        <div>🚜 {counts.dozers} dozers</div>
-        <div>🚁 {counts.helitack} helitack</div>
+        {counts.crews > 0 && (
+          <div>👷 {counts.crews} {counts.crews === 1 ? "crew" : "crews"}</div>
+        )}
+        {counts.engines > 0 && (
+          <div>🚒 {counts.engines} {counts.engines === 1 ? "engine" : "engines"}</div>
+        )}
+        {counts.dozers > 0 && (
+          <div>🚜 {counts.dozers} {counts.dozers === 1 ? "dozer" : "dozers"}</div>
+        )}
+        {counts.helitack > 0 && (
+          <div>🚁 {counts.helitack} helitack</div>
+        )}
         {hasTanker && (
           <div className="col-span-2">
             ✈️ {counts.tankers} tanker{counts.tankers === 1 ? "" : "s"}

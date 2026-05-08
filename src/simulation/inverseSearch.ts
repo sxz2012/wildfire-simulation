@@ -13,6 +13,7 @@
 import type {
   FuelType,
   ResourceCount,
+  ResourceType,
   SimulationConfig,
   SimulationState,
   SuppressionConfig,
@@ -228,6 +229,11 @@ export interface BoundarySearchOverrides {
   searchCeilingChainsHr?: number;
   /** Passed through to cheapestRosterForCapacity. */
   rosterOverrides?: RosterRateOverrides;
+  /**
+   * Restricts the solver to only build rosters using these resource types.
+   * Omitted = all solver-supported types eligible (back-compat).
+   */
+  availableTypes?: ResourceType[];
 }
 
 export interface FindMinRosterForBoundaryInput {
@@ -366,6 +372,7 @@ export async function findMinRosterForBoundary(
       : BREACH_TOLERANCE;
   const ceiling = input.modelConfig?.searchCeilingChainsHr ?? Q_BOUNDARY_HI;
   const rosterOverrides = input.modelConfig?.rosterOverrides;
+  const availableTypes = input.modelConfig?.availableTypes;
 
   // Special case: try baseline (no suppression) first. If the fire never
   // escapes the polygon even unsuppressed, recommend an empty roster.
@@ -409,7 +416,7 @@ export async function findMinRosterForBoundary(
     if (runCache.has(capacity)) {
       return { passed: passCache.get(capacity)!, run: runCache.get(capacity)! };
     }
-    const roster = cheapestRosterForCapacity(capacity, rosterOverrides);
+    const roster = cheapestRosterForCapacity(capacity, rosterOverrides, availableTypes);
     // Bisection candidates: enable abortOnBreach so failing sims fail fast.
     // History will be truncated at the first-breach step, which is exactly
     // what scanForBreachAborted needs.
@@ -442,7 +449,7 @@ export async function findMinRosterForBoundary(
   const loResult = passCache.has(lo) ? { passed: passCache.get(lo)!, run: runCache.get(lo)! } : null;
 
   if (hiResult.passed) {
-    const recommendedRoster = cheapestRosterForCapacity(hi, rosterOverrides);
+    const recommendedRoster = cheapestRosterForCapacity(hi, rosterOverrides, availableTypes);
     const failingRun = loResult && !loResult.passed ? loResult.run : null;
     const breach = failingRun
       ? scanForBreach(failingRun, input, tolerance)
@@ -458,7 +465,7 @@ export async function findMinRosterForBoundary(
     };
   }
 
-  const bestEffortRoster = cheapestRosterForCapacity(ceiling, rosterOverrides);
+  const bestEffortRoster = cheapestRosterForCapacity(ceiling, rosterOverrides, availableTypes);
   const breach = scanForBreach(hiResult.run, input, tolerance);
   return {
     recommendedRoster: null,

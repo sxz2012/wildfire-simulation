@@ -23,7 +23,8 @@ import { rleDecode } from "./utils/rle";
 // ImpactPanel is now integrated into ControlPanel as ImpactSection
 import TimeInfoPanel from "./components/TimeInfoPanel";
 import { useSimulation } from "./simulation/useSimulation";
-import { DEFAULT_CONFIG, FuelType, type SimulationConfig, type ResourceCount } from "./simulation/types";
+import { DEFAULT_CONFIG, FuelType, ResourceType, type SimulationConfig, type ResourceCount } from "./simulation/types";
+import ResourceAvailability from "./components/ResourceAvailability";
 import { dropScheduler, type DropEvent } from "./utils/dropScheduler";
 import { convertSimulationToFire } from "./simulation/convertToFrames";
 import { loadHistoricalFire, type HistoricalFire } from "./data/historicalFires";
@@ -35,6 +36,9 @@ import { loadScenario, type LoadedScenario } from "./services/scenarioLoader";
 import { fetchNearbyFireStations, type NearbyFireResources } from "./services/fireResources";
 import type { ScenarioSummary } from "./components/ScenarioPicker";
 import type { Viewer as CesiumViewer } from "cesium";
+import { InfoModalProvider } from "./info/InfoContext";
+import InfoModal from "./info/InfoModal";
+import BriefingConsole from "./components/BriefingConsole";
 
 type AppMode =
   | "idle"
@@ -93,6 +97,17 @@ function App() {
   const [computeRequestKey, setComputeRequestKey] = useState(0);
   const [resourcesReferenceOpen, setResourcesReferenceOpen] = useState(false);
   const [splitCompareOpen, setSplitCompareOpen] = useState(false);
+  // Which resource types the inverse-search solver may use when computing
+  // a recommended roster. Defaults to every solver-supported type; the user
+  // narrows this down before each Compute via ResourceAvailability.
+  const [availableTypes, setAvailableTypes] = useState<ResourceType[]>([
+    ResourceType.Type1Dozer,
+    ResourceType.Type1Crew,
+    ResourceType.Type2Crew,
+    ResourceType.Engine,
+    ResourceType.Helitack,
+    ResourceType.AirTanker,
+  ]);
 
   const handleViewerReady = useCallback((viewer: CesiumViewer) => {
     viewerRef.current = viewer;
@@ -419,6 +434,7 @@ function App() {
               dozerChainsHr: modelConfig.dozerChainsHr,
               crewChainsHr: modelConfig.crewChainsHr,
             },
+            availableTypes,
           },
         });
         setBoundaryResult(result);
@@ -431,7 +447,7 @@ function App() {
         );
       }
     },
-    [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length, modelConfig],
+    [pausedGrid, pausedStep, ignitionPoint, activeConfig, activeFuelMap, history.baseline.length, modelConfig, availableTypes],
   );
 
   // Track which modelConfig snapshot the current recommendation was computed
@@ -700,6 +716,7 @@ function App() {
   const suppressedCurrIdx = Math.min(currentStep, suppressionEndStep);
 
   return (
+    <InfoModalProvider>
     <div className="h-screen w-screen relative">
       <GlobeView
         onIgnite={isRunning || appMode === "historical" ? undefined : handlePlacePin}
@@ -853,6 +870,14 @@ function App() {
       )}
 
       {appMode === "paused-drawing" && (
+        <ResourceAvailability
+          available={availableTypes}
+          onChange={setAvailableTypes}
+          className="absolute bottom-[72px] left-3 right-3 z-50"
+        />
+      )}
+
+      {appMode === "paused-drawing" && (
         <div
           className="absolute bottom-3 left-3 right-3 z-50 fire-panel rounded-xl px-4 py-3 flex items-center gap-3"
           style={{ fontFamily: "'JetBrains Mono', monospace" }}
@@ -869,9 +894,16 @@ function App() {
           <button
             type="button"
             onClick={() => setComputeRequestKey((k) => k + 1)}
-            disabled={drawingVertices.length < 3}
+            disabled={drawingVertices.length < 3 || availableTypes.length === 0}
+            title={
+              availableTypes.length === 0
+                ? "Select at least one available resource type"
+                : drawingVertices.length < 3
+                  ? "Place at least 3 boundary vertices"
+                  : "Compute the minimum effective response"
+            }
             className={`px-4 py-1.5 rounded text-sm font-medium transition-colors ${
-              drawingVertices.length >= 3
+              drawingVertices.length >= 3 && availableTypes.length > 0
                 ? "bg-amber-500/30 text-amber-200 hover:bg-amber-500/40 cursor-pointer"
                 : "bg-white/5 text-gray-500 cursor-not-allowed"
             }`}
@@ -962,35 +994,19 @@ function App() {
           panel — keeps the methodology context tied to the recommendation
           it pertains to. */}
 
-      {/* Resources reference modal — for demo audiences (firefighters / kids).
-          Trigger button anchored bottom-right above the timeline. */}
-      <button
-        type="button"
-        onClick={() => setResourcesReferenceOpen(true)}
-        className="fixed bottom-[80px] right-3 z-50 fire-panel rounded-lg
-          px-3 py-2 text-caption tracking-[0.18em] uppercase font-medium
-          text-amber-400 hover:bg-amber-500/15 hover:text-amber-300
-          transition-colors cursor-pointer flex items-center gap-2
-          shadow-[0_4px_16px_-4px_rgba(0,0,0,0.5)]"
-        style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        title="Show resource reference (firefighter & audience-friendly)"
-      >
-        <span aria-hidden="true">📚</span>
-        <span>Resources</span>
-      </button>
+      {/* Resources reference modal — opened by the Briefing Console. */}
       <ResourcesReference
         isOpen={resourcesReferenceOpen}
         onClose={() => setResourcesReferenceOpen(false)}
       />
 
-      {/* Split compare trigger — appears once both baseline + suppressed
-          histories exist. Sits just above the Resources button so the two
-          demo CTAs cluster together. */}
+      {/* Split-compare trigger — sits just above the Briefing Console
+          (which lives at bottom-right) when both histories exist. */}
       {history.suppressed && history.suppressed.length > 0 && history.baseline.length > 0 && ignitionPoint && (
         <button
           type="button"
           onClick={() => setSplitCompareOpen(true)}
-          className="fixed bottom-[130px] right-3 z-50 fire-panel rounded-lg
+          className="fixed bottom-[316px] right-3 z-50 fire-panel rounded-lg
             px-3 py-2 text-caption tracking-[0.18em] uppercase font-medium
             text-amber-400 hover:bg-amber-500/15 hover:text-amber-300
             transition-colors cursor-pointer flex items-center gap-2
@@ -1018,7 +1034,21 @@ function App() {
           originDate={activeOriginDate}
         />
       )}
+
+      {/* Briefing Console — unified bottom-right info panel. Hidden during
+          paused-* flow modes (drawing / computing / recommendation) so it
+          doesn't collide with the bottom-edge Compute toolbar or compete
+          with the centered RecommendationCard for attention. */}
+      {!appMode.startsWith("paused-") && (
+        <BriefingConsole
+          onOpenResources={() => setResourcesReferenceOpen(true)}
+          isResourcesActive={resourcesReferenceOpen}
+        />
+      )}
+
+      <InfoModal />
     </div>
+    </InfoModalProvider>
   );
 }
 

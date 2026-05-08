@@ -13,30 +13,74 @@ export interface RosterRateOverrides {
   tankerThresholdChainsHr?: number;
 }
 
+/**
+ * Order in which the solver picks a "remainder filler" — the ground resource
+ * used to make up whatever Dozer floor() leaves on the table. Lower index
+ * preferred. Type 1 Crew is cheapest-per-chain AND fastest, so it leads.
+ * Type 2 Crew matches Type 1 on $/chain but is slower (graceful fallback if
+ * Type 1 hand crews aren't on call). Engine costs more per chain and is the
+ * last resort when no hand crews are available.
+ */
+const FILLER_PREFERENCE: ResourceType[] = [
+  ResourceType.Type1Crew,
+  ResourceType.Type2Crew,
+  ResourceType.Engine,
+];
+
 export function cheapestRosterForCapacity(
   targetChainsHr: number,
   overrides?: RosterRateOverrides,
+  availableTypes?: ResourceType[],
 ): ResourceCount[] {
   if (targetChainsHr <= 0) return [];
 
-  const dozerRate = overrides?.dozerChainsHr ?? DOZER_RATE;
-  const crewRate = overrides?.crewChainsHr ?? CREW_RATE;
+  // When availableTypes is omitted, every solver-supported type is eligible
+  // (back-compat). When provided, only listed types are eligible.
+  const isAllowed = (t: ResourceType): boolean =>
+    !availableTypes || availableTypes.includes(t);
+  const dozerAllowed = isAllowed(ResourceType.Type1Dozer);
+  const helitackAllowed = isAllowed(ResourceType.Helitack);
+  const tankerAllowed = isAllowed(ResourceType.AirTanker);
+
+  const dozerRate = dozerAllowed ? overrides?.dozerChainsHr ?? DOZER_RATE : 0;
   const helitackThreshold = overrides?.helitackThresholdChainsHr ?? HELITACK_THRESHOLD;
   const tankerThreshold = overrides?.tankerThresholdChainsHr ?? TANKER_THRESHOLD;
 
+  // Pick the first allowed remainder-filler from the preference list. Type 1
+  // Crew honors crewChainsHr override; the fallbacks use NWCG defaults.
+  let fillerType: ResourceType | null = null;
+  let fillerRate = 0;
+  for (const candidate of FILLER_PREFERENCE) {
+    if (!isAllowed(candidate)) continue;
+    fillerType = candidate;
+    fillerRate =
+      candidate === ResourceType.Type1Crew
+        ? overrides?.crewChainsHr ?? CREW_RATE
+        : RESOURCE_RATES[candidate].chainsPerHour;
+    break;
+  }
+
   const roster: ResourceCount[] = [];
   const dozerCount = dozerRate > 0 ? Math.floor(targetChainsHr / dozerRate) : 0;
-  if (dozerCount > 0) roster.push({ type: ResourceType.Type1Dozer, count: dozerCount });
+  if (dozerCount > 0) {
+    roster.push({ type: ResourceType.Type1Dozer, count: dozerCount });
+  }
 
   const remaining = targetChainsHr - dozerCount * dozerRate;
-  const crewCount = remaining > 0 && crewRate > 0 ? Math.ceil(remaining / crewRate) : 0;
-  if (crewCount > 0) roster.push({ type: ResourceType.Type1Crew, count: crewCount });
+  const fillerCount =
+    remaining > 0 && fillerType !== null && fillerRate > 0
+      ? Math.ceil(remaining / fillerRate)
+      : 0;
+  if (fillerCount > 0 && fillerType !== null) {
+    roster.push({ type: fillerType, count: fillerCount });
+  }
 
-  const totalGroundCapacity = dozerCount * dozerRate + crewCount * crewRate;
-  if (totalGroundCapacity >= helitackThreshold) {
+  const totalGroundCapacity =
+    dozerCount * dozerRate + fillerCount * fillerRate;
+  if (helitackAllowed && totalGroundCapacity >= helitackThreshold) {
     roster.push({ type: ResourceType.Helitack, count: 1 });
   }
-  if (totalGroundCapacity >= tankerThreshold) {
+  if (tankerAllowed && totalGroundCapacity >= tankerThreshold) {
     roster.push({ type: ResourceType.AirTanker, count: 1 });
   }
   return roster;

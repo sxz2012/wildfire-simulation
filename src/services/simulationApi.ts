@@ -7,6 +7,7 @@
 import type {
   FuelType,
   ResourceCount,
+  ResourceType,
   SimulationConfig,
   SuppressionConfig,
   SuppressionStepDiag,
@@ -131,6 +132,8 @@ export interface ApiQBoundaryModelConfig {
     helitackThresholdChainsHr?: number;
     tankerThresholdChainsHr?: number;
   };
+  /** Solver only builds rosters using these resource types. Omitted = all eligible. */
+  availableTypes?: ResourceType[];
 }
 
 export interface ApiQBoundaryRequest {
