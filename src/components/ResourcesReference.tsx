@@ -375,18 +375,6 @@ function ResourceCard({ entry }: { entry: ResourceEntry }): ReactElement {
         {/* Bottom darkening gradient so the credit pill stays readable
             against bright illustration content. */}
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-black/50 pointer-events-none" />
-        <span
-          className="absolute top-3 left-3 text-3xl drop-shadow-lg"
-          aria-hidden="true"
-        >
-          {entry.emoji}
-        </span>
-        <span
-          className="absolute bottom-2 right-3 text-micro text-white/70"
-          style={MONO_FONT}
-        >
-          {entry.imageCredit}
-        </span>
       </div>
       <div className="p-4 flex-1 flex flex-col">
         <h4

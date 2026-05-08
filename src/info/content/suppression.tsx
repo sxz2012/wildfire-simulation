@@ -1,4 +1,5 @@
 import type { InfoModalContent } from "../types";
+import ZoomableImage from "../ZoomableImage";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" } as const;
 
@@ -135,7 +136,7 @@ function Tactic({
 }) {
   return (
     <article className="rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-hidden flex flex-col">
-      <div className="h-32 bg-black/40 flex items-center justify-center px-4">
+      <div className="relative h-64 bg-black/40 overflow-hidden">
         {diagram}
       </div>
       <div className="p-4 space-y-2">
@@ -222,62 +223,22 @@ function DropType({
 }
 
 function DirectAttackSVG() {
-  // Fire blob with line hugging its edge
   return (
-    <svg viewBox="0 0 240 100" className="w-full h-full">
-      <defs>
-        <radialGradient id="fire1" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#f97316" stopOpacity="0.3" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="100" cy="50" rx="55" ry="32" fill="url(#fire1)" />
-      <path
-        d="M 50,38 Q 100,8 158,38"
-        stroke="#22d3ee"
-        strokeWidth="3"
-        fill="none"
-        strokeDasharray="6 3"
-      />
-      <text x="100" y="92" fill="#22d3ee" fontSize="10" textAnchor="middle" fontFamily="monospace">
-        line right at the edge
-      </text>
-    </svg>
+    <ZoomableImage
+      src="/images/info/direct-attack.jpg"
+      alt="Aerial diagram of a direct attack — fireline cut at the back edge of the fire with a dozer + crew + engine, head and flanks labeled"
+      className="absolute inset-0 w-full h-full object-cover"
+    />
   );
 }
 
 function IndirectAttackSVG() {
-  // Fire blob with line far away (along a "road")
   return (
-    <svg viewBox="0 0 240 100" className="w-full h-full">
-      <defs>
-        <radialGradient id="fire2" cx="0.5" cy="0.5" r="0.5">
-          <stop offset="0%" stopColor="#dc2626" stopOpacity="0.85" />
-          <stop offset="100%" stopColor="#f97316" stopOpacity="0.3" />
-        </radialGradient>
-      </defs>
-      <ellipse cx="80" cy="55" rx="40" ry="24" fill="url(#fire2)" />
-      <line
-        x1="155"
-        y1="20"
-        x2="155"
-        y2="85"
-        stroke="#22d3ee"
-        strokeWidth="3"
-        strokeDasharray="6 3"
-      />
-      <text x="195" y="55" fill="#22d3ee" fontSize="10" textAnchor="middle" fontFamily="monospace">
-        line far
-      </text>
-      <text x="195" y="68" fill="#22d3ee" fontSize="10" textAnchor="middle" fontFamily="monospace">
-        ahead
-      </text>
-      {/* Wind arrow toward line */}
-      <line x1="35" y1="25" x2="60" y2="25" stroke="#94a3b8" strokeWidth="1.5" />
-      <polygon points="60,25 55,22 55,28" fill="#94a3b8" />
-      <text x="32" y="20" fill="#94a3b8" fontSize="9" fontFamily="monospace">
-        wind
-      </text>
-    </svg>
+    <ZoomableImage
+      src="/images/info/indirect-attack.jpg"
+      alt="Aerial diagram of an indirect attack — wind direction, fireline, sacrifice zone, indirect line being cut by dozers, and the unburned area being protected"
+      className="absolute inset-0 w-full h-full object-cover"
+    />
   );
 }
+

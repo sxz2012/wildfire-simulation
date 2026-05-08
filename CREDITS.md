@@ -17,6 +17,8 @@ This project uses third-party 3D models. Required attribution per their licenses
 | File | Depicts |
 |---|---|
 | `wind-fire-shape.jpg` | Top-down view of a wind-driven wildfire perimeter with head, flanks, back, and ignition-point labels — used in the Fire Physics info modal |
+| `direct-attack.jpg` | 3/4 aerial of crews + dozer + engine cutting fireline directly along the back edge of an active wildfire — used in the Suppression Methods info modal |
+| `indirect-attack.jpg` | 3/4 aerial of an indirect attack with retardant drop + dozer line cut well ahead of the fire — used in the Suppression Methods info modal |
 
 These are AI-generated illustrations (OpenAI ChatGPT image generator, 2026). Used for educational/demo purposes; not photographs of specific real incidents.
 

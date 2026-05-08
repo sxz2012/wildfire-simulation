@@ -1,4 +1,5 @@
 import type { InfoModalContent } from "../types";
+import ZoomableImage from "../ZoomableImage";
 
 const MONO = { fontFamily: "'JetBrains Mono', monospace" } as const;
 
@@ -48,11 +49,10 @@ export const firePhysicsContent: InfoModalContent = {
         </p>
 
         <div className="rounded-xl overflow-hidden border border-white/[0.06] mb-4 bg-black/40">
-          <img
+          <ZoomableImage
             src="/images/info/wind-fire-shape.jpg"
             alt="Top-down view of a wind-driven wildfire showing head, flanks, back, and ignition point"
             className="w-full h-auto block"
-            loading="lazy"
           />
         </div>
 

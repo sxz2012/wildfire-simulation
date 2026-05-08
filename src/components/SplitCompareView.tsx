@@ -181,9 +181,14 @@ export default function SplitCompareView(
     const span = Math.max(widthMeters, heightMeters);
     // Camera height: enough to comfortably frame the rect at ~50° tilt.
     const camHeight = Math.max(span * 1.4, 4_000);
+
     // Pull the camera south of center so the tilt sweeps north toward
-    // the fire — natural "looking-into-the-fire" feel.
-    const tiltOffset = camHeight * 0.6;
+    // the fire — natural "looking-into-the-fire" feel. The southward
+    // offset is derived from the camera pitch so the line of sight lands
+    // exactly on the fire centroid (centered on screen). Pitch P below
+    // horizontal → ground intersection is camHeight / tan(|P|) ahead.
+    const pitch = -CesiumMath.PI_OVER_FOUR - CesiumMath.PI_OVER_TWO * 0.06;
+    const tiltOffset = camHeight / Math.tan(-pitch);
     const offsetLat = -tiltOffset / 111_320;
 
     const destinationLat = CesiumMath.toDegrees(center.latitude) + offsetLat;
@@ -195,7 +200,7 @@ export default function SplitCompareView(
     );
     const orientation = {
       heading: 0,
-      pitch: -CesiumMath.PI_OVER_FOUR - CesiumMath.PI_OVER_TWO * 0.06,
+      pitch,
       roll: 0,
     };
 
