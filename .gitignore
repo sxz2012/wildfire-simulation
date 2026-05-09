@@ -29,3 +29,7 @@ models/*.ubj
 
 # Python cache
 scripts/**/__pycache__/
+
+# Claude Code local state (session caches, transcripts, etc.)
+.claude/
+**/.claude/
