@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { cellCenter, latLngToCell, snapToSafeCell } from "../robot/geo";
+import { cellCenter, gridToLatLng, latLngToCell, snapToSafeCell } from "../robot/geo";
 import { burningCentroid, shiftedWind } from "../robot/windShift";
 import { createGrid } from "../grid";
 import { CellState, DEFAULT_CONFIG } from "../types";
@@ -18,6 +18,15 @@ describe("cellCenter / latLngToCell", () => {
       expect(p.lng).toBeCloseTo(grid[i].lng, 9);
       expect(latLngToCell(p.lat, p.lng, n, size, LAT, LNG)).toBe(i);
     }
+  });
+
+  it("gridToLatLng matches cellCenter at whole cells and interpolates between them", () => {
+    const a = cellCenter(10 * 600 + 20, 600, 50, LAT, LNG);
+    const b = cellCenter(10 * 600 + 21, 600, 50, LAT, LNG);
+    expect(gridToLatLng(10, 20, 600, 50, LAT, LNG)).toEqual(a);
+    const mid = gridToLatLng(10, 20.5, 600, 50, LAT, LNG);
+    expect(mid.lat).toBeCloseTo(a.lat, 12);
+    expect(mid.lng).toBeCloseTo((a.lng + b.lng) / 2, 12);
   });
 
   it("returns null outside the grid", () => {

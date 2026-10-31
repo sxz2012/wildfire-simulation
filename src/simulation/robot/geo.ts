@@ -3,7 +3,23 @@ import type { PlannerGrid } from "./types";
 const M_PER_DEG_LAT = 111320;
 const mPerDegLng = (centerLat: number) => 111320 * Math.cos((centerLat * Math.PI) / 180);
 
-/** Lat/lng of a cell center — same formula as createGrid. */
+/** Lat/lng of a (possibly fractional) row/col — same formula as createGrid. */
+export function gridToLatLng(
+  row: number,
+  col: number,
+  gridSize: number,
+  cellSizeMeters: number,
+  centerLat: number,
+  centerLng: number
+): { lat: number; lng: number } {
+  const half = gridSize / 2;
+  return {
+    lat: centerLat + ((row - half) * cellSizeMeters) / M_PER_DEG_LAT,
+    lng: centerLng + ((col - half) * cellSizeMeters) / mPerDegLng(centerLat),
+  };
+}
+
+/** Lat/lng of a cell center. */
 export function cellCenter(
   idx: number,
   gridSize: number,
@@ -11,12 +27,8 @@ export function cellCenter(
   centerLat: number,
   centerLng: number
 ): { lat: number; lng: number } {
-  const half = gridSize / 2;
   const row = Math.floor(idx / gridSize), col = idx % gridSize;
-  return {
-    lat: centerLat + ((row - half) * cellSizeMeters) / M_PER_DEG_LAT,
-    lng: centerLng + ((col - half) * cellSizeMeters) / mPerDegLng(centerLat),
-  };
+  return gridToLatLng(row, col, gridSize, cellSizeMeters, centerLat, centerLng);
 }
 
 /** Grid cell containing a lat/lng, or null outside the grid. */
