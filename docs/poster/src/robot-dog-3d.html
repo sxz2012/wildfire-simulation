@@ -147,6 +147,16 @@ camera.lookAt(0.03, 0.4, 0);
 
 renderer.render(scene, camera);
 window.__done = true;
+
+// Export just the dog (no shadow plane) as binary glTF for the app (public/models/robot-dog.glb).
+window.__exportGlb = async () => {
+  const { GLTFExporter } = await import("three/addons/exporters/GLTFExporter.js");
+  const buf = await new GLTFExporter().parseAsync(dog, { binary: true });
+  let s = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+};
 </script>
 </body>
 </html>
