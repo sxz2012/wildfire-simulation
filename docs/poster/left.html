@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — left panel</title>
+<link rel="stylesheet" href="poster.css">
+<style>
+  @page { size: 12in 36in; }
+  body { width: 12in; }
+
+  .flow { display: flex; flex-direction: column; align-items: stretch; gap: 0; }
+  .step {
+    background: #fff;
+    border: 2.5pt solid var(--line);
+    border-radius: 10pt;
+    padding: 0.16in 0.22in;
+    font-size: 27pt;
+    line-height: 1.3;
+  }
+  .step b { display: block; font-size: 30pt; color: var(--ink); }
+  .step.model { border-color: var(--fire); background: #fff4ef; }
+  .step.out { border-color: var(--robot); background: var(--robot-tint); }
+  .arrow { text-align: center; font-size: 30pt; color: var(--muted); line-height: 1; padding: 0.04in 0; }
+
+  .inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.12in; }
+  .inputs .step { font-size: 24pt; }
+  .inputs .step b { font-size: 27pt; }
+
+  .pair { position: relative; }
+  .pair figure { margin: 0; position: relative; }
+  .pair figure.inset { position: absolute; left: 0.25in; top: 0.25in; width: 42%; z-index: 1; }
+  .pair figure.inset img { border: 5pt solid #fff; box-shadow: 0 4pt 14pt rgba(0,0,0,.35); }
+  .pair .tag {
+    position: absolute; bottom: 0.18in; left: 50%; transform: translateX(-50%);
+    font-size: 24pt; font-weight: 800; color: #fff; background: rgba(27,31,42,.8);
+    padding: 0.04in 0.2in; border-radius: 30pt; white-space: nowrap;
+  }
+</style>
+</head>
+<body>
+<div class="panel">
+
+  <section class="section">
+    <h2>Why</h2>
+    <p>The edge of a wildfire is the most dangerous place for a firefighter.</p>
+    <p><span class="hl-robot">Robot dogs</span> (four-legged robots) can climb steep, rocky, smoky ground where trucks get stuck and drones can't see.</p>
+    <div class="callout">But a robot near a fire must know where the fire <em>will</em> be, not just where it is now.</div>
+  </section>
+
+  <section class="section">
+    <h2>How we predict the fire</h2>
+    <div class="flow">
+      <div class="step"><b>Real fire history</b>~246,000 NASA satellite fire detections from 30 major wildfires worldwide</div>
+      <div class="arrow">+</div>
+      <div class="inputs">
+        <div class="step"><b>Weather</b>wind, humidity, temperature, rain</div>
+        <div class="step"><b>Terrain</b>elevation and slope</div>
+        <div class="step"><b>Land cover</b>forest, shrub, grass, urban</div>
+        <div class="step"><b>Fire shape</b>nearby burning cells, fire size</div>
+      </div>
+      <div class="arrow">▼</div>
+      <div class="step model"><b>Machine learning: XGBoost</b>27 inputs per 50 m cell. Trained on 24 fires, tested on 6 fires it never saw.</div>
+      <div class="arrow">▼</div>
+      <div class="step"><b>Physics: Rothermel spread equation</b>fuel × wind × slope × dryness. The ML model adjusts the rate.</div>
+      <div class="arrow">▼</div>
+      <div class="step out"><b>Output</b>the chance each 50 m cell catches fire, every time step</div>
+    </div>
+  </section>
+
+  <section class="section">
+    <h2>The simulator</h2>
+    <div class="pair">
+      <figure class="inset">
+        <img class="shot" src="img/fire-early.jpg" alt="Simulated fire after about 4 hours">
+        <div class="tag">~4 hours</div>
+      </figure>
+      <figure>
+        <img class="shot" src="img/fire-spread.jpg" alt="Simulated fire after about one day">
+        <div class="tag">~1 day</div>
+      </figure>
+    </div>
+    <p class="caption">Simulated fire spreading over real 3D terrain in the Big Sur area of Monterey County, California (summer weather). Runs in a web browser on Google 3D map tiles.</p>
+  </section>
+
+</div>
+</body>
+</html>

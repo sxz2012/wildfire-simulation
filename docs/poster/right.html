@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — right panel</title>
+<link rel="stylesheet" href="poster.css">
+<style>
+  @page { size: 12in 36in; }
+  body { width: 12in; }
+  .panel { gap: 0.4in; }
+
+  .metric { background: #fff; border: 2.5pt solid var(--line); border-radius: 12pt; padding: 0.2in 0.25in; }
+  .metric h4 { font-size: 29pt; font-weight: 800; }
+  .metric h4 span { font-weight: 500; color: var(--muted); font-size: 22pt; }
+  .bar { display: grid; grid-template-columns: 2.4in 1fr 1.5in; align-items: center; gap: 0.12in; margin-top: 0.14in; font-size: 26pt; }
+  .bar .track { height: 0.42in; background: #efebe3; border-radius: 6pt; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 6pt; }
+  .bar .v { font-weight: 800; font-size: 30pt; text-align: right; }
+  .bar.model .fill { background: var(--fire); }
+  .bar.base .fill { background: #a9a49a; }
+  .bar.base { color: var(--muted); }
+
+
+  ul.check { list-style: none; display: flex; flex-direction: column; gap: 0.1in; }
+  ul.check li { padding-left: 0.55in; position: relative; font-size: 29pt; }
+  ul.check li::before { position: absolute; left: 0; font-weight: 800; }
+  ul.check li.done::before { content: "✔"; color: #2e8540; }
+  ul.check li.next::before { content: "→"; color: var(--robot); }
+
+  .foot { margin-top: auto; display: grid; grid-template-columns: 2.3in 1fr; gap: 0.3in; align-items: start; }
+  .qrimg { width: 2.3in; height: 2.3in; display: block; }
+  .qrcap { font-size: 17pt; font-weight: 700; text-align: center; margin-top: 0.06in; }
+  .refs h4 { font-size: 24pt; font-weight: 800; margin-bottom: 0.06in; }
+  .refs p { font-size: 17pt; line-height: 1.35; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="panel">
+
+  <section class="section">
+    <h2>Results</h2>
+    <p>Tested on <b>6 fires the model never saw</b> (USA, Bolivia, Siberia, Greece).</p>
+    <p class="small">In these fires 91% of cases are "fire spreads," so we compare against a simple baseline that <b>always guesses "spreads."</b></p>
+
+    <div class="metric">
+      <h4>Ranking risky cells <span>(AUC-ROC, higher is better)</span></h4>
+      <div class="bar model"><span>Our model</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">0.75</span></div>
+      <div class="bar base"><span>Baseline</span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">0.50</span></div>
+    </div>
+
+    <div class="metric">
+      <h4>Probability error <span>(Brier score, lower is better)</span></h4>
+      <div class="bar model"><span>Our model</span><div class="track"><div class="fill" style="width:76%"></div></div><span class="v">0.076</span></div>
+      <div class="bar base"><span>Baseline</span><div class="track"><div class="fill" style="width:83%"></div></div><span class="v">0.083</span></div>
+    </div>
+
+    <p><span class="hl">Takeaway:</span> the model ranks which cells are at risk clearly better than chance, and its probabilities are more accurate than the baseline. It still leans toward "spreads," which we are working to improve.</p>
+  </section>
+
+  <section class="section">
+    <h2>Where to hold the line</h2>
+    <img class="shot" src="img/boundary.jpg" alt="Containment boundary drawn around the simulated fire">
+    <p>Pause the fire and draw a containment line. A <b>search algorithm</b> finds the <b>lowest-cost mix</b> of crews, engines, dozers and aircraft that keeps the fire inside it.</p>
+    <p>Example answer for this fire: <b>9 dozers + 1 helicopter crew + 1 air tanker.</b></p>
+    <p class="small">That line is exactly where the robot dog would scout (loop step 4).</p>
+  </section>
+
+  <section class="section">
+    <h2>Status &amp; next</h2>
+    <ul class="check">
+      <li class="done">ML fire forecast trained and tested</li>
+      <li class="done">3D browser simulator on real terrain</li>
+      <li class="done">Containment planner (search)</li>
+      <li class="next">Robot-dog route planning on the forecast</li>
+      <li class="next">Tests on real robot dogs</li>
+    </ul>
+  </section>
+
+  <div class="foot">
+    <div><img class="qrimg" src="img/repo-qr.svg" alt="QR code to the GitHub repository"><div class="qrcap">Open-source code</div></div>
+    <div class="refs">
+      <h4>Data &amp; references</h4>
+      <p><b>Code:</b> github.com/sxz2012/wildfire-simulation</p>
+      <p>NASA FIRMS (VIIRS active-fire detections) · Open-Meteo weather archive · ESA WorldCover 10 m land cover · Cesium World Terrain · Google Photorealistic 3D Tiles</p>
+      <p>Rothermel, R. C. (1972). <em>A mathematical model for predicting fire spread in wildland fuels.</em> USDA Forest Service INT-115.</p>
+      <p>Chen, T. &amp; Guestrin, C. (2016). XGBoost: A scalable tree boosting system. <em>KDD '16.</em></p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

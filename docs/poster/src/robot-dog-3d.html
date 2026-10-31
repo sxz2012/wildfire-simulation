@@ -1,0 +1,152 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>html,body{margin:0;background:transparent;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+
+const W = 2400, H = 1800;
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.setClearColor(0x000000, 0);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.95;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.VSMShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(renderer), 0.04).texture;
+
+// Materials
+const shell = new THREE.MeshPhysicalMaterial({ color: 0xeef0f2, roughness: 0.38, clearcoat: 0.7, clearcoatRoughness: 0.25 });
+const accent = new THREE.MeshPhysicalMaterial({ color: 0x1a4fc2, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+const accentDark = new THREE.MeshPhysicalMaterial({ color: 0x17428f, roughness: 0.4, clearcoat: 0.5 });
+const joint = new THREE.MeshStandardMaterial({ color: 0x2a2e35, metalness: 0.7, roughness: 0.32 });
+const limb = new THREE.MeshPhysicalMaterial({ color: 0x3a3f48, metalness: 0.35, roughness: 0.45, clearcoat: 0.3 });
+const rubber = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.92 });
+const glass = new THREE.MeshPhysicalMaterial({ color: 0x0b0f17, roughness: 0.05, metalness: 0.2, clearcoat: 1 });
+const lens = new THREE.MeshPhysicalMaterial({ color: 0x5fb3ff, emissive: 0x2a7bd6, emissiveIntensity: 0.6, roughness: 0.1, clearcoat: 1 });
+const sensor = new THREE.MeshPhysicalMaterial({ color: 0xff7a12, emissive: 0xe0600a, emissiveIntensity: 0.18, roughness: 0.3, clearcoat: 0.8 });
+
+const dog = new THREE.Group();
+scene.add(dog);
+const add = (geo, mat, pos, rot) => {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...pos);
+  if (rot) m.rotation.set(...rot);
+  m.castShadow = true; m.receiveShadow = true;
+  dog.add(m); return m;
+};
+
+// Body (x = forward, y = up, z = side)
+const BY = 0.62;
+add(new RoundedBoxGeometry(1.0, 0.22, 0.36, 6, 0.08), shell, [0, BY, 0]);
+// blue side panels
+for (const s of [-1, 1]) {
+  add(new RoundedBoxGeometry(0.62, 0.1, 0.02, 4, 0.01), accent, [0.02, BY + 0.01, s * 0.181]);
+  add(new RoundedBoxGeometry(0.16, 0.035, 0.012, 2, 0.005), accentDark, [-0.36, BY + 0.05, s * 0.183]);
+}
+// belly plate
+add(new RoundedBoxGeometry(0.86, 0.05, 0.3, 4, 0.02), joint, [0, BY - 0.12, 0]);
+// top spine stripe
+add(new RoundedBoxGeometry(0.7, 0.012, 0.08, 2, 0.005), accent, [0.02, BY + 0.112, 0]);
+
+// Head / front sensor module
+add(new RoundedBoxGeometry(0.2, 0.17, 0.3, 5, 0.06), shell, [0.56, BY + 0.01, 0]);
+add(new RoundedBoxGeometry(0.03, 0.11, 0.24, 4, 0.03), glass, [0.655, BY + 0.015, 0]);
+for (const z of [-0.07, 0.07]) {
+  add(new THREE.CylinderGeometry(0.026, 0.026, 0.012, 32), lens, [0.672, BY + 0.02, z], [0, 0, Math.PI / 2]);
+}
+// side cameras
+for (const s of [-1, 1]) add(new THREE.CylinderGeometry(0.018, 0.018, 0.01, 24), lens, [0.52, BY + 0.03, s * 0.152], [Math.PI / 2, 0, 0]);
+// rear module
+add(new RoundedBoxGeometry(0.1, 0.14, 0.26, 4, 0.04), shell, [-0.53, BY, 0]);
+add(new RoundedBoxGeometry(0.012, 0.06, 0.16, 2, 0.006), glass, [-0.583, BY + 0.01, 0]);
+
+// Payload rail + lidar + orange thermal camera
+add(new RoundedBoxGeometry(0.42, 0.025, 0.14, 2, 0.008), joint, [-0.08, BY + 0.122, 0]);
+add(new THREE.CylinderGeometry(0.075, 0.08, 0.06, 48), joint, [-0.14, BY + 0.165, 0]);
+add(new THREE.CylinderGeometry(0.078, 0.078, 0.025, 48), glass, [-0.14, BY + 0.205, 0]);
+add(new THREE.CylinderGeometry(0.06, 0.07, 0.022, 48), shell, [-0.14, BY + 0.228, 0]);
+add(new RoundedBoxGeometry(0.1, 0.07, 0.09, 3, 0.02), sensor, [0.07, BY + 0.17, 0]);
+add(new THREE.CylinderGeometry(0.022, 0.022, 0.012, 24), glass, [0.122, BY + 0.172, 0], [0, 0, Math.PI / 2]);
+// antenna
+add(new THREE.CylinderGeometry(0.006, 0.006, 0.16, 12), joint, [-0.32, BY + 0.19, 0.09]);
+add(new THREE.SphereGeometry(0.012, 16, 16), accent, [-0.32, BY + 0.275, 0.09]);
+
+// Legs: thigh slopes down-back, shin slopes down-forward (knees point backward)
+const limbBetween = (a, b, r, mat) => {
+  const dir = new THREE.Vector3().subVectors(b, a);
+  const len = dir.length();
+  const m = new THREE.Mesh(new THREE.CapsuleGeometry(r, len, 8, 24), mat);
+  m.position.copy(a).addScaledVector(dir, 0.5);
+  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+  m.castShadow = true; m.receiveShadow = true;
+  dog.add(m); return m;
+};
+const legs = [
+  { x: 0.36, z: 0.215, kneeDx: -0.13, footDx: 0.12, lift: 0.0 },
+  { x: 0.36, z: -0.215, kneeDx: -0.1, footDx: 0.07, lift: 0.0 },
+  { x: -0.36, z: 0.215, kneeDx: -0.1, footDx: 0.08, lift: 0.0 },
+  { x: -0.36, z: -0.215, kneeDx: -0.13, footDx: 0.12, lift: 0.0 },
+];
+for (const L of legs) {
+  const s = Math.sign(L.z);
+  const hip = new THREE.Vector3(L.x, BY - 0.04, L.z);
+  // hip actuator
+  add(new THREE.CylinderGeometry(0.075, 0.075, 0.07, 40), joint, [hip.x, hip.y, hip.z], [Math.PI / 2, 0, 0]);
+  add(new THREE.CylinderGeometry(0.05, 0.05, 0.072, 40), accent, [hip.x, hip.y, hip.z + s * 0.004], [Math.PI / 2, 0, 0]);
+  const knee = new THREE.Vector3(L.x + L.kneeDx, 0.32, L.z + s * 0.02);
+  const foot = new THREE.Vector3(knee.x + L.footDx, 0.045, L.z + s * 0.02);
+  // thigh: shell cover over dark core
+  limbBetween(new THREE.Vector3(hip.x, hip.y, hip.z + s * 0.02), knee, 0.05, shell);
+  add(new THREE.SphereGeometry(0.045, 32, 32), joint, [knee.x, knee.y, knee.z]);
+  limbBetween(knee, foot, 0.026, limb);
+  add(new THREE.SphereGeometry(0.042, 32, 32), rubber, [foot.x, foot.y, foot.z]);
+}
+
+// Shadow catcher
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(8, 8), new THREE.ShadowMaterial({ opacity: 0.22 }));
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Lights
+const key = new THREE.DirectionalLight(0xffffff, 2.4);
+key.position.set(1.0, 3.6, 1.6);
+key.castShadow = true;
+key.shadow.mapSize.set(4096, 4096);
+key.shadow.camera.left = -1.5; key.shadow.camera.right = 1.5;
+key.shadow.camera.top = 1.5; key.shadow.camera.bottom = -1.5;
+key.shadow.radius = 14; key.shadow.blurSamples = 24; key.shadow.bias = -0.0004;
+scene.add(key);
+const rim = new THREE.DirectionalLight(0xbfd6ff, 1.2);
+rim.position.set(-2.5, 1.5, -2);
+scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xffffff, 0xd9d3c7, 0.5));
+
+// Three-quarter view
+const camera = new THREE.PerspectiveCamera(26, W / H, 0.1, 50);
+camera.position.set(2.2, 1.25, 2.6);
+camera.lookAt(0.03, 0.4, 0);
+
+renderer.render(scene, camera);
+window.__done = true;
+</script>
+</body>
+</html>

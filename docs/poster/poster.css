@@ -1,0 +1,99 @@
+/* Shared styles for the tri-fold poster panels (12in | 24in | 12in, 36in tall). */
+:root {
+  --paper: #faf7f2;
+  --ink: #1b1f2a;
+  --muted: #5a6070;
+  --fire: #e4572e;
+  --fire-dark: #b23a1a;
+  --ember: #f2a541;
+  --robot: #2d6cdf;
+  --robot-dark: #17428f;
+  --robot-tint: #e6eefc;
+  --line: #d9d3c7;
+}
+
+@page { margin: 0; }
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Avenir Next", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.panel {
+  height: 36in;
+  padding: 0.7in 0.6in;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45in;
+  overflow: hidden;
+}
+
+.section { display: flex; flex-direction: column; gap: 0.18in; }
+
+.section h2 {
+  font-size: 52pt;
+  font-weight: 800;
+  letter-spacing: -0.5pt;
+  line-height: 1.05;
+  display: flex;
+  align-items: baseline;
+  gap: 0.18in;
+  border-bottom: 5pt solid var(--fire);
+  padding-bottom: 0.1in;
+}
+
+.section h2 .n {
+  font-size: 30pt;
+  color: #fff;
+  background: var(--fire);
+  border-radius: 50%;
+  width: 0.62in;
+  height: 0.62in;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transform: translateY(-4pt);
+}
+
+p, li { font-size: 30pt; line-height: 1.35; }
+.small { font-size: 24pt; line-height: 1.35; color: var(--muted); }
+.caption { font-size: 22pt; line-height: 1.3; color: var(--muted); margin-top: 0.08in; }
+b, strong { font-weight: 700; }
+.hl { color: var(--fire-dark); font-weight: 700; }
+.hl-robot { color: var(--robot-dark); font-weight: 700; }
+
+.callout {
+  background: #fff;
+  border-left: 8pt solid var(--robot);
+  padding: 0.2in 0.25in;
+  border-radius: 6pt;
+  font-size: 31pt;
+  line-height: 1.3;
+  font-weight: 600;
+}
+
+img.shot {
+  width: 100%;
+  border-radius: 8pt;
+  display: block;
+  border: 2pt solid var(--line);
+}
+
+.badge {
+  display: inline-block;
+  font-size: 20pt;
+  font-weight: 700;
+  letter-spacing: 1pt;
+  text-transform: uppercase;
+  padding: 0.08in 0.22in;
+  border-radius: 40pt;
+  background: #fff3cd;
+  border: 2.5pt solid #d4a017;
+  color: #7a5a00;
+}
