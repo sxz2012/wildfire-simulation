@@ -5,6 +5,7 @@ import {
   missionPose,
   missionMarginMin,
   missionFitsForecast,
+  syncMission,
 } from "../robot/mission";
 import { ROBOT_DEFAULTS } from "../robot/types";
 import type { PlannerGrid } from "../robot/types";
@@ -176,5 +177,50 @@ describe("mission", () => {
     const needed = 10 + outbound + ROBOT_DEFAULTS.scoutHoldMin + outbound;
     expect(missionFitsForecast(m, needed, ROBOT_DEFAULTS)).toBe(true);
     expect(missionFitsForecast(m, needed - 1, ROBOT_DEFAULTS)).toBe(false);
+  });
+
+  describe("syncMission (pose is a function of sim time)", () => {
+    const STEP = 15;
+    const g = openGrid();
+    const start = () => [{ min: 30, mission: createMission(STAGING, TARGET, 30, g, ROBOT_DEFAULTS), grid: g }];
+
+    it("scrubbing back before launch puts the dog at staging", () => {
+      let log = syncMission(start(), 30 + 4 * STEP, STEP, g, ROBOT_DEFAULTS);
+      expect(log.at(-1)!.mission.phase).not.toBe("outbound");
+      log = syncMission(log, 0, STEP, g, ROBOT_DEFAULTS);
+      const m = log.at(-1)!.mission;
+      expect(m.phase).toBe("outbound");
+      const p = missionPose(m, 0, N);
+      expect([p.row, p.col]).toEqual([15, 2]);
+    });
+
+    it("scrubbing back mid-mission restores the earlier state", () => {
+      const full = syncMission(start(), 30 + 6 * STEP, STEP, g, ROBOT_DEFAULTS);
+      const back = syncMission(full, 30 + STEP, STEP, g, ROBOT_DEFAULTS);
+      const stepped = syncMission(start(), 30 + STEP, STEP, g, ROBOT_DEFAULTS);
+      expect(back.at(-1)!.mission).toEqual(stepped.at(-1)!.mission);
+    });
+
+    it("a forward jump replays every step, so scouting starts at arrival", () => {
+      const jumped = syncMission(start(), 30 + 20 * STEP, STEP, g, ROBOT_DEFAULTS);
+      let stepped = start();
+      for (let t = 30 + STEP; t <= 30 + 20 * STEP; t += STEP) stepped = syncMission(stepped, t, STEP, g, ROBOT_DEFAULTS);
+      expect(jumped.at(-1)!.mission).toEqual(stepped.at(-1)!.mission);
+      expect(jumped.at(-1)!.mission.phase).toBe("done");
+    });
+
+    it("a new forecast at the same minute re-checks the current state", () => {
+      const log = start();
+      const shifted = openGrid();
+      for (let r = 0; r < N; r++) shifted.ignitionMin[idx(r, 20)] = 30 + 10;
+      const after = syncMission(log, 30, STEP, shifted, ROBOT_DEFAULTS);
+      expect(after.at(-1)!.mission.phase).toBe("retreating");
+      expect(after.at(-1)!.grid).toBe(shifted);
+    });
+
+    it("same minute returns the same log", () => {
+      const log = start();
+      expect(syncMission(log, 30, STEP, g, ROBOT_DEFAULTS)).toBe(log);
+    });
   });
 });

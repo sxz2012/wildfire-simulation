@@ -48,12 +48,13 @@ import { computeIgnitionMinutes, passableFromFuel } from "./simulation/robot/haz
 import { latLngToCell, snapToSafeCell } from "./simulation/robot/geo";
 import { burningCentroid, shiftedWind, tailReplaceCommits } from "./simulation/robot/windShift";
 import {
-  advanceMission,
   createMission,
   missionFitsForecast,
   missionMarginMin,
   missionPose,
+  syncMission,
   type Mission,
+  type MissionEntry,
   type MissionPhase,
 } from "./simulation/robot/mission";
 
@@ -61,7 +62,10 @@ interface RobotState {
   placing: "staging" | "target" | null;
   stagingIdx: number | null;
   targetIdx: number | null;
+  /** Current mission state (the log's last entry). */
   mission: Mission | null;
+  /** Time-stamped mission states, so scrubbing the timeline moves the dog too. */
+  log: MissionEntry[];
   windShifted: boolean;
   shiftPending: boolean;
   notice: string | null;
@@ -677,16 +681,17 @@ function App() {
 
   const robotNowMin = currentStep * activeConfig.timestepMinutes;
 
-  // Advance the mission on every timeline step (and after a re-forecast).
+  // Bring the mission to the current timeline minute (forward, backward, or after a re-forecast).
   useEffect(() => {
     if (!plannerGrid) return;
     setRobot((r) => {
-      if (!r?.mission) return r;
-      const mission = advanceMission(r.mission, robotNowMin, plannerGrid, robotConfig);
-      if (mission === r.mission) return r;
-      return { ...r, mission, lastEvent: mission.event ?? r.lastEvent };
+      if (!r || r.log.length === 0) return r;
+      const log = syncMission(r.log, robotNowMin, activeConfig.timestepMinutes, plannerGrid, robotConfig);
+      if (log === r.log) return r;
+      const mission = log[log.length - 1].mission;
+      return { ...r, log, mission, lastEvent: mission.event ?? r.lastEvent };
     });
-  }, [robotNowMin, plannerGrid, robotConfig]);
+  }, [robotNowMin, plannerGrid, robotConfig, activeConfig.timestepMinutes]);
 
   const resumePlayback = useCallback(() => {
     setAutoPlay(false);
@@ -721,6 +726,7 @@ function App() {
       }
       setRobot((r) => r && {
         ...r, placing: null, stagingIdx, targetIdx, mission, notice, lastEvent: null,
+        log: [{ min: robotNowMin, mission, grid: plannerGrid }],
       });
       resumePlayback();
       return null;
@@ -748,7 +754,7 @@ function App() {
 
   const handleRobotStart = useCallback(() => {
     setRobot({
-      placing: "staging", stagingIdx: null, targetIdx: null, mission: null,
+      placing: "staging", stagingIdx: null, targetIdx: null, mission: null, log: [],
       windShifted: false, shiftPending: false, notice: null, lastEvent: null,
     });
   }, []);

@@ -217,3 +217,42 @@ export function missionMarginMin(m: Mission, nowMin: number, grid: PlannerGrid):
   const ahead = m.route ? remainingMarginMin(m.route, nowMin, grid.ignitionMin) : Infinity;
   return Math.min(here, ahead);
 }
+
+/** A mission state stamped with the simulation minute it was computed for. */
+export interface MissionEntry {
+  min: number;
+  mission: Mission;
+  /** Forecast the state was computed against. */
+  grid: PlannerGrid;
+}
+
+/**
+ * Bring a mission log to `nowMin` so the dog depends only on sim time:
+ * scrubbing back drops later entries (never the launch entry), and a forward
+ * jump replays every timeline step in between, so events land at the step
+ * they would have during playback. A new forecast at the same minute (wind
+ * shift) re-checks the current state. Returns `log` itself when nothing changes.
+ */
+export function syncMission(
+  log: MissionEntry[],
+  nowMin: number,
+  stepMin: number,
+  grid: PlannerGrid,
+  robot: RobotConfig
+): MissionEntry[] {
+  const last = log[log.length - 1];
+  if (nowMin === last.min) {
+    if (last.grid === grid) return log;
+    return [...log.slice(0, -1), { min: nowMin, mission: advanceMission(last.mission, nowMin, grid, robot), grid }];
+  }
+  let keep = log.length;
+  while (keep > 1 && log[keep - 1].min > nowMin) keep--;
+  const out = log.slice(0, keep);
+  let { min, mission } = out[out.length - 1];
+  while (min < nowMin) {
+    min = Math.min(min + stepMin, nowMin);
+    mission = advanceMission(mission, min, grid, robot);
+    out.push({ min, mission, grid });
+  }
+  return out;
+}
