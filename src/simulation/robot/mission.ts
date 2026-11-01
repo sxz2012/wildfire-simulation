@@ -162,7 +162,10 @@ export function advanceMission(
   } else {
     const here = currentCell(next, nowMin);
     const e = next.escape;
-    if (!e || e.cells[0] !== here || !planStillSafe(e, nowMin, ign, robot.entryMarginMin)) {
+    // Re-plan when the dog moved, time moved (a stale plan's past arrivals would
+    // skip every safety check), or the fire now crosses it.
+    if (!e || e.cells[0] !== here || e.arrivalMin[0] !== nowMin ||
+        !planStillSafe(e, nowMin, ign, robot.entryMarginMin)) {
       next.escape = planEscape(here, next, nowMin, grid, robot);
     }
   }

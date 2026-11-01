@@ -149,4 +149,22 @@ describe("mission", () => {
     m = advanceMission(m, now, shifted, ROBOT_DEFAULTS);
     expect(m.phase).not.toBe("holding");
   });
+
+  it("escape path is re-checked while the dog stands still", () => {
+    const g = openGrid();
+    let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
+    const end = m.route!.arrivalMin.at(-1)!;
+    m = advanceMission(m, end, g, ROBOT_DEFAULTS); // scouting at the target
+    const oldEscape = m.escape!;
+    // Fire will cross the old escape path's middle; the target itself stays clear.
+    const later = openGrid();
+    const mid = oldEscape.cells[Math.floor(oldEscape.cells.length / 2)];
+    const col = mid % N;
+    for (let r = 0; r < N; r++) if (r !== 0) later.ignitionMin[idx(r, col)] = end + 40;
+    // By end+20 every arrival time on the old escape is in the past.
+    expect(oldEscape.arrivalMin.at(-1)!).toBeLessThan(end + 20);
+    m = advanceMission(m, end + 20, later, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("scouting");
+    expect(m.escape?.cells ?? []).not.toContain(mid);
+  });
 });
