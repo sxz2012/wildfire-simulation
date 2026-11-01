@@ -13,28 +13,51 @@
     background: #fff;
     border: 2.5pt solid var(--line);
     border-radius: 10pt;
-    padding: 0.16in 0.22in;
+    padding: 0.1in 0.2in;
     font-size: 27pt;
     line-height: 1.3;
   }
   .step b { display: block; font-size: 30pt; color: var(--ink); }
   .step.model { border-color: var(--fire); background: #fff4ef; }
   .step.out { border-color: var(--robot); background: var(--robot-tint); }
-  .arrow { text-align: center; font-size: 30pt; color: var(--muted); line-height: 1; padding: 0.04in 0; }
+  .arrow { text-align: center; font-size: 26pt; color: var(--muted); line-height: 1; padding: 0.02in 0; }
 
-  .inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.12in; }
+  .inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.1in; }
   .inputs .step { font-size: 24pt; }
   .inputs .step b { font-size: 27pt; }
 
-  .pair { position: relative; }
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2in; }
   .pair figure { margin: 0; position: relative; }
-  .pair figure.inset { position: absolute; left: 0.25in; top: 0.25in; width: 42%; z-index: 1; }
-  .pair figure.inset img { border: 5pt solid #fff; box-shadow: 0 4pt 14pt rgba(0,0,0,.35); }
   .pair .tag {
     position: absolute; bottom: 0.18in; left: 50%; transform: translateX(-50%);
     font-size: 24pt; font-weight: 800; color: #fff; background: rgba(27,31,42,.8);
     padding: 0.04in 0.2in; border-radius: 30pt; white-space: nowrap;
   }
+  .metric { background: #fff; border: 2.5pt solid var(--line); border-radius: 12pt; padding: 0.2in 0.25in; }
+  .metric h4 { font-size: 29pt; font-weight: 800; }
+  .metric h4 span { font-weight: 500; color: var(--muted); font-size: 22pt; }
+  .bar { display: grid; grid-template-columns: 2.4in 1fr 1.5in; align-items: center; gap: 0.12in; margin-top: 0.14in; font-size: 26pt; }
+  .bar .track { height: 0.42in; background: #efebe3; border-radius: 6pt; overflow: hidden; }
+  .bar .fill { height: 100%; border-radius: 6pt; }
+  .bar .v { font-weight: 800; font-size: 30pt; text-align: right; }
+  .bar.model .fill { background: var(--fire); }
+  .bar.base .fill { background: #a9a49a; }
+  .bar.base { color: var(--muted); }
+  /* Results moved here from the right panel: a little tighter so the column fits 36 in. */
+  .results p { font-size: 26pt; }
+  .results p.small { font-size: 22pt; }
+  .results .metric { padding: 0.14in 0.22in; }
+  .results .metric h4 { font-size: 26pt; }
+  .results .metric h4 span { font-size: 20pt; }
+  .results .bar { font-size: 23pt; margin-top: 0.08in; grid-template-columns: 2.1in 1fr 1.3in; }
+  .results .bar .track { height: 0.34in; }
+  .results .bar .v { font-size: 26pt; }
+  .pair img.shot { height: 4.6in; object-fit: cover; }
+  .panel { gap: 0.35in; }
+  .step { font-size: 25pt; }
+  .step b { font-size: 28pt; }
+  .inputs .step { font-size: 23pt; }
+  .inputs .step b { font-size: 25pt; }
 </style>
 </head>
 <body>
@@ -70,7 +93,7 @@
   <section class="section">
     <h2>The simulator</h2>
     <div class="pair">
-      <figure class="inset">
+      <figure>
         <img class="shot" src="img/fire-early.jpg" alt="Simulated fire after about 4 hours">
         <div class="tag">~4 hours</div>
       </figure>
@@ -80,6 +103,26 @@
       </figure>
     </div>
     <p class="caption">Simulated fire spreading over real 3D terrain in the Big Sur area of Monterey County, California (summer weather). Runs in a web browser on Google 3D map tiles.</p>
+  </section>
+
+  <section class="section results">
+    <h2>Results</h2>
+    <p>Tested on <b>6 fires the model never saw</b> (USA, Bolivia, Siberia, Greece).</p>
+    <p class="small">In these fires 91% of cases are "fire spreads," so we compare against a simple baseline that <b>always guesses "spreads."</b></p>
+
+    <div class="metric">
+      <h4>Ranking risky cells <span>(AUC-ROC, higher is better)</span></h4>
+      <div class="bar model"><span>Our model</span><div class="track"><div class="fill" style="width:75%"></div></div><span class="v">0.75</span></div>
+      <div class="bar base"><span>Baseline</span><div class="track"><div class="fill" style="width:50%"></div></div><span class="v">0.50</span></div>
+    </div>
+
+    <div class="metric">
+      <h4>Probability error <span>(Brier score, lower is better)</span></h4>
+      <div class="bar model"><span>Our model</span><div class="track"><div class="fill" style="width:76%"></div></div><span class="v">0.076</span></div>
+      <div class="bar base"><span>Baseline</span><div class="track"><div class="fill" style="width:83%"></div></div><span class="v">0.083</span></div>
+    </div>
+
+    <p><span class="hl">Takeaway:</span> the model ranks which cells are at risk clearly better than chance, and its probabilities are more accurate than the baseline. It still leans toward "spreads," which we are working to improve.</p>
   </section>
 
 </div>
