@@ -200,3 +200,14 @@ export function trueFireThreat(
   }
   return false;
 }
+
+/**
+ * The corrected forecast: the old forecast before `step`, then the re-run that
+ * starts from the true state at `step` (`resumed[0]`). A forecast that ended
+ * early is padded with its last state so indices stay aligned with steps.
+ */
+export function spliceForecast(history: SimulationState[], step: number, resumed: SimulationState[]): SimulationState[] {
+  const head = history.slice(0, step);
+  while (head.length < step) head.push({ ...history[history.length - 1], timestep: head.length });
+  return [...head, ...resumed];
+}

@@ -56,6 +56,7 @@ import {
   forecastEdgeCells,
   matchAtHorizon,
   shouldReport,
+  spliceForecast,
   trueConditions,
   trueFireThreat,
   type Conditions,
@@ -948,7 +949,7 @@ function App() {
     setAutoPlay(false);
     try {
       const resumed = await extendWorld(step, truthGrid, measured);
-      const history2 = [...fv.history.slice(0, step + 1), ...resumed.slice(1)];
+      const history2 = spliceForecast(fv.history, step, resumed);
       const version: ForecastVersion = { fromMin: robotNowMin, history: history2, grid: makePlannerGrid(history2) };
       const matchAfter = matchAtHorizon(history2, history.baseline, step, n);
       const report: Report = { min: robotNowMin, measured, assumed, edgeOffsetM, matchBefore, matchAfter };

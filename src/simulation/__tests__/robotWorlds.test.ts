@@ -11,6 +11,7 @@ import {
   forecastEdgeCells,
   arrowChunks,
   trueFireThreat,
+  spliceForecast,
 } from "../robot/worlds";
 import { CellState } from "../types";
 import type { ForecastVersion, Report } from "../robot/worlds";
@@ -140,4 +141,23 @@ describe("trueFireThreat (looks ahead along the route)", () => {
     expect(trueFireThreat(route, 1, 100, 15, ign(10, { 3: 118 }), 15)).toBe(true));
   it("sees true fire due at the dog's own cell", () =>
     expect(trueFireThreat(null, 7, 100, 15, ign(10, { 7: 110 }), 15)).toBe(true));
+});
+
+describe("spliceForecast", () => {
+  const st = (t: number, v = 0) => ({ grid: new Uint8Array([v]), timestep: t });
+  it("the corrected forecast starts from the true state at the report step", () => {
+    const old = [st(0), st(1), st(2), st(3), st(4)];
+    const resumed = [st(2, 9), st(3, 9)]; // resumed[0] = true state at step 2
+    const out = spliceForecast(old, 2, resumed);
+    expect(out.map((s) => s.timestep)).toEqual([0, 1, 2, 3]);
+    expect(out[2]).toBe(resumed[0]);
+    expect(out[1]).toBe(old[1]);
+  });
+  it("pads a forecast that ended before the report step with its last state", () => {
+    const old = [st(0), st(1)];
+    const out = spliceForecast(old, 4, [st(4, 9)]);
+    expect(out.length).toBe(5);
+    expect(out[3].grid).toBe(old[1].grid);
+    expect(out[4].grid[0]).toBe(9);
+  });
 });
