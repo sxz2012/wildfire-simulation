@@ -50,6 +50,7 @@ import { burningCentroid, shiftedWind, tailReplaceCommits } from "./simulation/r
 import {
   advanceMission,
   createMission,
+  missionFitsForecast,
   missionMarginMin,
   missionPose,
   type Mission,
@@ -713,13 +714,18 @@ function App() {
       if (!plannerGrid) return "Simulation not ready";
       const mission = createMission(stagingIdx, targetIdx, robotNowMin, plannerGrid, robotConfig);
       if (!mission.route) return "No safe route to that target — pick another";
+      // The timeline stops at its last frame; a mission that outlasts it would freeze.
+      const horizonMin = activeFire ? (activeFire.frames.length - 1) * activeConfig.timestepMinutes : 0;
+      if (!missionFitsForecast(mission, horizonMin, robotConfig)) {
+        return "Not enough forecast left for this mission — scrub earlier and try again";
+      }
       setRobot((r) => r && {
         ...r, placing: null, stagingIdx, targetIdx, mission, notice, lastEvent: null,
       });
       resumePlayback();
       return null;
     },
-    [plannerGrid, robotNowMin, robotConfig, resumePlayback],
+    [plannerGrid, robotNowMin, robotConfig, resumePlayback, activeFire, activeConfig.timestepMinutes],
   );
 
   const handleRobotPick = useCallback(

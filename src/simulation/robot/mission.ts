@@ -71,6 +71,18 @@ export function createMission(
   return base;
 }
 
+/**
+ * True when the forecast (ending at `horizonMin`) lasts long enough for the
+ * outbound route, the scouting hold and a walk home of about the same length.
+ * Past the horizon the timeline stops, so a longer mission would freeze.
+ */
+export function missionFitsForecast(m: Mission, horizonMin: number, robot: RobotConfig): boolean {
+  if (!m.route) return false;
+  const start = m.route.arrivalMin[0];
+  const outbound = m.route.arrivalMin.at(-1)! - start;
+  return start + 2 * outbound + robot.scoutHoldMin <= horizonMin;
+}
+
 /** Pure step of the mission at simulation minute `nowMin`. */
 export function advanceMission(
   m: Mission,

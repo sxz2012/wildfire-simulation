@@ -4,6 +4,7 @@ import {
   advanceMission,
   missionPose,
   missionMarginMin,
+  missionFitsForecast,
 } from "../robot/mission";
 import { ROBOT_DEFAULTS } from "../robot/types";
 import type { PlannerGrid } from "../robot/types";
@@ -166,5 +167,14 @@ describe("mission", () => {
     m = advanceMission(m, end + 20, later, ROBOT_DEFAULTS);
     expect(m.phase).toBe("scouting");
     expect(m.escape?.cells ?? []).not.toContain(mid);
+  });
+
+  it("missionFitsForecast: needs time for outbound, scouting hold and the walk home", () => {
+    const g = openGrid();
+    const m = createMission(STAGING, TARGET, 10, g, ROBOT_DEFAULTS);
+    const outbound = m.route!.arrivalMin.at(-1)! - 10;
+    const needed = 10 + outbound + ROBOT_DEFAULTS.scoutHoldMin + outbound;
+    expect(missionFitsForecast(m, needed, ROBOT_DEFAULTS)).toBe(true);
+    expect(missionFitsForecast(m, needed - 1, ROBOT_DEFAULTS)).toBe(false);
   });
 });
