@@ -14,6 +14,12 @@ interface RobotDogHUDProps {
   onToggleFollow: () => void;
   /** Placement prompt or notice shown before/while placing. */
   notice?: string | null;
+  /** Forecast vs true fire overlap, percent; null before launch. */
+  matchPct?: number | null;
+  /** Latest dog report, shown as one line once its card has collapsed. */
+  lastReport?: { matchBefore: number; matchAfter: number } | null;
+  /** A re-forecast (launch, report) is in flight. */
+  busy?: boolean;
 }
 
 export const MOCK_LABEL = "Mock simulation — planning on the model's fire forecast. No physical robot.";
@@ -46,6 +52,9 @@ export default function RobotDogHUD({
   follow,
   onToggleFollow,
   notice,
+  matchPct = null,
+  lastReport = null,
+  busy = false,
 }: RobotDogHUDProps): ReactElement {
   const danger = phase === "holding";
   const retreat = phase === "retreating";
@@ -72,6 +81,12 @@ export default function RobotDogHUD({
           </div>
           <div className="text-gray-300 tabular-nums">Fire margin: {formatMargin(marginMin)}</div>
           <div className="text-gray-400">{windLabel}</div>
+          {matchPct !== null && <div className="text-gray-200 tabular-nums">Forecast match: {matchPct}%</div>}
+          {lastReport && (
+            <div className="text-sky-300 tabular-nums">
+              Last report: {lastReport.matchBefore}% → {lastReport.matchAfter}%
+            </div>
+          )}
           {event && <div className="text-amber-300">{event}</div>}
         </div>
       ) : null}
@@ -82,7 +97,7 @@ export default function RobotDogHUD({
         <button
           type="button"
           onClick={onWindShift}
-          disabled={!phase || phase === "done" || windShifted || shiftPending}
+          disabled={!phase || phase === "done" || windShifted || shiftPending || busy}
           className="flex-1 rounded bg-sky-700 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed px-2 py-1.5 text-white"
         >
           {shiftPending ? "Re-forecasting…" : "🌬 Wind shift"}
@@ -98,7 +113,8 @@ export default function RobotDogHUD({
 
       <div className="flex gap-3 text-micro text-gray-400 mb-2">
         <span><span className="inline-block w-3 h-1 align-middle mr-1" style={{ background: "#2D6CDF" }} />route</span>
-        <span><span className="inline-block w-3 h-1 align-middle mr-1" style={{ background: "#2E8540" }} />escape path</span>
+        <span><span className="inline-block w-3 h-1 align-middle mr-1" style={{ background: "#2E8540" }} />escape path ➜ home</span>
+        <span><span className="inline-block w-1.5 h-1.5 rounded-full align-middle mr-1" style={{ background: "#FFF3A0" }} />forecast edge</span>
       </div>
 
       <div className="border-t border-white/[0.08] pt-2 text-micro text-amber-200/90 leading-snug">

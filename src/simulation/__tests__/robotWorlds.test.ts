@@ -82,13 +82,17 @@ describe("metrics and drawing helpers", () => {
     expect(forecastMatch(a, grid([22]), N)).toBe(100);
   });
 
-  it("matchAtHorizon compares both worlds 16 steps ahead, clamped to the shorter history", () => {
+  it("matchAtHorizon scores only the spread still to come, 16 steps ahead, clamped", () => {
     const s = (cells: number[]) => ({ grid: grid(cells), timestep: 0 });
-    const forecast = Array.from({ length: 30 }, (_, i) => s(i >= 20 ? [22] : [77]));
-    const truth = Array.from({ length: 25 }, () => s([22]));
-    expect(matchAtHorizon(forecast, truth, 5, N)).toBe(100); // step 21
-    expect(matchAtHorizon(forecast, truth, 0, N)).toBe(0); // step 16
-    expect(matchAtHorizon(forecast, truth, 20, N)).toBe(100); // clamped to 24
+    // A big burned area both agree on, plus new spread that differs.
+    const burned = [11, 12, 13, 21, 22, 23, 31, 32, 33];
+    const truth = Array.from({ length: 25 }, (_, i) => s(i >= 10 ? [...burned, 34, 35] : burned));
+    const wrong = Array.from({ length: 30 }, (_, i) => s(i >= 10 ? [...burned, 71, 72] : burned));
+    const right = Array.from({ length: 30 }, (_, i) => s(i >= 10 ? [...burned, 34, 35] : burned));
+    expect(matchAtHorizon(wrong, truth, 0, N)).toBe(0); // shared burned area doesn't count
+    expect(matchAtHorizon(right, truth, 0, N)).toBe(100);
+    expect(matchAtHorizon(right, truth, 20, N)).toBe(100); // clamped to 24: no new spread after 20 → nothing to miss
+    expect(matchAtHorizon(wrong, truth, 20, N)).toBe(0); // predicted spread that never happens still counts against it
   });
 
   it("edgeOffsetMeters: true fire 2 cells closer → +100 m at 50 m cells", () => {

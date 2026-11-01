@@ -12,12 +12,14 @@ import {
   Transforms,
   CallbackProperty,
   CallbackPositionProperty,
+  PolylineArrowMaterialProperty,
   VerticalOrigin,
 } from "cesium";
 import type { Viewer as CesiumViewer, Entity } from "cesium";
 import { missionPose } from "../simulation/robot/mission";
 import type { Mission } from "../simulation/robot/mission";
 import { cellCenter, gridToLatLng } from "../simulation/robot/geo";
+import { arrowChunks } from "../simulation/robot/worlds";
 import type { Plan } from "../simulation/robot/types";
 
 interface RobotDogLayerProps {
@@ -42,6 +44,7 @@ const MODEL_URL = "/models/robot-dog.glb";
 // Cesium loads glTF with +Z forward, so the model (three.js +X forward) faces north at heading 0.
 const MODEL_YAW_OFFSET_DEG = 0;
 const MIN_PIXEL_SIZE = 64;
+const ARROW_WIDTH = 18;
 const FOLLOW_RANGE_M = 4000;
 
 export default function RobotDogLayer({
@@ -62,6 +65,8 @@ export default function RobotDogLayer({
   const escapeRef = useRef<Entity | null>(null);
   const homeRef = useRef<Entity | null>(null);
   const flagRef = useRef<Entity | null>(null);
+  const arrowRefs = useRef<Entity[]>([]);
+  const arrowPlanRef = useRef<Plan | null>(null);
 
   // Everything the per-frame callbacks read lives in refs.
   const missionRef = useRef(mission);
@@ -161,6 +166,9 @@ export default function RobotDogLayer({
         if (r.current) viewer.entities.remove(r.current);
         r.current = null;
       }
+      for (const e of arrowRefs.current) viewer.entities.remove(e);
+      arrowRefs.current = [];
+      arrowPlanRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer]);
@@ -182,7 +190,7 @@ export default function RobotDogLayer({
       if (idx != null) ref.current.position = at(idx) as never;
     }
 
-    const syncLine = (ref: { current: Entity | null }, plan: Plan | null | undefined, color: Color) => {
+    const syncLine = (ref: { current: Entity | null }, plan: Plan | null | undefined, color: Color, zIndex: number) => {
       const positions = plan && plan.cells.length > 1 ? plan.cells.map(at) : null;
       if (!positions) {
         if (ref.current) viewer.entities.remove(ref.current);
@@ -194,11 +202,33 @@ export default function RobotDogLayer({
         return;
       }
       ref.current = viewer.entities.add({
-        polyline: { positions, width: 5, material: color, clampToGround: true },
+        polyline: { positions, width: 5, material: color, clampToGround: true, zIndex },
       });
     };
-    syncLine(routeRef, mission?.route, ROUTE_COLOR);
-    syncLine(escapeRef, mission?.escape, ESCAPE_COLOR);
+    // The escape path draws above the route so it stays visible where they overlap.
+    syncLine(routeRef, mission?.route, ROUTE_COLOR, 1);
+    syncLine(escapeRef, mission?.escape, ESCAPE_COLOR, 2);
+
+    // Arrowheads along the escape path, pointing home; rebuilt only when the escape plan changes.
+    const escape = mission?.escape ?? null;
+    if (escape !== arrowPlanRef.current) {
+      for (const e of arrowRefs.current) viewer.entities.remove(e);
+      arrowRefs.current = [];
+      arrowPlanRef.current = escape;
+      if (escape && escape.cells.length > 1) {
+        for (const [from, to] of arrowChunks(escape.cells)) {
+          arrowRefs.current.push(viewer.entities.add({
+            polyline: {
+              positions: escape.cells.slice(from, to + 1).map(at),
+              width: ARROW_WIDTH,
+              material: new PolylineArrowMaterialProperty(ESCAPE_COLOR),
+              clampToGround: true,
+              zIndex: 3,
+            },
+          }));
+        }
+      }
+    }
   }, [viewer, mission, pendingStagingIdx, gridSize, cellSizeMeters, centerLat, centerLng]);
 
   // Optional camera follow: keep the dog centred, keep the user's heading/pitch/zoom.

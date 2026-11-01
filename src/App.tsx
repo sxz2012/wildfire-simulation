@@ -46,10 +46,14 @@ import RobotPlacementTool from "./components/RobotPlacementTool";
 import { ROBOT_DEFAULTS, type PlannerGrid, type RobotConfig } from "./simulation/robot/types";
 import type { SimulationState } from "./simulation/types";
 import { computeIgnitionMinutes, passableFromFuel } from "./simulation/robot/hazard";
+import ForecastOutlineLayer from "./components/ForecastOutlineLayer";
+import ReadingsCard from "./components/ReadingsCard";
 import {
+  activeReport,
   conditionsWeather,
   edgeOffsetMeters,
   forecastAt,
+  forecastEdgeCells,
   matchAtHorizon,
   shouldReport,
   trueConditions,
@@ -734,6 +738,13 @@ function App() {
     () => (forecastHistory && history.baseline.length > 0 ? matchAtHorizon(forecastHistory, history.baseline, robotStep, n) : null),
     [forecastHistory, history.baseline, robotStep, n],
   );
+  // Small derived values only: grids never go into props (React dev logging deep-walks them).
+  const forecastEdge = useMemo(
+    () => (forecastHistory ? forecastEdgeCells(forecastHistory[Math.min(robotStep, forecastHistory.length - 1)].grid, n) : []),
+    [forecastHistory, robotStep, n],
+  );
+  const { report: currentReport, cardVisible: reportCardVisible } = activeReport(robot?.reports ?? [], robotNowMin, ts);
+  const forecastWind = currentReport?.measured ?? activeConfig;
 
   // Bring the mission to the current timeline minute (forward, backward, or after a new forecast).
   const robotForecasts = robot?.forecasts;
@@ -957,7 +968,9 @@ function App() {
     if (!r?.mission || !trueIgn || r.reportPending || r.shiftPending || r.launching || r.forecasts.length === 0) return;
     if (r.mission.phase === "done") return;
     const dog = dogCellAt(r.mission, robotNowMin);
-    const trueFireNear = trueIgn[dog] - robotNowMin < robotConfig.entryMarginMin;
+    // "Near" = the true fire is due at the dog's cell within half the entry margin: a
+    // safety trigger, not something that fires all along a route hugging the flank.
+    const trueFireNear = trueIgn[dog] - robotNowMin < robotConfig.entryMarginMin / 2;
     if (shouldReport({ phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin })) {
       void sendReport();
     }
@@ -1399,12 +1412,20 @@ function App() {
             active={robot.placing !== null}
             onPick={handleRobotPick}
           />
+          <ForecastOutlineLayer
+            viewer={viewerRef.current}
+            edgeCells={forecastEdge}
+            gridSize={activeConfig.gridSize}
+            cellSizeMeters={activeConfig.cellSizeMeters}
+            centerLat={ignitionPoint.lat}
+            centerLng={ignitionPoint.lng}
+          />
           <div className="absolute top-[200px] right-3 z-40">
             <RobotDogHUD
               phase={robot.mission?.phase ?? null}
               event={robot.lastEvent}
               marginMin={robot.mission && plannerGrid ? missionMarginMin(robot.mission, robotNowMin, plannerGrid) : Infinity}
-              windLabel={`Wind: from ${Math.round(activeConfig.windDirection)}° at ${Math.round(activeConfig.windSpeed)} km/h`}
+              windLabel={`Forecast wind: from ${Math.round(forecastWind.windDirection)}° at ${Math.round(forecastWind.windSpeed)} km/h`}
               windShifted={robot.windShifted}
               shiftPending={robot.shiftPending}
               onWindShift={handleWindShift}
@@ -1412,7 +1433,15 @@ function App() {
               follow={robotFollow}
               onToggleFollow={() => setRobotFollow((f) => !f)}
               notice={[robot.placing ? ROBOT_PROMPT[robot.placing] : null, robot.notice].filter(Boolean).join(" · ") || null}
+              matchPct={matchPct}
+              lastReport={currentReport && !reportCardVisible ? currentReport : null}
+              busy={robot.reportPending || robot.launching}
             />
+            {currentReport && reportCardVisible && (
+              <div className="mt-2">
+                <ReadingsCard report={currentReport} />
+              </div>
+            )}
           </div>
         </>
       )}

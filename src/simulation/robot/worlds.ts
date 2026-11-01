@@ -80,12 +80,17 @@ export function activeReport(
   return { report, cardVisible: !!report && nowMin < report.min + 3 * timestepMin };
 }
 
-/** Integer percent overlap (intersection over union) of interior cells the fire has reached. */
-export function forecastMatch(forecast: Uint8Array, truth: Uint8Array, n: number): number {
+/**
+ * Integer percent overlap (intersection over union) of interior cells the fire
+ * has reached. With `onlyUnburnedIn`, cells already reached there are skipped,
+ * so only new spread is scored.
+ */
+export function forecastMatch(forecast: Uint8Array, truth: Uint8Array, n: number, onlyUnburnedIn?: Uint8Array): number {
   let inter = 0, union = 0;
   for (let r = 1; r < n - 1; r++) {
     for (let c = 1; c < n - 1; c++) {
       const i = r * n + c;
+      if (onlyUnburnedIn && onlyUnburnedIn[i] !== CellState.Unburned) continue;
       const a = forecast[i] !== CellState.Unburned, b = truth[i] !== CellState.Unburned;
       if (a && b) inter++;
       if (a || b) union++;
@@ -94,7 +99,12 @@ export function forecastMatch(forecast: Uint8Array, truth: Uint8Array, n: number
   return union === 0 ? 100 : Math.round((inter / union) * 100);
 }
 
-/** Forecast match a few hours ahead (16 steps = 4 h), clamped to the shorter history. */
+/**
+ * How well the forecast predicts the spread still to come: overlap of new
+ * spread (cells unburned in the true fire now) a few hours ahead (16 steps =
+ * 4 h), clamped to the shorter history. The burned area both agree on is not
+ * scored — it would hide a forecast heading the wrong way.
+ */
 export function matchAtHorizon(
   forecast: SimulationState[],
   truth: SimulationState[],
@@ -103,7 +113,8 @@ export function matchAtHorizon(
   horizonSteps = 16
 ): number {
   const at = Math.min(step + horizonSteps, forecast.length - 1, truth.length - 1);
-  return forecastMatch(forecast[at].grid, truth[at].grid, n);
+  const now = truth[Math.min(step, truth.length - 1)].grid;
+  return forecastMatch(forecast[at].grid, truth[at].grid, n, now);
 }
 
 function nearestBurningCells(state: Uint8Array, dogIdx: number, n: number): number {
