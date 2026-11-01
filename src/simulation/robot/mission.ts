@@ -249,12 +249,16 @@ export function syncMission(
   let keep = log.length;
   while (keep > 1 && log[keep - 1].min > nowMin) keep--;
   const out = log.slice(0, keep);
-  let { min, mission } = out[out.length - 1];
+  let { min, mission, grid: prev } = out[out.length - 1];
   while (min < nowMin) {
     min = Math.min(min + stepMin, nowMin);
+    // Live, a new forecast reaches a minute after it was first played on the
+    // previous one (then re-checked). Replay does the same so rewinds match.
+    mission = advanceMission(mission, min, prev, robot);
     const grid = gridAt(min);
-    mission = advanceMission(mission, min, grid, robot);
+    if (grid !== prev) mission = advanceMission(mission, min, grid, robot);
     out.push({ min, mission, grid });
+    prev = grid;
   }
   return out;
 }

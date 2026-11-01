@@ -230,6 +230,18 @@ describe("mission", () => {
       expect(back.at(-1)!.mission.phase).toBe("outbound");
     });
 
+    it("replay after a rewind matches live when a new forecast lands on the arrival step", () => {
+      const old = openGrid(), corrected = openGrid();
+      corrected.ignitionMin[TARGET] = 65; // the corrected forecast sees fire reaching the target soon
+      const gridAt = (min: number) => (min >= 45 ? corrected : old);
+      // Live: minute 45 is first reached on the old forecast, then the report re-checks it.
+      let live = syncMission(start(), 45, STEP, () => old, ROBOT_DEFAULTS);
+      live = syncMission(live, 45, STEP, gridAt, ROBOT_DEFAULTS);
+      // Replay: rewind to launch, then play forward again.
+      const replay = syncMission(syncMission(live, 30, STEP, gridAt, ROBOT_DEFAULTS), 45, STEP, gridAt, ROBOT_DEFAULTS);
+      expect(replay.at(-1)!.mission).toEqual(live.at(-1)!.mission);
+    });
+
     it("same minute returns the same log", () => {
       const log = start();
       expect(syncMission(log, 30, STEP, () => g, ROBOT_DEFAULTS)).toBe(log);
