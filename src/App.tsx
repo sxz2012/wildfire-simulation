@@ -157,6 +157,8 @@ function App() {
   // Terrain for the robot planner's slope cost and the wind-shift re-forecast.
   const [elevationMap, setElevationMap] = useState<Float32Array | null>(null);
   const [robot, setRobot] = useState<RobotState | null>(null);
+  /** Bumped on robot start/exit and on reset, so a re-forecast that returns afterwards is dropped. */
+  const robotGenRef = useRef(0);
   /** Archive weather of the current run (what the forecast assumes). */
   const [archiveConditions, setArchiveConditions] = useState<Conditions | null>(null);
   const [robotFollow, setRobotFollow] = useState(false);
@@ -227,6 +229,7 @@ function App() {
   // scenario pick). Called automatically before starting a new run so the
   // map is fresh, but the panel keeps what the user just set.
   const runReset = useCallback(() => {
+    robotGenRef.current++;
     reset();
     setCurrentStep(0);
     setIgnitionPoint(null);
@@ -838,8 +841,10 @@ function App() {
       const truth = trueConditions(archiveConditions);
       setRobot((r) => r && { ...r, placing: null, launching: true, notice: "Preparing the true fire…" });
       setAutoPlay(false);
+      const gen = robotGenRef.current;
       try {
         const resumed = await extendWorld(step, history.baseline[step].grid, truth);
+        if (gen !== robotGenRef.current) return null; // robot mode exited or run reset meanwhile
         commitTruth(step, resumed, () =>
           setRobot((r) => r && {
             ...r, stagingIdx, targetIdx, mission, notice, lastEvent: null, launching: false,
@@ -847,12 +852,13 @@ function App() {
             forecasts: [version0], reports: [], archive: archiveConditions, truth, shiftMin: null,
           }),
         );
+        resumePlayback();
       } catch (err) {
+        if (gen !== robotGenRef.current) return null;
         console.error("True-fire fork failed:", err);
         setRobot((r) => r && { ...r, placing: "target", launching: false });
-        return "Couldn't start — is the dev server running? (npm run server)";
-      } finally {
         resumePlayback();
+        return "Couldn't start — is the dev server running? (npm run server)";
       }
       return null;
     },
@@ -878,6 +884,7 @@ function App() {
   );
 
   const handleRobotStart = useCallback(() => {
+    robotGenRef.current++;
     setRobot({
       placing: "staging", stagingIdx: null, targetIdx: null, mission: null, log: [],
       windShifted: false, shiftPending: false, notice: null, lastEvent: null,
@@ -887,6 +894,7 @@ function App() {
   }, []);
 
   const handleRobotExit = useCallback(() => {
+    robotGenRef.current++;
     // Keeps the (possibly wind-shifted) true fire on screen.
     setRobot(null);
     setRobotFollow(false);
@@ -916,13 +924,16 @@ function App() {
     const truth = { ...r.truth, ...wind };
     setRobot((s) => s && { ...s, shiftPending: true, notice: null });
     setAutoPlay(false);
+    const gen = robotGenRef.current;
     try {
       const resumed = await extendWorld(step, snapshot, truth);
+      if (gen !== robotGenRef.current) return; // robot mode exited or run reset meanwhile
       commitTruth(step, resumed);
       const label = `True wind shifted to ${Math.round(wind.windDirection)}° at ${Math.round(wind.windSpeed)} km/h — the forecast doesn't know yet`;
       setWeatherInfo(label);
       setRobot((s) => s && { ...s, truth, shiftMin: robotNowMin, windShifted: true, shiftPending: false, lastEvent: label });
     } catch (err) {
+      if (gen !== robotGenRef.current) return;
       console.error("Wind shift failed:", err);
       setRobot((s) => s && {
         ...s, shiftPending: false, notice: "Wind shift failed — is the dev server running? (npm run server)",
@@ -947,8 +958,10 @@ function App() {
     );
     setRobot((s) => s && { ...s, reportPending: true });
     setAutoPlay(false);
+    const gen = robotGenRef.current;
     try {
       const resumed = await extendWorld(step, truthGrid, measured);
+      if (gen !== robotGenRef.current) return; // robot mode exited or run reset meanwhile
       const history2 = spliceForecast(fv.history, step, resumed);
       const version: ForecastVersion = { fromMin: robotNowMin, history: history2, grid: makePlannerGrid(history2) };
       const matchAfter = matchAtHorizon(history2, history.baseline, step, n);
@@ -960,6 +973,7 @@ function App() {
         lastEvent: `Dog report: forecast corrected (${matchBefore}% → ${matchAfter}%)`,
       });
     } catch (err) {
+      if (gen !== robotGenRef.current) return;
       console.error("Dog report failed:", err);
       setRobot((s) => s && {
         ...s, reportPending: false, reportFailedMin: robotNowMin,
