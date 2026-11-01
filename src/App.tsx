@@ -96,6 +96,8 @@ interface RobotState {
   truth: Conditions | null;
   /** Minute of the (truth-only) wind shift. */
   shiftMin: number | null;
+  /** Minute of the last failed report attempt (not retried until something new happens). */
+  reportFailedMin: number | null;
   reportPending: boolean;
   launching: boolean;
 }
@@ -878,7 +880,7 @@ function App() {
       placing: "staging", stagingIdx: null, targetIdx: null, mission: null, log: [],
       windShifted: false, shiftPending: false, notice: null, lastEvent: null,
       forecasts: [], reports: [], archive: null, truth: null, shiftMin: null,
-      reportPending: false, launching: false,
+      reportFailedMin: null, reportPending: false, launching: false,
     });
   }, []);
 
@@ -957,7 +959,10 @@ function App() {
       });
     } catch (err) {
       console.error("Dog report failed:", err);
-      setRobot((s) => s && { ...s, reportPending: false, notice: "Dog report failed — is the dev server running? (npm run server)" });
+      setRobot((s) => s && {
+        ...s, reportPending: false, reportFailedMin: robotNowMin,
+        notice: "Dog report failed — is the dev server running? (npm run server)",
+      });
     }
     resumePlayback();
   }, [robot, robotStep, robotNowMin, history.baseline, n, activeConfig.cellSizeMeters, dogCellAt, extendWorld, makePlannerGrid, resumePlayback]);
@@ -971,7 +976,10 @@ function App() {
     // "Near" = the true fire is due at the dog's cell within half the entry margin: a
     // safety trigger, not something that fires all along a route hugging the flank.
     const trueFireNear = trueIgn[dog] - robotNowMin < robotConfig.entryMarginMin / 2;
-    if (shouldReport({ phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin })) {
+    if (shouldReport({
+      phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin,
+      failedMin: r.reportFailedMin,
+    })) {
       void sendReport();
     }
   }, [robot, trueIgn, robotNowMin, robotConfig, dogCellAt, sendReport]);

@@ -54,7 +54,8 @@ export interface Report {
  * The dog reports when it can see the true fire (at the edge, or the true fire
  * comes near) and has something new to say: no report yet, or a wind shift
  * since the last one. A report later than now means the timeline was rewound,
- * so the existing report is replayed instead of making a new one.
+ * so the existing report is replayed instead of making a new one. A failed
+ * attempt (`failedMin`) counts as covered, so a down server isn't hammered.
  */
 export function shouldReport(a: {
   phase: MissionPhase | null;
@@ -62,10 +63,12 @@ export function shouldReport(a: {
   nowMin: number;
   reports: Report[];
   shiftMin: number | null;
+  failedMin?: number | null;
 }): boolean {
   if (a.reports.some((r) => r.min > a.nowMin)) return false;
   if (a.phase !== "scouting" && !a.trueFireNear) return false;
   const since = a.shiftMin !== null && a.shiftMin <= a.nowMin ? a.shiftMin : -Infinity;
+  if (a.failedMin != null && a.failedMin >= since && a.failedMin <= a.nowMin) return false;
   return !a.reports.some((r) => r.min >= since);
 }
 

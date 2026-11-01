@@ -47,6 +47,10 @@ describe("shouldReport", () => {
     expect(shouldReport({ ...base, phase: "scouting", reports: [{ min: 450 } as Report], shiftMin: 480 })).toBe(true));
   it("a shift while walking home alone does not report", () =>
     expect(shouldReport({ ...base, phase: "returning", reports: [{ min: 450 } as Report], shiftMin: 480 })).toBe(false));
+  it("a failed report is not retried until something new happens", () => {
+    expect(shouldReport({ ...base, phase: "scouting", failedMin: 490 })).toBe(false);
+    expect(shouldReport({ ...base, phase: "scouting", failedMin: 490, shiftMin: 495 })).toBe(true);
+  });
   it("after a rewind (a future report exists) no new report is made", () =>
     expect(shouldReport({ ...base, phase: "scouting", reports: [{ min: 600 } as Report] })).toBe(false));
 });
