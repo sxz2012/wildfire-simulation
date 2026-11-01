@@ -110,4 +110,17 @@ describe("mission", () => {
     expect(missionMarginMin(m, 0, g)).toBeCloseTo(200 - arr, 4);
     expect(missionMarginMin(createMission(STAGING, TARGET, 0, openGrid(), ROBOT_DEFAULTS), 0, openGrid())).toBe(Infinity);
   });
+
+  it("keeps an escape path under the entry margin when the stricter escape margin fails", () => {
+    // Fire reaches every cell at minute 50: 60-min escape margin is already
+    // impossible at t=0, but a 30-min margin still leaves a way home.
+    const g = openGrid();
+    g.ignitionMin.fill(50);
+    let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("outbound");
+    expect(m.escape).not.toBeNull();
+    m = advanceMission(m, 2, g, ROBOT_DEFAULTS);
+    expect(m.escape).not.toBeNull();
+    expect(m.escape!.cells.at(-1)).toBe(STAGING);
+  });
 });

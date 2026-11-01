@@ -32,13 +32,15 @@ interface RobotDogLayerProps {
   centerLat: number;
   centerLng: number;
   follow?: boolean;
+  /** Staging cell chosen while the target is still being placed. */
+  pendingStagingIdx?: number | null;
 }
 
 const ROUTE_COLOR = Color.fromCssColorString("#2D6CDF");
 const ESCAPE_COLOR = Color.fromCssColorString("#2E8540");
 const MODEL_URL = "/models/robot-dog.glb";
-// The model faces +X (east at heading 0); Cesium heading is clockwise from east here.
-const MODEL_YAW_OFFSET_DEG = -90;
+// Cesium loads glTF with +Z forward, so the model (three.js +X forward) faces north at heading 0.
+const MODEL_YAW_OFFSET_DEG = 0;
 const MIN_PIXEL_SIZE = 64;
 const FOLLOW_RANGE_M = 4000;
 
@@ -53,6 +55,7 @@ export default function RobotDogLayer({
   centerLat,
   centerLng,
   follow = false,
+  pendingStagingIdx = null,
 }: RobotDogLayerProps): null {
   const dogRef = useRef<Entity | null>(null);
   const routeRef = useRef<Entity | null>(null);
@@ -171,7 +174,7 @@ export default function RobotDogLayer({
     };
     if (dogRef.current) dogRef.current.show = !!mission;
     for (const [ref, idx] of [
-      [homeRef, mission?.stagingIdx],
+      [homeRef, mission?.stagingIdx ?? pendingStagingIdx],
       [flagRef, mission?.targetIdx],
     ] as const) {
       if (!ref.current) continue;
@@ -196,7 +199,7 @@ export default function RobotDogLayer({
     };
     syncLine(routeRef, mission?.route, ROUTE_COLOR);
     syncLine(escapeRef, mission?.escape, ESCAPE_COLOR);
-  }, [viewer, mission, gridSize, cellSizeMeters, centerLat, centerLng]);
+  }, [viewer, mission, pendingStagingIdx, gridSize, cellSizeMeters, centerLat, centerLng]);
 
   // Optional camera follow: keep the dog centred, keep the user's heading/pitch/zoom.
   useEffect(() => {

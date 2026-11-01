@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { cellCenter, gridToLatLng, latLngToCell, snapToSafeCell } from "../robot/geo";
-import { burningCentroid, shiftedWind } from "../robot/windShift";
+import { burningCentroid, shiftedWind, tailReplaceCommits } from "../robot/windShift";
 import { createGrid } from "../grid";
 import { CellState, DEFAULT_CONFIG } from "../types";
 import type { PlannerGrid } from "../robot/types";
@@ -101,5 +101,31 @@ describe("shiftedWind", () => {
   it("adds the delta and caps speed at 60 km/h", () => {
     expect(shiftedWind(dog, { row: 80, col: 50 }, n, cur, 10).windSpeed).toBe(25);
     expect(shiftedWind(dog, { row: 80, col: 50 }, n, { windSpeed: 55, windDirection: 0 }, 10).windSpeed).toBe(60);
+  });
+});
+
+describe("tailReplaceCommits", () => {
+  const state = (timestep: number, v: number) => ({ grid: new Uint8Array([v]), timestep });
+  const baseline = [0, 1, 2, 3, 4, 5].map((t) => state(t, 0));
+  const resumed = [3, 4, 5, 6, 7].map((t) => state(t, 9)); // resumed[0] is the snapshot at step 3
+
+  it("ends with the baseline up to the shift step followed by the re-forecast", () => {
+    const commits = tailReplaceCommits(baseline, 3, resumed);
+    const last = commits[commits.length - 1];
+    expect(last.map((s) => s.timestep)).toEqual([0, 1, 2, 3, 4, 5, 6, 7]);
+    expect(last.slice(0, 4).every((s, i) => s === baseline[i])).toBe(true);
+    expect(last.slice(4).every((s, i) => s === resumed[i + 1])).toBe(true);
+  });
+
+  it("never swaps a different state into an index between consecutive commits", () => {
+    // React's dev render logging deep-walks props whose array elements change
+    // in place; with 600×600 grids that froze the tab on wind shift.
+    const commits = [baseline, ...tailReplaceCommits(baseline, 3, resumed)];
+    for (let k = 1; k < commits.length; k++) {
+      const prev = commits[k - 1], next = commits[k];
+      for (let i = 0; i < Math.min(prev.length, next.length); i++) {
+        expect(next[i]).toBe(prev[i]);
+      }
+    }
   });
 });

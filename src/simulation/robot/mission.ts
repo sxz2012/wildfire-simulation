@@ -9,7 +9,7 @@ export interface Mission {
   phase: MissionPhase;
   /** The path the dog is following. A single-cell plan while it stands still. */
   route: Plan | null;
-  /** Always-open way back to staging under the stricter escape margin. */
+  /** Way back to staging: escape margin if possible, else entry margin; null when neither exists. */
   escape: Plan | null;
   holdUntilMin: number | null;
   /** Short HUD message for something that just changed, else null. */
@@ -41,8 +41,12 @@ function currentCell(m: Mission, nowMin: number): number {
   return m.route.cells[reachedIndex(m.route, nowMin)];
 }
 
+/** Way home under the escape margin, falling back to the entry margin so a path shows whenever one exists. */
 function planEscape(cell: number, m: Mission, nowMin: number, grid: PlannerGrid, robot: RobotConfig) {
-  return planPath(grid, cell, m.stagingIdx, nowMin, robot.escapeMarginMin, robot);
+  return (
+    planPath(grid, cell, m.stagingIdx, nowMin, robot.escapeMarginMin, robot) ??
+    planPath(grid, cell, m.stagingIdx, nowMin, robot.entryMarginMin, robot)
+  );
 }
 
 export function createMission(
@@ -139,9 +143,7 @@ export function advanceMission(
       break;
     }
     case "holding": {
-      const escape =
-        planEscape(cur, m, nowMin, grid, robot) ??
-        planPath(grid, cur, m.stagingIdx, nowMin, robot.entryMarginMin, robot);
+      const escape = planEscape(cur, m, nowMin, grid, robot);
       if (escape) {
         next.phase = "retreating";
         next.route = escape;
@@ -154,13 +156,13 @@ export function advanceMission(
     }
   }
 
-  // Keep the escape path anchored at the dog and still clear under the stricter margin.
+  // Keep the escape path anchored at the dog and still clear.
   if (next.phase === "done") {
     next.escape = null;
   } else {
     const here = currentCell(next, nowMin);
     const e = next.escape;
-    if (!e || e.cells[0] !== here || !planStillSafe(e, nowMin, ign, robot.escapeMarginMin)) {
+    if (!e || e.cells[0] !== here || !planStillSafe(e, nowMin, ign, robot.entryMarginMin)) {
       next.escape = planEscape(here, next, nowMin, grid, robot);
     }
   }

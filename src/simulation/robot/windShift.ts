@@ -31,3 +31,15 @@ export function shiftedWind(
   const bearing = ((Math.atan2(east, north) * 180) / Math.PI + 360) % 360;
   return { windSpeed: Math.min(60, current.windSpeed + deltaKmh), windDirection: bearing };
 }
+
+/**
+ * History commits that replace everything after `step` with `resumed`
+ * (whose first state is the snapshot at `step`). Trimming first, then
+ * appending, means no index ever holds a different state between two
+ * renders: React's dev render logging deep-walks props whose array
+ * elements change in place, and with 600×600 grids that froze the tab.
+ */
+export function tailReplaceCommits<T>(baseline: T[], step: number, resumed: T[]): [T[], T[]] {
+  const head = baseline.slice(0, step + 1);
+  return [head, [...head, ...resumed.slice(1)]];
+}

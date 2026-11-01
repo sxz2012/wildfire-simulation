@@ -84,7 +84,7 @@ export default function TimelineBar({
   if (totalSteps === 0) return null;
 
   const progress = totalSteps > 1 ? (currentStep / (totalSteps - 1)) * 100 : 0;
-  const speeds = [0.5, 1, 2, 5];
+  const speeds = [0.25, 0.5, 1, 2, 5];
 
   return (
     <div className="fire-panel animate-enter-bottom absolute bottom-3 left-3 right-3 z-50 rounded-xl text-white px-4 py-3">

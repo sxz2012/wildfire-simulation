@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
+import { flushSync } from "react-dom";
 import GlobeView from "./components/GlobeView";
 import ControlPanel from "./components/ControlPanel";
 import TimelineBar from "./components/TimelineBar";
@@ -39,6 +40,64 @@ import type { Viewer as CesiumViewer } from "cesium";
 import { InfoModalProvider } from "./info/InfoContext";
 import InfoModal from "./info/InfoModal";
 import BriefingConsole from "./components/BriefingConsole";
+import RobotDogLayer from "./components/RobotDogLayer";
+import RobotDogHUD from "./components/RobotDogHUD";
+import RobotPlacementTool from "./components/RobotPlacementTool";
+import { ROBOT_DEFAULTS, type PlannerGrid, type RobotConfig } from "./simulation/robot/types";
+import { computeIgnitionMinutes, passableFromFuel } from "./simulation/robot/hazard";
+import { latLngToCell, snapToSafeCell } from "./simulation/robot/geo";
+import { burningCentroid, shiftedWind, tailReplaceCommits } from "./simulation/robot/windShift";
+import {
+  advanceMission,
+  createMission,
+  missionMarginMin,
+  missionPose,
+  type Mission,
+  type MissionPhase,
+} from "./simulation/robot/mission";
+
+interface RobotState {
+  placing: "staging" | "target" | null;
+  stagingIdx: number | null;
+  targetIdx: number | null;
+  mission: Mission | null;
+  windShifted: boolean;
+  shiftPending: boolean;
+  notice: string | null;
+  /** Last mission event, kept on screen until the next one. */
+  lastEvent: string | null;
+}
+
+const WIND_SHIFT_WINDOW_STEPS = 96;
+
+const ROBOT_PROMPT = {
+  staging: "Click a staging point (safe start)",
+  target: "Click the scout target near the fire edge",
+} as const;
+
+interface RobotDemoInfo {
+  center: { lat: number; lng: number };
+  gridSize: number;
+  cellSizeMeters: number;
+  windDirection: number;
+  step: number;
+  centroid: { row: number; col: number } | null;
+  burningCells: number;
+  baselineLength: number;
+  /** Cells from the centroid to the fire's downwind edge. */
+  headEdgeCells: number;
+}
+
+declare global {
+  interface Window {
+    __robotDemo?: {
+      start(staging: { lat: number; lng: number }, target: { lat: number; lng: number }): string | null;
+      shiftWind(): Promise<void>;
+      state(): { phase: MissionPhase | null; replanCount: number; event: string | null };
+      info(): RobotDemoInfo | null;
+    };
+  }
+}
 
 type AppMode =
   | "idle"
@@ -59,6 +118,10 @@ function App() {
   const [flyTo, setFlyTo] = useState<{ lat: number; lng: number; altitude: number; _t: number } | null>(null);
   const [activeConfig, setActiveConfig] = useState<SimulationConfig>(DEFAULT_CONFIG);
   const [activeFuelMap, setActiveFuelMap] = useState<FuelType[] | null>(null);
+  // Terrain for the robot planner's slope cost and the wind-shift re-forecast.
+  const [elevationMap, setElevationMap] = useState<Float32Array | null>(null);
+  const [robot, setRobot] = useState<RobotState | null>(null);
+  const [robotFollow, setRobotFollow] = useState(false);
   const [activeOriginDate, setActiveOriginDate] = useState<Date | null>(null);
   // Where the user has placed the ignition flame pin but not yet confirmed.
   // Globe clicks update this; the actual simulation only starts when the
@@ -131,6 +194,9 @@ function App() {
     setIgnitionPoint(null);
     setActiveFire(null);
     setActiveFuelMap(null);
+    setElevationMap(null);
+    setRobot(null);
+    setRobotFollow(false);
     setActiveOriginDate(null);
     setPendingIgnition(null);
     setAppMode("idle");
@@ -276,6 +342,7 @@ function App() {
       ]);
 
       elevationMap = sampledElevations;
+      setElevationMap(sampledElevations ?? null);
 
       if (worldCoverFuels) {
         // WorldCover is pixel-perfect at 10m and explicitly classifies water
@@ -590,6 +657,211 @@ function App() {
     setAppMode("paused-drawing");
   }, []);
 
+  // ── Robot-dog mock simulation ─────────────────────────────────────────
+  // Plans on history.baseline (the forecast on screen when no suppression is
+  // active). Stays in appMode "simulation" so the activeFire rebuild effect
+  // keeps working after the wind-shift re-forecast.
+  const robotConfig: RobotConfig = ROBOT_DEFAULTS;
+  const robotActive = robot !== null;
+  const plannerGrid: PlannerGrid | null = useMemo(() => {
+    if (!robotActive || history.baseline.length === 0) return null;
+    return {
+      gridSize: activeConfig.gridSize,
+      cellSizeMeters: activeConfig.cellSizeMeters,
+      ignitionMin: computeIgnitionMinutes(history.baseline, activeConfig.timestepMinutes),
+      elevation: elevationMap ?? undefined,
+      passable: passableFromFuel(activeFuelMap, activeConfig.gridSize),
+    };
+  }, [robotActive, history.baseline, elevationMap, activeFuelMap, activeConfig.gridSize, activeConfig.cellSizeMeters, activeConfig.timestepMinutes]);
+
+  const robotNowMin = currentStep * activeConfig.timestepMinutes;
+
+  // Advance the mission on every timeline step (and after a re-forecast).
+  useEffect(() => {
+    if (!plannerGrid) return;
+    setRobot((r) => {
+      if (!r?.mission) return r;
+      const mission = advanceMission(r.mission, robotNowMin, plannerGrid, robotConfig);
+      if (mission === r.mission) return r;
+      return { ...r, mission, lastEvent: mission.event ?? r.lastEvent };
+    });
+  }, [robotNowMin, plannerGrid, robotConfig]);
+
+  const resumePlayback = useCallback(() => {
+    setAutoPlay(false);
+    setTimeout(() => setAutoPlay(true), 50);
+  }, []);
+
+  /** Grid cell for a clicked point, snapped to safety; or a message why not. */
+  const resolveRobotPick = useCallback(
+    (lat: number, lng: number): { idx: number | null; notice: string | null } => {
+      if (!plannerGrid || !ignitionPoint) return { idx: null, notice: "Simulation not ready" };
+      const raw = latLngToCell(
+        lat, lng, plannerGrid.gridSize, plannerGrid.cellSizeMeters, ignitionPoint.lat, ignitionPoint.lng,
+      );
+      if (raw === null) return { idx: null, notice: "Outside the simulation area" };
+      const idx = snapToSafeCell(raw, plannerGrid, robotNowMin, robotConfig.entryMarginMin, robotConfig.snapRadiusCells);
+      if (idx === null) return { idx: null, notice: "Not safe here — pick a spot away from the fire" };
+      return { idx, notice: idx === raw ? null : "Moved to the nearest safe spot" };
+    },
+    [plannerGrid, ignitionPoint, robotNowMin, robotConfig],
+  );
+
+  /** Start a mission from two cells; returns an error notice or null. */
+  const launchMission = useCallback(
+    (stagingIdx: number, targetIdx: number, notice: string | null): string | null => {
+      if (!plannerGrid) return "Simulation not ready";
+      const mission = createMission(stagingIdx, targetIdx, robotNowMin, plannerGrid, robotConfig);
+      if (!mission.route) return "No safe route to that target — pick another";
+      setRobot((r) => r && {
+        ...r, placing: null, stagingIdx, targetIdx, mission, notice, lastEvent: null,
+      });
+      resumePlayback();
+      return null;
+    },
+    [plannerGrid, robotNowMin, robotConfig, resumePlayback],
+  );
+
+  const handleRobotPick = useCallback(
+    (lat: number, lng: number) => {
+      if (!robot?.placing) return;
+      const { idx, notice } = resolveRobotPick(lat, lng);
+      if (idx === null) {
+        setRobot((r) => r && { ...r, notice });
+        return;
+      }
+      if (robot.placing === "staging") {
+        setRobot((r) => r && { ...r, placing: "target", stagingIdx: idx, notice });
+        return;
+      }
+      const err = launchMission(robot.stagingIdx!, idx, notice);
+      if (err) setRobot((r) => r && { ...r, notice: err });
+    },
+    [robot, resolveRobotPick, launchMission],
+  );
+
+  const handleRobotStart = useCallback(() => {
+    setRobot({
+      placing: "staging", stagingIdx: null, targetIdx: null, mission: null,
+      windShifted: false, shiftPending: false, notice: null, lastEvent: null,
+    });
+  }, []);
+
+  const handleRobotExit = useCallback(() => {
+    // Keeps the (possibly wind-shifted) fire; no second history is held.
+    setRobot(null);
+    setRobotFollow(false);
+  }, []);
+
+  const handleWindShift = useCallback(async () => {
+    const r = robot;
+    if (!r?.mission || r.mission.phase === "done" || r.windShifted || r.shiftPending || !ignitionPoint) return;
+    const n = activeConfig.gridSize;
+    const step = Math.min(currentStep, history.baseline.length - 1);
+    const snapshot = history.baseline[step].grid;
+    const centroid = burningCentroid(snapshot, n);
+    if (!centroid) {
+      setRobot((s) => s && { ...s, notice: "No active fire to shift the wind toward" });
+      return;
+    }
+    const pose = missionPose(r.mission, step * activeConfig.timestepMinutes, n);
+    const dogIdx = Math.round(pose.row) * n + Math.round(pose.col);
+    const wind = shiftedWind(dogIdx, centroid, n, activeConfig, robotConfig.windShiftDeltaKmh);
+    const newConfig = { ...activeConfig, ...wind };
+
+    setRobot((s) => s && { ...s, shiftPending: true, notice: null });
+    setAutoPlay(false);
+    try {
+      const extended = await apiExtend({
+        config: newConfig,
+        fuelMap: activeFuelMap ? Array.from(activeFuelMap) : [],
+        elevationMap: elevationMap ? Array.from(elevationMap) : undefined,
+        centerLat: ignitionPoint.lat,
+        centerLng: ignitionPoint.lng,
+        initialGrid: new Uint8Array(snapshot),
+        initialStep: step,
+        suppression: null,
+        // One sim day past the shift. Longer windows (hundreds of 600×600
+        // steps decoded on top of the baseline) crashed the tab in testing.
+        maxSteps: step + WIND_SHIFT_WINDOW_STEPS,
+      });
+      const gridCells = n * n;
+      const resumed = extended.rleSteps.map((rle, i) => ({
+        grid: rleDecode(rle, gridCells),
+        timestep: step + i,
+      }));
+      // Trim, commit, then append (see tailReplaceCommits): replacing the tail
+      // in one render froze the tab in dev.
+      const [trimmed, stitched] = tailReplaceCommits(history.baseline, step, resumed);
+      flushSync(() => setHistory({ baseline: trimmed }));
+      setHistory({ baseline: stitched });
+      setActiveConfig(newConfig);
+      const label = `Wind shifted to ${Math.round(wind.windDirection)}° at ${Math.round(wind.windSpeed)} km/h — fire re-forecast`;
+      setWeatherInfo(label);
+      setCurrentStep(step);
+      setRobot((s) => s && { ...s, windShifted: true, shiftPending: false, lastEvent: label });
+    } catch (err) {
+      console.error("Wind shift re-forecast failed:", err);
+      setRobot((s) => s && {
+        ...s, shiftPending: false, notice: "Wind shift failed — is the dev server running? (npm run server)",
+      });
+    }
+    resumePlayback();
+  }, [robot, ignitionPoint, activeConfig, currentStep, history.baseline, activeFuelMap, elevationMap, robotConfig, setHistory, resumePlayback]);
+
+  // Dev-only hooks for the scripted recording (docs/poster/scripts/record_robot_demo.py).
+  const robotRef = useRef(robot);
+  robotRef.current = robot;
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    window.__robotDemo = {
+      start(staging, target) {
+        // Requires robot mode (the "🐕 Robot Dog" button) so the planner grid exists.
+        if (!robotRef.current) return "robot mode is not active";
+        const s = resolveRobotPick(staging.lat, staging.lng);
+        const t = resolveRobotPick(target.lat, target.lng);
+        if (s.idx === null) return `staging: ${s.notice}`;
+        if (t.idx === null) return `target: ${t.notice}`;
+        return launchMission(s.idx, t.idx, s.notice ?? t.notice);
+      },
+      shiftWind: handleWindShift,
+      state: () => {
+        const m = robotRef.current?.mission ?? null;
+        return { phase: m?.phase ?? null, replanCount: m?.replanCount ?? 0, event: robotRef.current?.lastEvent ?? null };
+      },
+      info: () => {
+        if (!ignitionPoint || history.baseline.length === 0) return null;
+        const grid = history.baseline[Math.min(currentStep, history.baseline.length - 1)].grid;
+        let burningCells = 0;
+        for (let i = 0; i < grid.length; i++) if (grid[i] === 1) burningCells++;
+        const n = activeConfig.gridSize;
+        const centroid = burningCentroid(grid, n);
+        const b = ((activeConfig.windDirection + 180) * Math.PI) / 180;
+        let headEdgeCells = 0;
+        if (centroid) {
+          for (let k = 0, clear = 0; k < n && clear < 5; k++) {
+            const r = Math.round(centroid.row + k * Math.cos(b));
+            const c = Math.round(centroid.col + k * Math.sin(b));
+            if (r < 0 || r >= n || c < 0 || c >= n) break;
+            if (grid[r * n + c] === 0) clear++;
+            else { clear = 0; headEdgeCells = k; }
+          }
+        }
+        return {
+          baselineLength: history.baseline.length,
+          headEdgeCells,
+          center: ignitionPoint,
+          gridSize: activeConfig.gridSize,
+          cellSizeMeters: activeConfig.cellSizeMeters,
+          windDirection: activeConfig.windDirection,
+          step: currentStep,
+          centroid,
+          burningCells,
+        };
+      },
+    };
+  }, [resolveRobotPick, launchMission, handleWindShift, ignitionPoint, history.baseline, currentStep, activeConfig]);
+
   // Bridges the ControlPanel's existing onStart prop into the new flow:
   // - If a pin is placed, this is the "Start the Wildfire" action and we
   //   actually launch the simulation at the pinned location.
@@ -719,7 +991,7 @@ function App() {
     <InfoModalProvider>
     <div className="h-screen w-screen relative">
       <GlobeView
-        onIgnite={isRunning || appMode === "historical" ? undefined : handlePlacePin}
+        onIgnite={isRunning || appMode === "historical" || robot ? undefined : handlePlacePin}
         flyTo={flyTo}
         onViewerReady={handleViewerReady}
       />
@@ -924,16 +1196,66 @@ function App() {
       {appMode === "simulation"
         && !timelinePlaying
         && !history.suppressed
+        && !robot
         && history.baseline.length > 0 && (
-        <button
-          type="button"
-          onClick={handleSuggestContainment}
-          className="absolute bottom-[80px] left-3 z-50 fire-panel rounded-lg px-4 py-2
-            text-amber-400 text-sm font-medium hover:bg-amber-500/15 transition-colors"
-          style={{ fontFamily: "'JetBrains Mono', monospace" }}
-        >
-          🛡 Suggest Containment
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={handleSuggestContainment}
+            className="absolute bottom-[80px] left-3 z-50 fire-panel rounded-lg px-4 py-2
+              text-amber-400 text-sm font-medium hover:bg-amber-500/15 transition-colors"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            🛡 Suggest Containment
+          </button>
+          <button
+            type="button"
+            onClick={handleRobotStart}
+            className="absolute bottom-[130px] left-3 z-50 fire-panel rounded-lg px-4 py-2
+              text-sky-400 text-sm font-medium hover:bg-sky-500/15 transition-colors"
+            style={{ fontFamily: "'JetBrains Mono', monospace" }}
+          >
+            🐕 Robot Dog
+          </button>
+        </>
+      )}
+
+      {robot && ignitionPoint && (
+        <>
+          <RobotDogLayer
+            viewer={viewerRef.current}
+            mission={robot.mission}
+            nowMin={robotNowMin}
+            playing={timelinePlaying}
+            timestepMinutes={activeConfig.timestepMinutes}
+            gridSize={activeConfig.gridSize}
+            cellSizeMeters={activeConfig.cellSizeMeters}
+            centerLat={ignitionPoint.lat}
+            centerLng={ignitionPoint.lng}
+            follow={robotFollow}
+            pendingStagingIdx={robot.stagingIdx}
+          />
+          <RobotPlacementTool
+            viewer={viewerRef.current}
+            active={robot.placing !== null}
+            onPick={handleRobotPick}
+          />
+          <div className="absolute top-[200px] right-3 z-40">
+            <RobotDogHUD
+              phase={robot.mission?.phase ?? null}
+              event={robot.lastEvent}
+              marginMin={robot.mission && plannerGrid ? missionMarginMin(robot.mission, robotNowMin, plannerGrid) : Infinity}
+              windLabel={`Wind: from ${Math.round(activeConfig.windDirection)}° at ${Math.round(activeConfig.windSpeed)} km/h`}
+              windShifted={robot.windShifted}
+              shiftPending={robot.shiftPending}
+              onWindShift={handleWindShift}
+              onExit={handleRobotExit}
+              follow={robotFollow}
+              onToggleFollow={() => setRobotFollow((f) => !f)}
+              notice={[robot.placing ? ROBOT_PROMPT[robot.placing] : null, robot.notice].filter(Boolean).join(" · ") || null}
+            />
+          </div>
+        </>
       )}
 
       <ControlPanel
