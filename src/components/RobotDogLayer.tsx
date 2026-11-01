@@ -20,6 +20,7 @@ import { missionPose } from "../simulation/robot/mission";
 import type { Mission } from "../simulation/robot/mission";
 import { cellCenter, gridToLatLng } from "../simulation/robot/geo";
 import { arrowChunks } from "../simulation/robot/worlds";
+import { samePath } from "../simulation/robot/planner";
 import type { Plan } from "../simulation/robot/types";
 
 interface RobotDogLayerProps {
@@ -67,6 +68,8 @@ export default function RobotDogLayer({
   const flagRef = useRef<Entity | null>(null);
   const arrowRefs = useRef<Entity[]>([]);
   const arrowPlanRef = useRef<Plan | null>(null);
+  const routePlanRef = useRef<Plan | null>(null);
+  const escapePlanRef = useRef<Plan | null>(null);
 
   // Everything the per-frame callbacks read lives in refs.
   const missionRef = useRef(mission);
@@ -169,6 +172,8 @@ export default function RobotDogLayer({
       for (const e of arrowRefs.current) viewer.entities.remove(e);
       arrowRefs.current = [];
       arrowPlanRef.current = null;
+      routePlanRef.current = null;
+      escapePlanRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [viewer]);
@@ -190,7 +195,13 @@ export default function RobotDogLayer({
       if (idx != null) ref.current.position = at(idx) as never;
     }
 
-    const syncLine = (ref: { current: Entity | null }, plan: Plan | null | undefined, color: Color, zIndex: number) => {
+    // Ground polylines rebuild asynchronously and blank for a frame; only touch
+    // them when the cells change (a re-timed plan over the same cells is common).
+    const syncLine = (
+      ref: { current: Entity | null }, drawn: { current: Plan | null }, plan: Plan | null | undefined, color: Color, zIndex: number,
+    ) => {
+      if (ref.current && samePath(drawn.current, plan ?? null)) return;
+      drawn.current = plan ?? null;
       const positions = plan && plan.cells.length > 1 ? plan.cells.map(at) : null;
       if (!positions) {
         if (ref.current) viewer.entities.remove(ref.current);
@@ -206,12 +217,12 @@ export default function RobotDogLayer({
       });
     };
     // The escape path draws above the route so it stays visible where they overlap.
-    syncLine(routeRef, mission?.route, ROUTE_COLOR, 1);
-    syncLine(escapeRef, mission?.escape, ESCAPE_COLOR, 2);
+    syncLine(routeRef, routePlanRef, mission?.route, ROUTE_COLOR, 1);
+    syncLine(escapeRef, escapePlanRef, mission?.escape, ESCAPE_COLOR, 2);
 
     // Arrowheads along the escape path, pointing home; rebuilt only when the escape plan changes.
     const escape = mission?.escape ?? null;
-    if (escape !== arrowPlanRef.current) {
+    if (!samePath(escape, arrowPlanRef.current)) {
       for (const e of arrowRefs.current) viewer.entities.remove(e);
       arrowRefs.current = [];
       arrowPlanRef.current = escape;

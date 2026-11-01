@@ -4,7 +4,7 @@ import {
   planStillSafe,
   remainingMarginMin,
   cellSlopeDeg,
-} from "../robot/planner";
+ samePath } from "../robot/planner";
 import { ROBOT_DEFAULTS } from "../robot/types";
 import type { PlannerGrid } from "../robot/types";
 
@@ -126,5 +126,15 @@ describe("planStillSafe / remainingMarginMin", () => {
     // Cells already passed don't count.
     expect(planStillSafe(plan, plan.arrivalMin.at(-1)!, shifted, 30)).toBe(true);
     expect(remainingMarginMin(plan, 100, shifted)).toBe(Infinity);
+  });
+});
+
+describe("samePath", () => {
+  const plan = (cells: number[], t0 = 0) => ({ cells, arrivalMin: cells.map((_, i) => t0 + i), minMarginMin: 10 });
+  it("same cells are the same path even if re-timed", () => expect(samePath(plan([1, 2, 3]), plan([1, 2, 3], 15))).toBe(true));
+  it("different cells differ", () => expect(samePath(plan([1, 2, 3]), plan([1, 2, 4]))).toBe(false));
+  it("null handling", () => {
+    expect(samePath(null, null)).toBe(true);
+    expect(samePath(plan([1]), null)).toBe(false);
   });
 });

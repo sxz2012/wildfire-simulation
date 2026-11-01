@@ -180,3 +180,10 @@ export function remainingMarginMin(
   }
   return m;
 }
+
+/** True when two plans walk the same cells (timing aside), so a drawn line can stay as it is. */
+export function samePath(a: Plan | null, b: Plan | null): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.cells.length !== b.cells.length) return false;
+  return a.cells.every((c, i) => c === b.cells[i]);
+}
