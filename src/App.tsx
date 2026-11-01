@@ -686,7 +686,7 @@ function App() {
     if (!plannerGrid) return;
     setRobot((r) => {
       if (!r || r.log.length === 0) return r;
-      const log = syncMission(r.log, robotNowMin, activeConfig.timestepMinutes, plannerGrid, robotConfig);
+      const log = syncMission(r.log, robotNowMin, activeConfig.timestepMinutes, () => plannerGrid, robotConfig);
       if (log === r.log) return r;
       const mission = log[log.length - 1].mission;
       return { ...r, log, mission, lastEvent: mission.event ?? r.lastEvent };

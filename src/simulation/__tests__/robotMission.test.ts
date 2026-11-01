@@ -185,9 +185,9 @@ describe("mission", () => {
     const start = () => [{ min: 30, mission: createMission(STAGING, TARGET, 30, g, ROBOT_DEFAULTS), grid: g }];
 
     it("scrubbing back before launch puts the dog at staging", () => {
-      let log = syncMission(start(), 30 + 4 * STEP, STEP, g, ROBOT_DEFAULTS);
+      let log = syncMission(start(), 30 + 4 * STEP, STEP, () => g, ROBOT_DEFAULTS);
       expect(log.at(-1)!.mission.phase).not.toBe("outbound");
-      log = syncMission(log, 0, STEP, g, ROBOT_DEFAULTS);
+      log = syncMission(log, 0, STEP, () => g, ROBOT_DEFAULTS);
       const m = log.at(-1)!.mission;
       expect(m.phase).toBe("outbound");
       const p = missionPose(m, 0, N);
@@ -195,16 +195,16 @@ describe("mission", () => {
     });
 
     it("scrubbing back mid-mission restores the earlier state", () => {
-      const full = syncMission(start(), 30 + 6 * STEP, STEP, g, ROBOT_DEFAULTS);
-      const back = syncMission(full, 30 + STEP, STEP, g, ROBOT_DEFAULTS);
-      const stepped = syncMission(start(), 30 + STEP, STEP, g, ROBOT_DEFAULTS);
+      const full = syncMission(start(), 30 + 6 * STEP, STEP, () => g, ROBOT_DEFAULTS);
+      const back = syncMission(full, 30 + STEP, STEP, () => g, ROBOT_DEFAULTS);
+      const stepped = syncMission(start(), 30 + STEP, STEP, () => g, ROBOT_DEFAULTS);
       expect(back.at(-1)!.mission).toEqual(stepped.at(-1)!.mission);
     });
 
     it("a forward jump replays every step, so scouting starts at arrival", () => {
-      const jumped = syncMission(start(), 30 + 20 * STEP, STEP, g, ROBOT_DEFAULTS);
+      const jumped = syncMission(start(), 30 + 20 * STEP, STEP, () => g, ROBOT_DEFAULTS);
       let stepped = start();
-      for (let t = 30 + STEP; t <= 30 + 20 * STEP; t += STEP) stepped = syncMission(stepped, t, STEP, g, ROBOT_DEFAULTS);
+      for (let t = 30 + STEP; t <= 30 + 20 * STEP; t += STEP) stepped = syncMission(stepped, t, STEP, () => g, ROBOT_DEFAULTS);
       expect(jumped.at(-1)!.mission).toEqual(stepped.at(-1)!.mission);
       expect(jumped.at(-1)!.mission.phase).toBe("done");
     });
@@ -213,14 +213,26 @@ describe("mission", () => {
       const log = start();
       const shifted = openGrid();
       for (let r = 0; r < N; r++) shifted.ignitionMin[idx(r, 20)] = 30 + 10;
-      const after = syncMission(log, 30, STEP, shifted, ROBOT_DEFAULTS);
+      const after = syncMission(log, 30, STEP, () => shifted, ROBOT_DEFAULTS);
       expect(after.at(-1)!.mission.phase).toBe("retreating");
       expect(after.at(-1)!.grid).toBe(shifted);
     });
 
+    it("replays each minute against the forecast in force at that minute", () => {
+      const old = openGrid(), corrected = openGrid();
+      // 5-min steps: the dog is mid-route when the corrected forecast takes over at minute 35.
+      for (let r = 0; r < N; r++) corrected.ignitionMin[idx(r, 20)] = 35 + 10; // only the corrected forecast sees fire
+      const gridAt = (min: number) => (min >= 35 ? corrected : old);
+      const log = syncMission(start(), 35, 5, gridAt, ROBOT_DEFAULTS);
+      expect(log.at(-1)!.grid).toBe(corrected);
+      expect(log.at(-1)!.mission.phase).toBe("retreating");
+      const back = syncMission(log, 30, 5, gridAt, ROBOT_DEFAULTS);
+      expect(back.at(-1)!.mission.phase).toBe("outbound");
+    });
+
     it("same minute returns the same log", () => {
       const log = start();
-      expect(syncMission(log, 30, STEP, g, ROBOT_DEFAULTS)).toBe(log);
+      expect(syncMission(log, 30, STEP, () => g, ROBOT_DEFAULTS)).toBe(log);
     });
   });
 });

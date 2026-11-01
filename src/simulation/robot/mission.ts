@@ -230,18 +230,19 @@ export interface MissionEntry {
  * Bring a mission log to `nowMin` so the dog depends only on sim time:
  * scrubbing back drops later entries (never the launch entry), and a forward
  * jump replays every timeline step in between, so events land at the step
- * they would have during playback. A new forecast at the same minute (wind
- * shift) re-checks the current state. Returns `log` itself when nothing changes.
+ * they would have during playback. Each minute uses the forecast in force then
+ * (`gridAt`); a new forecast at the same minute re-checks the current state. Returns `log` itself when nothing changes.
  */
 export function syncMission(
   log: MissionEntry[],
   nowMin: number,
   stepMin: number,
-  grid: PlannerGrid,
+  gridAt: (min: number) => PlannerGrid,
   robot: RobotConfig
 ): MissionEntry[] {
   const last = log[log.length - 1];
   if (nowMin === last.min) {
+    const grid = gridAt(nowMin);
     if (last.grid === grid) return log;
     return [...log.slice(0, -1), { min: nowMin, mission: advanceMission(last.mission, nowMin, grid, robot), grid }];
   }
@@ -251,6 +252,7 @@ export function syncMission(
   let { min, mission } = out[out.length - 1];
   while (min < nowMin) {
     min = Math.min(min + stepMin, nowMin);
+    const grid = gridAt(min);
     mission = advanceMission(mission, min, grid, robot);
     out.push({ min, mission, grid });
   }
