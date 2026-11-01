@@ -82,7 +82,9 @@ export function planPath(
 ): Plan | null {
   const { gridSize: n, cellSizeMeters, ignitionMin, elevation, passable } = grid;
   if (passable && (passable[startIdx] === 0 || passable[goalIdx] === 0)) return null;
-  if (!(startMin + marginMin < ignitionMin[startIdx])) return null;
+  // The margin applies to cells being entered; the dog may always leave a cell
+  // that hasn't ignited yet (otherwise a threatened dog could never get out).
+  if (!(startMin < ignitionMin[startIdx])) return null;
 
   const sr = Math.floor(startIdx / n), sc = startIdx % n;
   const gr = Math.floor(goalIdx / n), gc = goalIdx % n;

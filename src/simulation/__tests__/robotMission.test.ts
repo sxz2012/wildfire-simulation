@@ -123,4 +123,30 @@ describe("mission", () => {
     expect(m.escape).not.toBeNull();
     expect(m.escape!.cells.at(-1)).toBe(STAGING);
   });
+
+  it("scouting: fire approaching the target sends the dog home instead of trapping it", () => {
+    const g = openGrid();
+    let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
+    const end = m.route!.arrivalMin.at(-1)!;
+    m = advanceMission(m, end, g, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("scouting");
+    const shifted = openGrid();
+    shifted.ignitionMin[TARGET] = end + 1 + 20; // target ignites in 20 min, everything else clear
+    m = advanceMission(m, end + 1, shifted, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("returning");
+    expect(m.event).toBe("Fire approaching — heading back");
+    expect(m.route!.cells.at(-1)).toBe(STAGING);
+  });
+
+  it("outbound: a threat to the dog's own cell makes it move, not hold", () => {
+    const g = openGrid();
+    let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
+    const now = 2;
+    const pose = missionPose(m, now, N);
+    const here = Math.round(pose.row) * N + Math.floor(pose.col);
+    const shifted = openGrid();
+    shifted.ignitionMin[here] = now + 10;
+    m = advanceMission(m, now, shifted, ROBOT_DEFAULTS);
+    expect(m.phase).not.toBe("holding");
+  });
 });

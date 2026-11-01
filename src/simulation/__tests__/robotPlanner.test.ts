@@ -67,10 +67,16 @@ describe("planPath", () => {
     expect(crossings).toEqual([idx(0, 10)]);
   });
 
-  it("unsafe start", () => {
+  it("unsafe start: a burning start cell has no path", () => {
+    const g = openGrid();
+    g.ignitionMin[idx(10, 2)] = 0;
+    expect(planPath(g, idx(10, 2), idx(10, 17), 0, 30, ROBOT_DEFAULTS)).toBeNull();
+  });
+
+  it("threatened start: the dog may leave a cell igniting within the margin", () => {
     const g = openGrid();
     g.ignitionMin[idx(10, 2)] = 10;
-    expect(planPath(g, idx(10, 2), idx(10, 17), 0, 30, ROBOT_DEFAULTS)).toBeNull();
+    expect(planPath(g, idx(10, 2), idx(10, 17), 0, 30, ROBOT_DEFAULTS)).not.toBeNull();
   });
 
   it("forecast ending early: never-igniting cells stay usable", () => {
