@@ -44,7 +44,19 @@ import RobotDogLayer from "./components/RobotDogLayer";
 import RobotDogHUD from "./components/RobotDogHUD";
 import RobotPlacementTool from "./components/RobotPlacementTool";
 import { ROBOT_DEFAULTS, type PlannerGrid, type RobotConfig } from "./simulation/robot/types";
+import type { SimulationState } from "./simulation/types";
 import { computeIgnitionMinutes, passableFromFuel } from "./simulation/robot/hazard";
+import {
+  conditionsWeather,
+  edgeOffsetMeters,
+  forecastAt,
+  matchAtHorizon,
+  shouldReport,
+  trueConditions,
+  type Conditions,
+  type ForecastVersion,
+  type Report,
+} from "./simulation/robot/worlds";
 import { latLngToCell, snapToSafeCell } from "./simulation/robot/geo";
 import { burningCentroid, shiftedWind, tailReplaceCommits } from "./simulation/robot/windShift";
 import {
@@ -71,6 +83,17 @@ interface RobotState {
   notice: string | null;
   /** Last mission event, kept on screen until the next one. */
   lastEvent: string | null;
+  /** The dog's forecasts, time-stamped so scrubbing restores the one in force. Empty before launch. */
+  forecasts: ForecastVersion[];
+  /** Dog reports (feedback), time-stamped like the forecasts. */
+  reports: Report[];
+  /** Weather the first forecast assumed (archive) and the hidden true local weather. */
+  archive: Conditions | null;
+  truth: Conditions | null;
+  /** Minute of the (truth-only) wind shift. */
+  shiftMin: number | null;
+  reportPending: boolean;
+  launching: boolean;
 }
 
 const WIND_SHIFT_WINDOW_STEPS = 96;
@@ -96,9 +119,9 @@ interface RobotDemoInfo {
 declare global {
   interface Window {
     __robotDemo?: {
-      start(staging: { lat: number; lng: number }, target: { lat: number; lng: number }): string | null;
+      start(staging: { lat: number; lng: number }, target: { lat: number; lng: number }): Promise<string | null>;
       shiftWind(): Promise<void>;
-      state(): { phase: MissionPhase | null; replanCount: number; event: string | null };
+      state(): { phase: MissionPhase | null; replanCount: number; event: string | null; reports: number; match: number | null };
       info(): RobotDemoInfo | null;
     };
   }
@@ -126,6 +149,8 @@ function App() {
   // Terrain for the robot planner's slope cost and the wind-shift re-forecast.
   const [elevationMap, setElevationMap] = useState<Float32Array | null>(null);
   const [robot, setRobot] = useState<RobotState | null>(null);
+  /** Archive weather of the current run (what the forecast assumes). */
+  const [archiveConditions, setArchiveConditions] = useState<Conditions | null>(null);
   const [robotFollow, setRobotFollow] = useState(false);
   const [activeOriginDate, setActiveOriginDate] = useState<Date | null>(null);
   // Where the user has placed the ignition flame pin but not yet confirmed.
@@ -200,6 +225,7 @@ function App() {
     setActiveFire(null);
     setActiveFuelMap(null);
     setElevationMap(null);
+    setArchiveConditions(null);
     setRobot(null);
     setRobotFollow(false);
     setActiveOriginDate(null);
@@ -307,6 +333,10 @@ function App() {
         setActiveOriginDate(null);
       }
 
+      setArchiveConditions({
+        windDirection: weather.windDirection, windSpeed: weather.windSpeed,
+        humidity: weather.humidity, tempC: weather.temperature,
+      });
       const config: SimulationConfig = {
         ...DEFAULT_CONFIG,
         windSpeed: weather.windSpeed,
@@ -663,40 +693,102 @@ function App() {
   }, []);
 
   // ── Robot-dog mock simulation ─────────────────────────────────────────
-  // Plans on history.baseline (the forecast on screen when no suppression is
-  // active). Stays in appMode "simulation" so the activeFire rebuild effect
-  // keeps working after the wind-shift re-forecast.
+  // Two worlds once a mission starts: history.baseline is the hidden "true"
+  // fire (what's drawn), robot.forecasts are the dog's forecasts. Before
+  // launch the dog plans on history.baseline itself (the archive forecast).
+  // Stays in appMode "simulation" so the activeFire rebuild effect keeps working.
   const robotConfig: RobotConfig = ROBOT_DEFAULTS;
   const robotActive = robot !== null;
-  const plannerGrid: PlannerGrid | null = useMemo(() => {
-    if (!robotActive || history.baseline.length === 0) return null;
-    return {
+  const hasForecasts = (robot?.forecasts.length ?? 0) > 0;
+  const n = activeConfig.gridSize;
+  const ts = activeConfig.timestepMinutes;
+
+  const makePlannerGrid = useCallback(
+    (states: SimulationState[]): PlannerGrid => ({
       gridSize: activeConfig.gridSize,
       cellSizeMeters: activeConfig.cellSizeMeters,
-      ignitionMin: computeIgnitionMinutes(history.baseline, activeConfig.timestepMinutes),
+      ignitionMin: computeIgnitionMinutes(states, activeConfig.timestepMinutes),
       elevation: elevationMap ?? undefined,
       passable: passableFromFuel(activeFuelMap, activeConfig.gridSize),
-    };
-  }, [robotActive, history.baseline, elevationMap, activeFuelMap, activeConfig.gridSize, activeConfig.cellSizeMeters, activeConfig.timestepMinutes]);
+    }),
+    [elevationMap, activeFuelMap, activeConfig.gridSize, activeConfig.cellSizeMeters, activeConfig.timestepMinutes],
+  );
 
-  const robotNowMin = currentStep * activeConfig.timestepMinutes;
+  const robotNowMin = currentStep * ts;
+  const robotStep = Math.min(currentStep, history.baseline.length - 1);
 
-  // Bring the mission to the current timeline minute (forward, backward, or after a re-forecast).
+  const baseGrid: PlannerGrid | null = useMemo(() => {
+    if (!robotActive || hasForecasts || history.baseline.length === 0) return null;
+    return makePlannerGrid(history.baseline);
+  }, [robotActive, hasForecasts, history.baseline, makePlannerGrid]);
+  const forecastNow = hasForecasts ? forecastAt(robot!.forecasts, robotNowMin) : null;
+  const plannerGrid: PlannerGrid | null = forecastNow ? forecastNow.grid : baseGrid;
+
+  // True-fire ignition map, for "the dog can see the true fire coming".
+  const trueIgn = useMemo(
+    () => (hasForecasts && history.baseline.length > 0 ? computeIgnitionMinutes(history.baseline, ts) : null),
+    [hasForecasts, history.baseline, ts],
+  );
+  const forecastHistory = forecastNow?.history ?? null;
+  const matchPct = useMemo(
+    () => (forecastHistory && history.baseline.length > 0 ? matchAtHorizon(forecastHistory, history.baseline, robotStep, n) : null),
+    [forecastHistory, history.baseline, robotStep, n],
+  );
+
+  // Bring the mission to the current timeline minute (forward, backward, or after a new forecast).
+  const robotForecasts = robot?.forecasts;
   useEffect(() => {
-    if (!plannerGrid) return;
     setRobot((r) => {
-      if (!r || r.log.length === 0) return r;
-      const log = syncMission(r.log, robotNowMin, activeConfig.timestepMinutes, () => plannerGrid, robotConfig);
+      if (!r || r.log.length === 0 || r.forecasts.length === 0) return r;
+      const log = syncMission(r.log, robotNowMin, ts, (min) => forecastAt(r.forecasts, min).grid, robotConfig);
       if (log === r.log) return r;
       const mission = log[log.length - 1].mission;
       return { ...r, log, mission, lastEvent: mission.event ?? r.lastEvent };
     });
-  }, [robotNowMin, plannerGrid, robotConfig, activeConfig.timestepMinutes]);
+  }, [robotNowMin, robotForecasts, robotConfig, ts]);
 
   const resumePlayback = useCallback(() => {
     setAutoPlay(false);
     setTimeout(() => setAutoPlay(true), 50);
   }, []);
+
+  /** Run one world forward from `startGrid` at `step` under `c`; returns states from `step` on. */
+  const extendWorld = useCallback(
+    async (step: number, startGrid: Uint8Array, c: Conditions): Promise<SimulationState[]> => {
+      if (!ignitionPoint) throw new Error("no ignition point");
+      const extended = await apiExtend({
+        config: { ...activeConfig, windDirection: c.windDirection, windSpeed: c.windSpeed, humidity: c.humidity },
+        weather: conditionsWeather(c),
+        fuelMap: activeFuelMap ? Array.from(activeFuelMap) : [],
+        elevationMap: elevationMap ? Array.from(elevationMap) : undefined,
+        centerLat: ignitionPoint.lat,
+        centerLng: ignitionPoint.lng,
+        initialGrid: new Uint8Array(startGrid),
+        initialStep: step,
+        suppression: null,
+        // One sim day. Longer windows (hundreds of 600×600 steps decoded on
+        // top of the baseline) crashed the tab in testing.
+        maxSteps: step + WIND_SHIFT_WINDOW_STEPS,
+      });
+      const cells = activeConfig.gridSize * activeConfig.gridSize;
+      return extended.rleSteps.map((rle, i) => ({ grid: rleDecode(rle, cells), timestep: step + i }));
+    },
+    [ignitionPoint, activeConfig, activeFuelMap, elevationMap],
+  );
+
+  /** Replace the true fire after `step`. Trim, commit, then append (see tailReplaceCommits). */
+  const commitTruth = useCallback(
+    (step: number, resumed: SimulationState[], alsoInTrimCommit?: () => void) => {
+      const [trimmed, stitched] = tailReplaceCommits(history.baseline, step, resumed);
+      flushSync(() => {
+        setHistory({ baseline: trimmed });
+        alsoInTrimCommit?.();
+      });
+      setHistory({ baseline: stitched });
+      setCurrentStep(step);
+    },
+    [history.baseline, setHistory],
+  );
 
   /** Grid cell for a clicked point, snapped to safety; or a message why not. */
   const resolveRobotPick = useCallback(
@@ -713,30 +805,48 @@ function App() {
     [plannerGrid, ignitionPoint, robotNowMin, robotConfig],
   );
 
-  /** Start a mission from two cells; returns an error notice or null. */
+  /** Start a mission: fork the true fire from the forecast, then walk. Returns an error notice or null. */
   const launchMission = useCallback(
-    (stagingIdx: number, targetIdx: number, notice: string | null): string | null => {
-      if (!plannerGrid) return "Simulation not ready";
+    async (stagingIdx: number, targetIdx: number, notice: string | null): Promise<string | null> => {
+      if (!plannerGrid || !archiveConditions || history.baseline.length === 0) return "Simulation not ready";
       const mission = createMission(stagingIdx, targetIdx, robotNowMin, plannerGrid, robotConfig);
       if (!mission.route) return "No safe route to that target — pick another";
-      // The timeline stops at its last frame; a mission that outlasts it would freeze.
-      const horizonMin = activeFire ? (activeFire.frames.length - 1) * activeConfig.timestepMinutes : 0;
+      // The timeline stops at its last frame (and the true fire runs one day ahead);
+      // a mission that outlasts it would freeze.
+      const frames = activeFire ? activeFire.frames.length - 1 : 0;
+      const horizonMin = Math.min(frames, robotStep + WIND_SHIFT_WINDOW_STEPS) * ts;
       if (!missionFitsForecast(mission, horizonMin, robotConfig)) {
         return "Not enough forecast left for this mission — scrub earlier and try again";
       }
-      setRobot((r) => r && {
-        ...r, placing: null, stagingIdx, targetIdx, mission, notice, lastEvent: null,
-        log: [{ min: robotNowMin, mission, grid: plannerGrid }],
-      });
-      resumePlayback();
+      const step = robotStep;
+      const version0: ForecastVersion = { fromMin: -Infinity, history: history.baseline, grid: plannerGrid };
+      const truth = trueConditions(archiveConditions);
+      setRobot((r) => r && { ...r, placing: null, launching: true, notice: "Preparing the true fire…" });
+      setAutoPlay(false);
+      try {
+        const resumed = await extendWorld(step, history.baseline[step].grid, truth);
+        commitTruth(step, resumed, () =>
+          setRobot((r) => r && {
+            ...r, stagingIdx, targetIdx, mission, notice, lastEvent: null, launching: false,
+            log: [{ min: robotNowMin, mission, grid: plannerGrid }],
+            forecasts: [version0], reports: [], archive: archiveConditions, truth, shiftMin: null,
+          }),
+        );
+      } catch (err) {
+        console.error("True-fire fork failed:", err);
+        setRobot((r) => r && { ...r, placing: "target", launching: false });
+        return "Couldn't start — is the dev server running? (npm run server)";
+      } finally {
+        resumePlayback();
+      }
       return null;
     },
-    [plannerGrid, robotNowMin, robotConfig, resumePlayback, activeFire, activeConfig.timestepMinutes],
+    [plannerGrid, archiveConditions, history.baseline, robotNowMin, robotStep, robotConfig, activeFire, ts, extendWorld, commitTruth, resumePlayback],
   );
 
   const handleRobotPick = useCallback(
-    (lat: number, lng: number) => {
-      if (!robot?.placing) return;
+    async (lat: number, lng: number) => {
+      if (!robot?.placing || robot.launching) return;
       const { idx, notice } = resolveRobotPick(lat, lng);
       if (idx === null) {
         setRobot((r) => r && { ...r, notice });
@@ -746,7 +856,7 @@ function App() {
         setRobot((r) => r && { ...r, placing: "target", stagingIdx: idx, notice });
         return;
       }
-      const err = launchMission(robot.stagingIdx!, idx, notice);
+      const err = await launchMission(robot.stagingIdx!, idx, notice);
       if (err) setRobot((r) => r && { ...r, notice: err });
     },
     [robot, resolveRobotPick, launchMission],
@@ -756,78 +866,112 @@ function App() {
     setRobot({
       placing: "staging", stagingIdx: null, targetIdx: null, mission: null, log: [],
       windShifted: false, shiftPending: false, notice: null, lastEvent: null,
+      forecasts: [], reports: [], archive: null, truth: null, shiftMin: null,
+      reportPending: false, launching: false,
     });
   }, []);
 
   const handleRobotExit = useCallback(() => {
-    // Keeps the (possibly wind-shifted) fire; no second history is held.
+    // Keeps the (possibly wind-shifted) true fire on screen.
     setRobot(null);
     setRobotFollow(false);
   }, []);
 
+  const dogCellAt = useCallback(
+    (m: Mission, min: number) => {
+      const pose = missionPose(m, min, n);
+      return Math.round(pose.row) * n + Math.round(pose.col);
+    },
+    [n],
+  );
+
+  /** Wind shift changes only the true fire; the dog's forecast doesn't know until it reports. */
   const handleWindShift = useCallback(async () => {
     const r = robot;
-    if (!r?.mission || r.mission.phase === "done" || r.windShifted || r.shiftPending || !ignitionPoint) return;
-    const n = activeConfig.gridSize;
-    const step = Math.min(currentStep, history.baseline.length - 1);
+    // One re-forecast at a time: a report in flight would be computed on the old truth.
+    if (!r?.mission || !r.truth || r.mission.phase === "done" || r.windShifted || r.shiftPending || r.reportPending || r.launching) return;
+    const step = robotStep;
     const snapshot = history.baseline[step].grid;
     const centroid = burningCentroid(snapshot, n);
     if (!centroid) {
       setRobot((s) => s && { ...s, notice: "No active fire to shift the wind toward" });
       return;
     }
-    const pose = missionPose(r.mission, step * activeConfig.timestepMinutes, n);
-    const dogIdx = Math.round(pose.row) * n + Math.round(pose.col);
-    const wind = shiftedWind(dogIdx, centroid, n, activeConfig, robotConfig.windShiftDeltaKmh);
-    const newConfig = { ...activeConfig, ...wind };
-
+    const wind = shiftedWind(dogCellAt(r.mission, robotNowMin), centroid, n, r.truth, robotConfig.windShiftDeltaKmh);
+    const truth = { ...r.truth, ...wind };
     setRobot((s) => s && { ...s, shiftPending: true, notice: null });
     setAutoPlay(false);
     try {
-      const extended = await apiExtend({
-        config: newConfig,
-        fuelMap: activeFuelMap ? Array.from(activeFuelMap) : [],
-        elevationMap: elevationMap ? Array.from(elevationMap) : undefined,
-        centerLat: ignitionPoint.lat,
-        centerLng: ignitionPoint.lng,
-        initialGrid: new Uint8Array(snapshot),
-        initialStep: step,
-        suppression: null,
-        // One sim day past the shift. Longer windows (hundreds of 600×600
-        // steps decoded on top of the baseline) crashed the tab in testing.
-        maxSteps: step + WIND_SHIFT_WINDOW_STEPS,
-      });
-      const gridCells = n * n;
-      const resumed = extended.rleSteps.map((rle, i) => ({
-        grid: rleDecode(rle, gridCells),
-        timestep: step + i,
-      }));
-      // Trim, commit, then append (see tailReplaceCommits): replacing the tail
-      // in one render froze the tab in dev.
-      const [trimmed, stitched] = tailReplaceCommits(history.baseline, step, resumed);
-      flushSync(() => setHistory({ baseline: trimmed }));
-      setHistory({ baseline: stitched });
-      setActiveConfig(newConfig);
-      const label = `Wind shifted to ${Math.round(wind.windDirection)}° at ${Math.round(wind.windSpeed)} km/h — fire re-forecast`;
+      const resumed = await extendWorld(step, snapshot, truth);
+      commitTruth(step, resumed);
+      const label = `True wind shifted to ${Math.round(wind.windDirection)}° at ${Math.round(wind.windSpeed)} km/h — the forecast doesn't know yet`;
       setWeatherInfo(label);
-      setCurrentStep(step);
-      setRobot((s) => s && { ...s, windShifted: true, shiftPending: false, lastEvent: label });
+      setRobot((s) => s && { ...s, truth, shiftMin: robotNowMin, windShifted: true, shiftPending: false, lastEvent: label });
     } catch (err) {
-      console.error("Wind shift re-forecast failed:", err);
+      console.error("Wind shift failed:", err);
       setRobot((s) => s && {
         ...s, shiftPending: false, notice: "Wind shift failed — is the dev server running? (npm run server)",
       });
     }
     resumePlayback();
-  }, [robot, ignitionPoint, activeConfig, currentStep, history.baseline, activeFuelMap, elevationMap, robotConfig, setHistory, resumePlayback]);
+  }, [robot, robotStep, robotNowMin, history.baseline, n, dogCellAt, robotConfig, extendWorld, commitTruth, resumePlayback]);
+
+  /** The dog reports its readings: re-forecast from the true fire with the measured weather. */
+  const sendReport = useCallback(async () => {
+    const r = robot;
+    if (!r?.mission || !r.truth || !r.archive || r.forecasts.length === 0) return;
+    const step = robotStep;
+    const truthGrid = history.baseline[step].grid;
+    const fv = forecastAt(r.forecasts, robotNowMin);
+    const measured = r.truth;
+    const assumed = r.reports.length > 0 ? r.reports[r.reports.length - 1].measured : r.archive;
+    const matchBefore = matchAtHorizon(fv.history, history.baseline, step, n);
+    const edgeOffsetM = edgeOffsetMeters(
+      fv.history[Math.min(step, fv.history.length - 1)].grid, truthGrid, dogCellAt(r.mission, robotNowMin),
+      n, activeConfig.cellSizeMeters,
+    );
+    setRobot((s) => s && { ...s, reportPending: true });
+    setAutoPlay(false);
+    try {
+      const resumed = await extendWorld(step, truthGrid, measured);
+      const history2 = [...fv.history.slice(0, step + 1), ...resumed.slice(1)];
+      const version: ForecastVersion = { fromMin: robotNowMin, history: history2, grid: makePlannerGrid(history2) };
+      const matchAfter = matchAtHorizon(history2, history.baseline, step, n);
+      const report: Report = { min: robotNowMin, measured, assumed, edgeOffsetM, matchBefore, matchAfter };
+      setRobot((s) => s && {
+        ...s, reportPending: false,
+        forecasts: [...s.forecasts.filter((v) => v.fromMin < robotNowMin), version],
+        reports: [...s.reports.filter((x) => x.min < robotNowMin), report],
+        lastEvent: `Dog report: forecast corrected (${matchBefore}% → ${matchAfter}%)`,
+      });
+    } catch (err) {
+      console.error("Dog report failed:", err);
+      setRobot((s) => s && { ...s, reportPending: false, notice: "Dog report failed — is the dev server running? (npm run server)" });
+    }
+    resumePlayback();
+  }, [robot, robotStep, robotNowMin, history.baseline, n, activeConfig.cellSizeMeters, dogCellAt, extendWorld, makePlannerGrid, resumePlayback]);
+
+  // Automatic feedback: report when the dog can see the true fire and has something new to say.
+  useEffect(() => {
+    const r = robot;
+    if (!r?.mission || !trueIgn || r.reportPending || r.shiftPending || r.launching || r.forecasts.length === 0) return;
+    if (r.mission.phase === "done") return;
+    const dog = dogCellAt(r.mission, robotNowMin);
+    const trueFireNear = trueIgn[dog] - robotNowMin < robotConfig.entryMarginMin;
+    if (shouldReport({ phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin })) {
+      void sendReport();
+    }
+  }, [robot, trueIgn, robotNowMin, robotConfig, dogCellAt, sendReport]);
 
   // Dev-only hooks for the scripted recording (docs/poster/scripts/record_robot_demo.py).
   const robotRef = useRef(robot);
   robotRef.current = robot;
+  const matchRef = useRef(matchPct);
+  matchRef.current = matchPct;
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     window.__robotDemo = {
-      start(staging, target) {
+      async start(staging, target) {
         // Requires robot mode (the "🐕 Robot Dog" button) so the planner grid exists.
         if (!robotRef.current) return "robot mode is not active";
         const s = resolveRobotPick(staging.lat, staging.lng);
@@ -839,7 +983,10 @@ function App() {
       shiftWind: handleWindShift,
       state: () => {
         const m = robotRef.current?.mission ?? null;
-        return { phase: m?.phase ?? null, replanCount: m?.replanCount ?? 0, event: robotRef.current?.lastEvent ?? null };
+        return {
+          phase: m?.phase ?? null, replanCount: m?.replanCount ?? 0, event: robotRef.current?.lastEvent ?? null,
+          reports: robotRef.current?.reports.length ?? 0, match: matchRef.current,
+        };
       },
       info: () => {
         if (!ignitionPoint || history.baseline.length === 0) return null;
