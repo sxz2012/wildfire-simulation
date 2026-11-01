@@ -5,7 +5,13 @@ import {
   forecastAt,
   shouldReport,
   activeReport,
+  forecastMatch,
+  matchAtHorizon,
+  edgeOffsetMeters,
+  forecastEdgeCells,
+  arrowChunks,
 } from "../robot/worlds";
+import { CellState } from "../types";
 import type { ForecastVersion, Report } from "../robot/worlds";
 
 describe("conditions", () => {
@@ -52,5 +58,56 @@ describe("activeReport", () => {
     expect(activeReport(r, 450, 15)).toEqual({ report: r[0], cardVisible: true });
     expect(activeReport(r, 494, 15).cardVisible).toBe(true);
     expect(activeReport(r, 495, 15)).toEqual({ report: r[0], cardVisible: false });
+  });
+});
+
+describe("metrics and drawing helpers", () => {
+  const N = 10;
+  const grid = (cells: number[], v = CellState.Burning) => {
+    const g = new Uint8Array(N * N);
+    cells.forEach((c) => (g[c] = v));
+    return g;
+  };
+
+  it("forecastMatch: identical 100, disjoint 0, half overlap 33", () => {
+    expect(forecastMatch(grid([22, 23]), grid([22, 23]), N)).toBe(100);
+    expect(forecastMatch(grid([22]), grid([77]), N)).toBe(0);
+    expect(forecastMatch(grid([22, 23]), grid([23, 24]), N)).toBe(33);
+  });
+
+  it("forecastMatch ignores the burned border", () => {
+    const a = grid([22]);
+    a[0] = CellState.Burned;
+    a[9] = CellState.Burned;
+    expect(forecastMatch(a, grid([22]), N)).toBe(100);
+  });
+
+  it("matchAtHorizon compares both worlds 16 steps ahead, clamped to the shorter history", () => {
+    const s = (cells: number[]) => ({ grid: grid(cells), timestep: 0 });
+    const forecast = Array.from({ length: 30 }, (_, i) => s(i >= 20 ? [22] : [77]));
+    const truth = Array.from({ length: 25 }, () => s([22]));
+    expect(matchAtHorizon(forecast, truth, 5, N)).toBe(100); // step 21
+    expect(matchAtHorizon(forecast, truth, 0, N)).toBe(0); // step 16
+    expect(matchAtHorizon(forecast, truth, 20, N)).toBe(100); // clamped to 24
+  });
+
+  it("edgeOffsetMeters: true fire 2 cells closer → +100 m at 50 m cells", () => {
+    const dog = 5 * N + 1;
+    expect(edgeOffsetMeters(grid([5 * N + 8]), grid([5 * N + 6]), dog, N, 50)).toBe(100);
+    expect(edgeOffsetMeters(grid([]), grid([5 * N + 6]), dog, N, 50)).toBe(0);
+  });
+
+  it("forecastEdgeCells returns the ring, not the interior", () => {
+    const block: number[] = [];
+    for (let r = 3; r <= 5; r++) for (let c = 3; c <= 5; c++) block.push(r * N + c);
+    const edge = forecastEdgeCells(grid(block), N);
+    expect(edge).not.toContain(4 * N + 4);
+    expect(edge.length).toBe(8);
+    expect(forecastEdgeCells(grid(block), N, 4).length).toBeLessThanOrEqual(4);
+  });
+
+  it("arrowChunks splits a 30-cell path into 12-cell chunks", () => {
+    expect(arrowChunks(Array.from({ length: 30 }, (_, i) => i))).toEqual([[0, 12], [12, 24], [24, 29]]);
+    expect(arrowChunks([5])).toEqual([]);
   });
 });

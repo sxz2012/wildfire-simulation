@@ -1,4 +1,4 @@
-import type { SimulationState } from "../types";
+import { CellState, type SimulationState } from "../types";
 import type { MissionPhase } from "./mission";
 import type { PlannerGrid } from "./types";
 
@@ -78,4 +78,80 @@ export function activeReport(
   let report: Report | null = null;
   for (const r of reports) if (r.min <= nowMin && (!report || r.min > report.min)) report = r;
   return { report, cardVisible: !!report && nowMin < report.min + 3 * timestepMin };
+}
+
+/** Integer percent overlap (intersection over union) of interior cells the fire has reached. */
+export function forecastMatch(forecast: Uint8Array, truth: Uint8Array, n: number): number {
+  let inter = 0, union = 0;
+  for (let r = 1; r < n - 1; r++) {
+    for (let c = 1; c < n - 1; c++) {
+      const i = r * n + c;
+      const a = forecast[i] !== CellState.Unburned, b = truth[i] !== CellState.Unburned;
+      if (a && b) inter++;
+      if (a || b) union++;
+    }
+  }
+  return union === 0 ? 100 : Math.round((inter / union) * 100);
+}
+
+/** Forecast match a few hours ahead (16 steps = 4 h), clamped to the shorter history. */
+export function matchAtHorizon(
+  forecast: SimulationState[],
+  truth: SimulationState[],
+  step: number,
+  n: number,
+  horizonSteps = 16
+): number {
+  const at = Math.min(step + horizonSteps, forecast.length - 1, truth.length - 1);
+  return forecastMatch(forecast[at].grid, truth[at].grid, n);
+}
+
+function nearestBurningCells(state: Uint8Array, dogIdx: number, n: number): number {
+  const dr = Math.floor(dogIdx / n), dc = dogIdx % n;
+  let best = Infinity;
+  for (let i = 0; i < state.length; i++) {
+    if (state[i] !== CellState.Burning) continue;
+    best = Math.min(best, Math.hypot(Math.floor(i / n) - dr, (i % n) - dc));
+  }
+  return best;
+}
+
+/** How much closer (m, +) or farther (−) the true fire edge is than the forecast said; 0 if either has no fire. */
+export function edgeOffsetMeters(
+  forecast: Uint8Array,
+  truth: Uint8Array,
+  dogIdx: number,
+  n: number,
+  cellSizeM: number
+): number {
+  const f = nearestBurningCells(forecast, dogIdx, n), t = nearestBurningCells(truth, dogIdx, n);
+  if (!Number.isFinite(f) || !Number.isFinite(t)) return 0;
+  return Math.round(((f - t) * cellSizeM) / 10) * 10;
+}
+
+/** Interior cells the fire has reached that touch unburned ground, strided down to at most `maxPoints`. */
+export function forecastEdgeCells(state: Uint8Array, n: number, maxPoints = 1500): number[] {
+  const edge: number[] = [];
+  for (let r = 1; r < n - 1; r++) {
+    for (let c = 1; c < n - 1; c++) {
+      const i = r * n + c;
+      if (state[i] === CellState.Unburned) continue;
+      if (
+        state[i - 1] === CellState.Unburned || state[i + 1] === CellState.Unburned ||
+        state[i - n] === CellState.Unburned || state[i + n] === CellState.Unburned
+      ) edge.push(i);
+    }
+  }
+  if (edge.length <= maxPoints) return edge;
+  const stride = Math.ceil(edge.length / maxPoints);
+  return edge.filter((_, k) => k % stride === 0);
+}
+
+/** Consecutive [from, to] index pairs into a path, `every` cells apart, for arrowheads along it. */
+export function arrowChunks(cells: number[], every = 12): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (let from = 0; from < cells.length - 1; from += every) {
+    out.push([from, Math.min(from + every, cells.length - 1)]);
+  }
+  return out;
 }
