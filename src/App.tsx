@@ -57,6 +57,7 @@ import {
   matchAtHorizon,
   shouldReport,
   trueConditions,
+  trueFireThreat,
   type Conditions,
   type ForecastVersion,
   type Report,
@@ -972,17 +973,19 @@ function App() {
     const r = robot;
     if (!r?.mission || !trueIgn || r.reportPending || r.shiftPending || r.launching || r.forecasts.length === 0) return;
     if (r.mission.phase === "done") return;
-    const dog = dogCellAt(r.mission, robotNowMin);
-    // "Near" = the true fire is due at the dog's cell within half the entry margin: a
-    // safety trigger, not something that fires all along a route hugging the flank.
-    const trueFireNear = trueIgn[dog] - robotNowMin < robotConfig.entryMarginMin / 2;
+    // "Near" = the true fire is due at the dog's cell, or on the route it walks in the
+    // next step, within half the entry margin: a safety trigger, not something that
+    // fires all along a route hugging the flank.
+    const trueFireNear = trueFireThreat(
+      r.mission.route, dogCellAt(r.mission, robotNowMin), robotNowMin, ts, trueIgn, robotConfig.entryMarginMin / 2,
+    );
     if (shouldReport({
       phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin,
-      failedMin: r.reportFailedMin,
+      failedMin: r.reportFailedMin, safetyGapMin: 2 * ts,
     })) {
       void sendReport();
     }
-  }, [robot, trueIgn, robotNowMin, robotConfig, dogCellAt, sendReport]);
+  }, [robot, trueIgn, robotNowMin, robotConfig, ts, dogCellAt, sendReport]);
 
   // Dev-only hooks for the scripted recording (docs/poster/scripts/record_robot_demo.py).
   const robotRef = useRef(robot);

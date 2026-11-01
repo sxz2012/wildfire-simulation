@@ -10,6 +10,7 @@ import {
   edgeOffsetMeters,
   forecastEdgeCells,
   arrowChunks,
+  trueFireThreat,
 } from "../robot/worlds";
 import { CellState } from "../types";
 import type { ForecastVersion, Report } from "../robot/worlds";
@@ -50,6 +51,12 @@ describe("shouldReport", () => {
   it("a failed report is not retried until something new happens", () => {
     expect(shouldReport({ ...base, phase: "scouting", failedMin: 490 })).toBe(false);
     expect(shouldReport({ ...base, phase: "scouting", failedMin: 490, shiftMin: 495 })).toBe(true);
+  });
+  it("a safety report may repeat once the last report is two steps old", () => {
+    const near = { ...base, phase: "returning" as const, trueFireNear: true, safetyGapMin: 30 };
+    expect(shouldReport({ ...near, reports: [{ min: 450 } as Report] })).toBe(true);
+    expect(shouldReport({ ...near, reports: [{ min: 480 } as Report] })).toBe(false);
+    expect(shouldReport({ ...near, reports: [{ min: 450 } as Report], failedMin: 490 })).toBe(false);
   });
   it("after a rewind (a future report exists) no new report is made", () =>
     expect(shouldReport({ ...base, phase: "scouting", reports: [{ min: 600 } as Report] })).toBe(false));
@@ -118,4 +125,19 @@ describe("metrics and drawing helpers", () => {
     expect(arrowChunks(Array.from({ length: 30 }, (_, i) => i))).toEqual([[0, 12], [12, 24], [24, 29]]);
     expect(arrowChunks([5])).toEqual([]);
   });
+});
+
+describe("trueFireThreat (looks ahead along the route)", () => {
+  const ign = (n: number, set: Record<number, number>) => {
+    const a = new Float32Array(n).fill(Infinity);
+    for (const [k, v] of Object.entries(set)) a[Number(k)] = v;
+    return a;
+  };
+  const route = { cells: [1, 2, 3, 4, 5], arrivalMin: [100, 105, 110, 115, 130], minMarginMin: 30 };
+  it("clear when neither the dog's cell nor the next step of route is threatened", () =>
+    expect(trueFireThreat(route, 1, 100, 15, ign(10, { 5: 120 }), 15)).toBe(false));
+  it("sees true fire on route cells reached within the next step", () =>
+    expect(trueFireThreat(route, 1, 100, 15, ign(10, { 3: 118 }), 15)).toBe(true));
+  it("sees true fire due at the dog's own cell", () =>
+    expect(trueFireThreat(null, 7, 100, 15, ign(10, { 7: 110 }), 15)).toBe(true));
 });

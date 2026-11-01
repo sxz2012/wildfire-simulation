@@ -1,6 +1,6 @@
 import { CellState, type SimulationState } from "../types";
 import type { MissionPhase } from "./mission";
-import type { PlannerGrid } from "./types";
+import type { Plan, PlannerGrid } from "./types";
 
 /** Weather the fire model runs on (archive, true local, or measured by the dog). */
 export interface Conditions {
@@ -64,9 +64,17 @@ export function shouldReport(a: {
   reports: Report[];
   shiftMin: number | null;
   failedMin?: number | null;
+  /** A true-fire safety report may repeat once the last attempt is this old (the runs are random, so they drift apart again). */
+  safetyGapMin?: number;
 }): boolean {
   if (a.reports.some((r) => r.min > a.nowMin)) return false;
   if (a.phase !== "scouting" && !a.trueFireNear) return false;
+  if (a.trueFireNear && a.safetyGapMin !== undefined) {
+    let last = -Infinity;
+    for (const r of a.reports) if (r.min <= a.nowMin) last = Math.max(last, r.min);
+    if (a.failedMin != null && a.failedMin <= a.nowMin) last = Math.max(last, a.failedMin);
+    if (a.nowMin - last >= a.safetyGapMin) return true;
+  }
   const since = a.shiftMin !== null && a.shiftMin <= a.nowMin ? a.shiftMin : -Infinity;
   if (a.failedMin != null && a.failedMin >= since && a.failedMin <= a.nowMin) return false;
   return !a.reports.some((r) => r.min >= since);
@@ -168,4 +176,27 @@ export function arrowChunks(cells: number[], every = 12): Array<[number, number]
     out.push([from, Math.min(from + every, cells.length - 1)]);
   }
   return out;
+}
+
+/**
+ * The dog can see the true fire coming: it is due at the dog's cell, or at a
+ * route cell the dog reaches within the next step, sooner than `thresholdMin`
+ * after the dog would be there. Looking ahead matters: one step is ~27 cells.
+ */
+export function trueFireThreat(
+  route: Plan | null,
+  dogCell: number,
+  nowMin: number,
+  stepMin: number,
+  trueIgn: Float32Array,
+  thresholdMin: number
+): boolean {
+  if (trueIgn[dogCell] - nowMin < thresholdMin) return true;
+  if (!route) return false;
+  for (let i = 0; i < route.cells.length; i++) {
+    const t = route.arrivalMin[i];
+    if (t < nowMin || t > nowMin + stepMin) continue;
+    if (trueIgn[route.cells[i]] - t < thresholdMin) return true;
+  }
+  return false;
 }
