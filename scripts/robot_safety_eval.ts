@@ -4,7 +4,8 @@
  *   npx tsx scripts/robot_safety_eval.ts [--worlds 200] [--jobs 24]
  *
  * Writes docs/poster/data/robot-safety.json (one row per world × scenario × setup) and prints a summary.
- * `--only "Grows,Calibrated"` runs just the setups whose names contain one of those words; `--out` writes elsewhere.
+ * `--only "Grows,Calibrated"` runs just the setups whose names contain one of those words, `--skip "learned"` leaves
+ * out those whose names do; `--out` writes elsewhere.
  */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -69,7 +70,8 @@ const argStr = (name: string) => {
   return i >= 0 ? process.argv[i + 1] : undefined;
 };
 const only = argStr("only")?.split(",");
-const VARIANTS = only ? ALL_VARIANTS.filter((v) => only.some((w) => v.name.includes(w))) : ALL_VARIANTS;
+const skip = argStr("skip")?.split(",");
+const VARIANTS = ALL_VARIANTS.filter((v) => (!only || only.some((w) => v.name.includes(w))) && !skip?.some((w) => v.name.includes(w)));
 const SCENARIOS = [
   { name: "Hotter and drier", windShift: false },
   { name: "Hotter, drier + wind shift", windShift: true },
@@ -122,7 +124,7 @@ if (shard >= 0) {
   const shards = Array.from({ length: jobs }, (_, j) => seeds.filter((_, i) => i % jobs === j)).filter((s) => s.length);
   const t0 = Date.now();
   const parts = await Promise.all(shards.map((s) => new Promise<Row[]>((resolve, reject) => {
-    const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), "--shard", s.join(","), ...(only ? ["--only", only.join(",")] : [])], { stdio: ["ignore", "pipe", "inherit"] });
+    const child = spawn(process.execPath, [...process.execArgv, fileURLToPath(import.meta.url), "--shard", s.join(","), ...(only ? ["--only", only.join(",")] : []), ...(skip ? ["--skip", skip.join(",")] : [])], { stdio: ["ignore", "pipe", "inherit"] });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
     child.on("close", (code) => (code === 0 ? resolve(JSON.parse(out)) : reject(new Error(`shard exited ${code}`))));

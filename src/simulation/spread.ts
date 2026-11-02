@@ -59,42 +59,77 @@ export interface StepAggregates {
 }
 
 /**
- * Compute the bounding-box stats over all currently-burning cells. Call
- * ONCE per step (before iterating cells), not per candidate cell.
+ * The model was trained on VIIRS satellite detections, not on simulator cells:
+ * a detection is a 375 m pixel with fire, seen about 1.2 times a day (median in
+ * the training data). Inputs that count fire are read off the grid that way.
  */
-export function computeStepAggregates(
-  grid: GridCell[],
-  cellSizeMeters: number,
-): StepAggregates {
-  let count = 0;
-  let latMin = Infinity, latMax = -Infinity;
-  let lngMin = Infinity, lngMax = -Infinity;
-  for (const c of grid) {
+export const SATELLITE_PIXEL_M = 375;
+export const DETECTIONS_PER_PIXEL_DAY = 1.2;
+
+/** The fire as the satellite would see it this step: its size, and detections near any spot. */
+export interface SatelliteView {
+  aggregates: StepAggregates;
+  /** Detections within 1, 5 and 10 km of the cell, leaving out its own pixel's (training left out the detection itself). */
+  neighbors(row: number, col: number): [number, number, number];
+}
+
+const NEIGHBOR_RADII_M = [1000, 5000, 10000];
+
+/** Satellite-style view of the burning cells: one detection pixel per 375 m square with any burning cell. Call once per step. */
+export function satelliteView(grid: GridCell[], gridSize: number, cellSizeMeters: number): SatelliteView {
+  const px = (i: number) => Math.floor((i * cellSizeMeters) / SATELLITE_PIXEL_M);
+  const pixelsPerSide = px(gridSize - 1) + 1;
+  const active = new Uint8Array(pixelsPerSide * pixelsPerSide);
+  let latMin = Infinity, latMax = -Infinity, lngMin = Infinity, lngMax = -Infinity;
+  for (let i = 0; i < grid.length; i++) {
+    const c = grid[i];
     if (c.state !== CellState.Burning) continue;
-    count++;
+    active[px(Math.floor(i / gridSize)) * pixelsPerSide + px(i % gridSize)] = 1;
     if (c.lat < latMin) latMin = c.lat;
     if (c.lat > latMax) latMax = c.lat;
     if (c.lng < lngMin) lngMin = c.lng;
     if (c.lng > lngMax) lngMax = c.lng;
   }
-  if (count === 0) {
-    return { currHotspotCount: 0, currAreaKm2: 0, currExtentNsKm: 0, currExtentEwKm: 0 };
+  // Pixel centres in metres from the grid corner.
+  const centres: Array<[number, number]> = [];
+  for (let p = 0; p < active.length; p++) {
+    if (active[p]) centres.push([(Math.floor(p / pixelsPerSide) + 0.5) * SATELLITE_PIXEL_M, ((p % pixelsPerSide) + 0.5) * SATELLITE_PIXEL_M]);
+  }
+  const detections = (pixels: number) => Math.round(pixels * DETECTIONS_PER_PIXEL_DAY);
+
+  let aggregates: StepAggregates = { currHotspotCount: 0, currAreaKm2: 0, currExtentNsKm: 0, currExtentEwKm: 0 };
+  if (centres.length > 0) {
+    const ns = (latMax - latMin) * 111;
+    const ew = (lngMax - lngMin) * 111 * Math.cos(((latMax + latMin) / 2) * Math.PI / 180);
+    // Training: hotspot count of the day, and the bounding box of its detections.
+    aggregates = { currHotspotCount: detections(centres.length), currAreaKm2: ns * ew, currExtentNsKm: ns, currExtentEwKm: ew };
   }
 
-  const ns = (latMax - latMin) * 111;
-  const midLat = ((latMax + latMin) / 2) * Math.PI / 180;
-  const ew = (lngMax - lngMin) * 111 * Math.cos(midLat);
-
-  // Approximate burning-cell area as count × cell area, in km².
-  const cellAreaKm2 = (cellSizeMeters / 1000) ** 2;
-  const currAreaKm2 = count * cellAreaKm2;
-
+  // Counts depend only on the cell's pixel and position; cached per cell for this step.
+  const cache = new Map<number, [number, number, number]>();
   return {
-    currHotspotCount: count,
-    currAreaKm2,
-    currExtentNsKm: ns,
-    currExtentEwKm: ew,
+    aggregates,
+    neighbors(row, col) {
+      const key = row * gridSize + col;
+      const hit = cache.get(key);
+      if (hit) return hit;
+      const y = (row + 0.5) * cellSizeMeters, x = (col + 0.5) * cellSizeMeters;
+      const own = active[px(row) * pixelsPerSide + px(col)] === 1;
+      const within = [0, 0, 0];
+      for (const [cy, cx] of centres) {
+        const d = Math.hypot(cy - y, cx - x);
+        for (let k = 0; k < 3; k++) if (d <= NEIGHBOR_RADII_M[k]) within[k]++;
+      }
+      const out = within.map((w) => Math.max(0, detections(w) - (own ? 1 : 0))) as [number, number, number];
+      cache.set(key, out);
+      return out;
+    },
   };
+}
+
+/** The fire's size as the satellite would see it (see satelliteView). */
+export function computeStepAggregates(grid: GridCell[], cellSizeMeters: number, gridSize = Math.round(Math.sqrt(grid.length))): StepAggregates {
+  return satelliteView(grid, gridSize, cellSizeMeters).aggregates;
 }
 
 export interface SpreadParams {
@@ -140,23 +175,6 @@ const NEIGHBOR_OFFSETS = [
   [0, -1],           [0, 1],
   [1, -1],  [1, 0],  [1, 1],
 ];
-
-/** Count burning neighbors within radius */
-function countBurningNeighbors(
-  grid: GridCell[], row: number, col: number, gridSize: number, radius: number
-): number {
-  let count = 0;
-  for (let dr = -radius; dr <= radius; dr++) {
-    for (let dc = -radius; dc <= radius; dc++) {
-      if (dr === 0 && dc === 0) continue;
-      const nr = row + dr;
-      const nc = col + dc;
-      if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) continue;
-      if (grid[nr * gridSize + nc].state === CellState.Burning) count++;
-    }
-  }
-  return count;
-}
 
 /** One chance for a burning cell to ignite an unburned neighbour, with what a learned correction can use. */
 export interface SpreadAttempt {
@@ -217,7 +235,8 @@ export function forEachSpreadAttempt(
   // Compute scenario- and step-static features once per step (not per cell).
   const scenarioFeatures = (config as any)._scenarioFeatures as ScenarioFeatures | undefined
     ?? computeScenarioFeatures(grid.map(c => c.fuel));
-  const stepAgg = computeStepAggregates(grid, cellSizeMeters);
+  const satellite = satelliteView(grid, gridSize, cellSizeMeters);
+  const stepAgg = satellite.aggregates;
   const hoursElapsed = stepNumber * timestepMinutes / 60;
   const isDaytime = (hoursElapsed % 24) >= 6 && (hoursElapsed % 24) <= 18 ? 1 : 0;
   const recentPrecip3Day = (config as any).recentPrecip3Day ?? 0;
@@ -245,9 +264,7 @@ export function forEachSpreadAttempt(
 
         if (useML) {
           // ML model prediction
-          const n1km = countBurningNeighbors(grid, nr, nc, gridSize, 2);
-          const n5km = countBurningNeighbors(grid, nr, nc, gridSize, 5);
-          const n10km = countBurningNeighbors(grid, nr, nc, gridSize, 10);
+          const [n1km, n5km, n10km] = satellite.neighbors(nr, nc);
 
           const features = [
             hoursElapsed,                    // 0  hours_since_start

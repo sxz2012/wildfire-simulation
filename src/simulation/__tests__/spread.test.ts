@@ -4,6 +4,7 @@ import {
   computeSpreadRate,
   computeScenarioFeatures,
   computeStepAggregates,
+  satelliteView,
   correctedRate,
   forEachSpreadAttempt,
   CORRECTION_SIZE,
@@ -127,32 +128,60 @@ describe("computeScenarioFeatures", () => {
 });
 
 describe("computeStepAggregates", () => {
-  function mkCell(lat: number, lng: number, state: CellState): GridCell {
-    return {
-      lat, lng, elevation: 0, fuel: "forest",
-      state, burnTimer: 0, row: 0, col: 0,
-    } as GridCell;
-  }
+  // The model was trained on satellite detections (375 m pixels, about 1.2 detections per
+  // pixel per day), so the fire's size is read the same way off the 50 m grid.
+  const n = 40;
+  const grid = (burning: Array<[number, number]>): GridCell[] => {
+    const g = createGrid({ ...DEFAULT_CONFIG, gridSize: n }, 0, 0, () => 0);
+    for (const [r, c] of burning) g[r * n + c].state = CellState.Burning;
+    return g;
+  };
 
   it("returns zeros when no cells are burning", () => {
-    const grid = [mkCell(0, 0, CellState.Unburned)];
-    const agg = computeStepAggregates(grid, 100);
+    const agg = computeStepAggregates(grid([]), 50, n);
     expect(agg.currHotspotCount).toBe(0);
     expect(agg.currAreaKm2).toBe(0);
   });
 
-  it("computes count, area, and extents for a small burn cluster", () => {
-    // Two cells at (0,0) and (0.01, 0.01) — about 1.1 km × 1.1 km (at equator)
-    const grid = [
-      mkCell(0, 0, CellState.Burning),
-      mkCell(0.01, 0.01, CellState.Burning),
-      mkCell(5, 5, CellState.Unburned),
-    ];
-    const agg = computeStepAggregates(grid, 100); // 100 m cells -> 0.01 km² each
-    expect(agg.currHotspotCount).toBe(2);
-    expect(agg.currAreaKm2).toBeCloseTo(0.02, 5);
-    expect(agg.currExtentNsKm).toBeCloseTo(1.11, 1);
-    expect(agg.currExtentEwKm).toBeGreaterThan(1.0);
+  it("counts satellite detections: burning 375 m pixels × 1.2, several cells in one pixel counting once", () => {
+    // (0,0), (0,1), (1,0) share pixel 0; (0,12) is in pixel 1.
+    expect(computeStepAggregates(grid([[0, 0], [0, 1], [1, 0], [0, 12]]), 50, n).currHotspotCount).toBe(2);
+  });
+
+  it("area is the bounding box of the fire, north–south × east–west, as in training", () => {
+    const agg = computeStepAggregates(grid([[0, 0], [10, 20]]), 50, n);
+    expect(agg.currExtentNsKm).toBeCloseTo(0.5, 2);
+    expect(agg.currExtentEwKm).toBeCloseTo(1.0, 2);
+    expect(agg.currAreaKm2).toBeCloseTo(agg.currExtentNsKm * agg.currExtentEwKm, 6);
+  });
+});
+
+describe("satelliteView: neighbour counts as the model was trained", () => {
+  // Training: other detections the same day within 1, 5 and 10 km of a detection.
+  const view = (size: number, burning: Array<[number, number]>) => {
+    const g = createGrid({ ...DEFAULT_CONFIG, gridSize: size }, 0, 0, () => 0);
+    for (const [r, c] of burning) g[r * size + c].state = CellState.Burning;
+    return satelliteView(g, size, 50);
+  };
+
+  it("one burning pixel 600 m away is about one detection within 1, 5 and 10 km", () => {
+    expect(view(40, [[0, 0]]).neighbors(0, 12)).toEqual([1, 1, 1]);
+  });
+
+  it("leaves out the spot's own pixel's detection, as training left out the detection itself", () => {
+    expect(view(40, [[0, 0]]).neighbors(0, 1)).toEqual([0, 0, 0]);
+  });
+
+  it("counts by distance: five burning pixels 3–4.6 km away are outside 1 km, inside 5 km", () => {
+    const v = view(200, [[0, 60], [0, 68], [0, 76], [0, 84], [0, 92]]);
+    expect(v.neighbors(0, 0)).toEqual([0, 6, 6]);
+  });
+
+  it("is not the count of burning 50 m cells", () => {
+    const burning: Array<[number, number]> = [];
+    for (let r = 10; r < 30; r++) for (let c = 10; c < 30; c++) burning.push([r, c]); // 400 cells, 1 km square
+    const [n1] = view(40, burning).neighbors(20, 31);
+    expect(n1).toBeLessThan(40);
   });
 });
 
