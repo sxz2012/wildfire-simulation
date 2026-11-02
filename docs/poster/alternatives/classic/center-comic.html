@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — center panel (comic strip)</title>
+<link rel="stylesheet" href="poster.css">
+<link rel="stylesheet" href="story.css">
+<style>
+  .strip { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.28in; flex: 1; }
+  .pnl {
+    background: #fff; border: 5pt solid var(--ink); border-radius: 10pt;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  .pic { position: relative; aspect-ratio: 1 / 1; background: #222; overflow: hidden; }
+  .pic img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .pnl .txt { padding: 0.18in 0.22in 0.22in; font-size: 30pt; line-height: 1.28; }
+  .pnl .txt .time { display: block; font-size: 36pt; margin-bottom: 0.04in; }
+  .pnl .txt b { color: var(--fire-dark); }
+  .pnl.hot { border-color: var(--fire); }
+
+  .bubble {
+    position: absolute; background: #fff; color: var(--ink); border: 3.5pt solid var(--ink);
+    border-radius: 22pt; padding: 0.08in 0.18in; font-size: 23pt; font-weight: 700; line-height: 1.2;
+    box-shadow: 0 4pt 0 rgba(0,0,0,.25); max-width: 80%;
+  }
+  .bubble::after {
+    content: ""; position: absolute; width: 0.22in; height: 0.22in; background: #fff;
+    border-right: 3.5pt solid var(--ink); border-bottom: 3.5pt solid var(--ink);
+  }
+  .bubble.dn::after { bottom: -0.14in; left: 0.4in; transform: rotate(45deg); }
+  .bubble.up::after { top: -0.14in; left: 0.4in; transform: rotate(-135deg); }
+  .bubble .who { display: block; font-size: 17pt; font-weight: 600; color: var(--muted); }
+  .bubble.alert { background: #fff3e0; }
+  .bubble.alert::after { background: #fff3e0; }
+
+  .p1 { background: radial-gradient(circle at 70% 85%, #f2a541 0%, #b23a1a 30%, #3b1d17 70%, #1b1f2a 100%); }
+  .p1 img { object-fit: contain; height: 82%; position: absolute; bottom: 0; left: 18%; width: auto; }
+
+  .end { display: flex; flex-direction: column; justify-content: center; gap: 0.14in; padding: 0.3in; background: #eef6ee; height: 100%; }
+  .end .big { font-size: 44pt; font-weight: 800; color: #2e8540; line-height: 1.15; }
+  .end .row { font-size: 28pt; line-height: 1.25; }
+  .end .row b { color: var(--ink); }
+</style>
+</head>
+<body>
+<div class="panel">
+
+  <header class="titleblock">
+    <h1><span class="fire">Fire-Aware</span> <span class="robot">Robot Dogs</span></h1>
+    <div class="sub">Machine-Learning Wildfire Forecasts for Safe Navigation and Scouting</div>
+    <div class="by"><b>Shawn Zeng</b> · Monta Vista High School</div>
+  </header>
+
+  <div class="setting">
+    <h2>One afternoon at a Big Sur fire</h2>
+    <p>A simulated mission. Every picture is from our simulator.</p>
+  </div>
+
+  <div class="strip">
+    <div class="pnl hot">
+      <div class="pic p1">
+        <img src="../../img/wildfire-robot-transparent.png" alt="Firefighting robot dog">
+        <div class="bubble dn" style="left:0.2in;top:0.2in"><span class="who">Crew chief</span>“Too steep and smoky to send people. Send the dog.”</div>
+      </div>
+      <div class="txt"><span class="time hot">3:00 PM</span>The fire has burned since midnight on steep, brushy slopes. The crew needs to know <b>where the edge is going</b>.</div>
+    </div>
+
+    <div class="pnl">
+      <div class="pic"><img src="../../img/step2-route.jpg" alt="Blue route bending around the forecast fire">
+        <div class="bubble dn" style="right:0.2in;top:0.2in"><span class="who">Robot dog</span>“Route is clear by 30 min.”</div>
+      </div>
+      <div class="txt"><span class="time">3:00 PM · Plan</span>On its forecast, the dog plans a route (<b style="color:#2D6CDF">blue</b>) that passes every spot <b>30+ min before the fire</b>, slower through brush and uphill.</div>
+    </div>
+
+    <div class="pnl hot">
+      <div class="pic"><img src="../../img/step3-escape.jpg" alt="Green escape path home as the real fire turns">
+        <div class="bubble alert dn" style="right:0.2in;top:0.2in">💨 Wind shift!</div>
+      </div>
+      <div class="txt"><span class="time hot">3:30 PM · Surprise</span>The wind shifts and the real fire turns. <b>The forecast doesn't know</b>: match 82% → 61%. The escape path home (<b style="color:#2E8540">green</b>) stays open.</div>
+    </div>
+
+    <div class="pnl">
+      <div class="pic"><img style="object-position: 80% 50%" src="../../img/step5-feedback.jpg" alt="Readings card: measured versus forecast">
+        <div class="bubble dn" style="left:0.2in;top:0.2in"><span class="who">Robot dog</span>“40 °C here, wind from 45°. Not what we thought.”</div>
+      </div>
+      <div class="txt"><span class="time">3:45 PM · Measure</span>Its sensors see the real fire coming. It measures <b>wind, temperature, humidity and the fire edge</b> and sends them back.</div>
+    </div>
+
+    <div class="pnl">
+      <div class="pic"><img src="../../img/step4-scout.jpg" alt="Dog at the fire edge with its escape path home">
+        <div class="bubble dn" style="right:0.2in;top:0.2in"><span class="who">Forecast</span>“Corrected: 61% → 80%.”</div>
+      </div>
+      <div class="txt"><span class="time">4:45 PM · Scout</span>On the <b>corrected forecast</b> the dog re-plans, reaches the fire edge and scouts it.</div>
+    </div>
+
+    <div class="pnl">
+      <div class="pic"><div class="end">
+        <div class="big">✓ Home safe</div>
+        <div class="row"><b>0</b> people sent to the fire edge</div>
+        <div class="row">Forecast match <b>61% → 80%</b></div>
+        <div class="row">Fire margin kept: <b>≥ 30 min</b></div>
+      </div></div>
+      <div class="txt"><span class="time">~8 PM · Home</span>Back at staging before the fire arrives. The crew plans with a <b>better forecast</b>.</div>
+    </div>
+  </div>
+
+  <div class="loopline">The loop behind the story:
+    <b>Predict</b><span class="arr">→</span><b>Safe route</b><span class="arr">→</span><b>Escape path</b><span class="arr">→</span><b>Scout</b><span class="arr">→</span><b>Feedback</b><span class="arr">↺</span>
+  </div>
+
+  <div class="tagline">Know where the fire <em>will</em> be — not just where it is.</div>
+
+  <div class="benefits">
+    <div class="benefit"><div class="ico">🧑‍🚒</div><p><b>Safer crews</b>Fewer firefighters sent into danger to look.</p></div>
+    <div class="benefit"><div class="ico">🛡️</div><p><b>Robot stays safe</b>Routes and exits keep it from getting trapped.</p></div>
+    <div class="benefit"><div class="ico">📍</div><p><b>Smarter sensing</b>Measure where it changes decisions.</p></div>
+  </div>
+</div>
+</body>
+</html>

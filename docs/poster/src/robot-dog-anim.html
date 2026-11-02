@@ -1,0 +1,375 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- Animated shots of the poster's robot dog at a wildfire, rendered frame by frame by
+     docs/poster/scripts/render_robot_anim.py. window.renderFrame(shot, t) draws one frame. -->
+<style>html,body{margin:0;background:#000;overflow:hidden}canvas{display:block}</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<script type="module">
+import * as THREE from "three";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+
+const W = 1920, H = 1080;
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+renderer.setPixelRatio(1);
+renderer.setSize(W, H);
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.85;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x7a706a, 0.03);
+
+// Deterministic pseudo-random numbers and smooth noise, so every render is identical.
+let seed = 7;
+const rand = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
+const hash = (n) => { const s = Math.sin(n * 127.1) * 43758.5453; return s - Math.floor(s); };
+const noise1 = (x) => { const i = Math.floor(x), f = x - i, u = f * f * (3 - 2 * f); return hash(i) * (1 - u) + hash(i + 1) * u; };
+
+// ---------- Sky: smoky dome, orange near the horizon ----------
+{
+  const c = document.createElement("canvas"); c.width = 4; c.height = 512;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 512);
+  grad.addColorStop(0.0, "#2f2a2a"); grad.addColorStop(0.35, "#5a4a42");
+  grad.addColorStop(0.47, "#b8683a"); grad.addColorStop(0.52, "#d98a4a"); grad.addColorStop(1.0, "#3a2a22");
+  g.fillStyle = grad; g.fillRect(0, 0, 4, 512);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const sky = new THREE.Mesh(new THREE.SphereGeometry(80, 32, 16), new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false }));
+  scene.add(sky);
+}
+
+// ---------- Terrain ----------
+const heightAt = (x, z) =>
+  0.35 * Math.sin(x * 0.18 + 1.3) * Math.cos(z * 0.21) + 0.18 * Math.sin(x * 0.53 + z * 0.37) +
+  0.06 * Math.sin(x * 1.7 - z * 1.3) + Math.max(0, -z - 9) * 0.55; // ridge rising behind (negative z)
+// Burn level 0 (dry grass) .. 1 (black): the fire has burned the area to the east (large x).
+const burnAt = (x, z) => Math.min(1, Math.max(0, (x - 14) / 4 + 0.25 * Math.sin(z * 0.8 + x * 0.3)));
+{
+  const geo = new THREE.PlaneGeometry(90, 90, 360, 360);
+  geo.rotateX(-Math.PI / 2);
+  const pos = geo.attributes.position, col = [];
+  const grass = new THREE.Color(0x8a8158), dirt = new THREE.Color(0x6e6252), burnt = new THREE.Color(0x221d1a), ash = new THREE.Color(0x5b5651);
+  const c = new THREE.Color();
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    pos.setY(i, heightAt(x, z));
+    const n = noise1(x * 0.9 + z * 1.7) * 0.6 + noise1(x * 3.1 - z * 2.3) * 0.4;
+    c.copy(grass).lerp(dirt, n * 0.8);
+    const b = burnAt(x, z);
+    if (b > 0) c.lerp(n > 0.55 ? ash : burnt, b);
+    col.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  geo.computeVertexNormals();
+  const ground = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.97 }));
+  ground.receiveShadow = true;
+  scene.add(ground);
+}
+
+// Rocks, dry shrubs, burnt snags.
+{
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x6d655c, roughness: 0.95, flatShading: true });
+  const shrubMat = new THREE.MeshStandardMaterial({ color: 0x6b6a3a, roughness: 1, flatShading: true });
+  const charMat = new THREE.MeshStandardMaterial({ color: 0x15110f, roughness: 1, flatShading: true });
+  for (let i = 0; i < 420; i++) {
+    const x = rand() * 60 - 20, z = rand() * 40 - 22;
+    if (Math.abs(z) < (x > 10 ? 3.2 : 1.2) && x > -3 && x < 26) continue; // keep the dog's path and camera clear
+    const y = heightAt(x, z), b = burnAt(x, z), r = rand();
+    let m;
+    if (r < 0.35) {
+      const s = 0.08 + rand() * 0.25;
+      m = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+      m.position.set(x, y + s * 0.4, z); m.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+    } else if (b < 0.5) {
+      const s = 0.15 + rand() * 0.35;
+      m = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), shrubMat);
+      m.scale.y = 0.7; m.position.set(x, y + s * 0.45, z);
+    } else {
+      const h = 0.6 + rand() * 1.6;
+      m = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.05, h, 6), charMat);
+      m.position.set(x, y + h / 2, z); m.rotation.z = (rand() - 0.5) * 0.3;
+    }
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+}
+
+// Staging area: cones and an equipment case where the dog starts and returns.
+{
+  const cone = new THREE.MeshStandardMaterial({ color: 0xff6a1a, roughness: 0.6 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xf2f2f2, roughness: 0.5 });
+  for (const [x, z] of [[-1.4, 1.1], [-1.4, -1.1], [-2.6, 1.1], [-2.6, -1.1]]) {
+    const y = heightAt(x, z);
+    const c = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.3, 20), cone); c.position.set(x, y + 0.15, z); c.castShadow = true; scene.add(c);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.07, 0.05, 20), white); b.position.set(x, y + 0.17, z); scene.add(b);
+  }
+  const caseM = new THREE.Mesh(new RoundedBoxGeometry(0.7, 0.32, 0.45, 3, 0.04), new THREE.MeshStandardMaterial({ color: 0x2b3038, roughness: 0.5 }));
+  caseM.position.set(-2.2, heightAt(-2.2, 1.9) + 0.16, 1.9); caseM.rotation.y = 0.3; caseM.castShadow = true; scene.add(caseM);
+}
+
+// ---------- Fire, smoke and embers ----------
+const soft = (stops) => {
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d"), gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  stops.forEach(([o, s]) => gr.addColorStop(o, s));
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+};
+const flameTex = soft([[0, "rgba(255,225,160,0.85)"], [0.25, "rgba(255,150,50,0.6)"], [0.6, "rgba(200,60,15,0.25)"], [1, "rgba(120,20,0,0)"]]);
+const smokeTex = soft([[0, "rgba(90,82,78,0.55)"], [0.5, "rgba(70,64,60,0.3)"], [1, "rgba(60,55,50,0)"]]);
+const emberTex = soft([[0, "rgba(255,230,160,1)"], [0.4, "rgba(255,140,40,0.8)"], [1, "rgba(255,80,0,0)"]]);
+
+// Fire front: a ragged line just beyond the burned area, plus a far ridge fire behind staging.
+const flames = [];
+const addFlame = (x, z, s) => {
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, fog: false }));
+  m.userData = { x, z, s, ph: rand() * 100 };
+  scene.add(m); flames.push(m);
+};
+for (let i = 0; i < 140; i++) { const z = -14 + i * 0.2; addFlame(19 + 1.2 * Math.sin(z * 0.7) + rand() * 0.8, z + 3.5, 0.6 + rand() * 0.9); }
+for (let i = 0; i < 70; i++) { const x = -18 + rand() * 44; addFlame(x, -16 - rand() * 3 + Math.sin(x * 0.3), 0.6 + rand() * 1.2); }
+
+const fireLights = [];
+for (const [x, z, k] of [[19, -3, 14], [19.5, 4, 14], [5, -16, 20], [-8, -16, 20]]) {
+  const l = new THREE.PointLight(0xff7a2a, k, 14, 1.6); l.position.set(x, heightAt(x, z) + 1.2, z); l.userData.k = k;
+  scene.add(l); fireLights.push(l);
+}
+
+const smokes = [];
+for (let i = 0; i < 90; i++) {
+  const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: smokeTex, depthWrite: false, transparent: true }));
+  const far = i < 50;
+  m.userData = { x: far ? -20 + rand() * 40 : 18 + rand() * 4, z: far ? -16 - rand() * 3 : -10 + rand() * 18, s: far ? 5 + rand() * 6 : 2 + rand() * 3, ph: rand() * 10 };
+  scene.add(m); smokes.push(m);
+}
+
+const EMBERS = 500;
+const emberGeo = new THREE.BufferGeometry();
+emberGeo.setAttribute("position", new THREE.Float32BufferAttribute(new Float32Array(EMBERS * 3), 3));
+const emberSeed = Array.from({ length: EMBERS }, () => [rand(), rand(), rand(), rand()]);
+scene.add(new THREE.Points(emberGeo, new THREE.PointsMaterial({ map: emberTex, size: 0.08, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true })));
+
+// ---------- Lights ----------
+const sun = new THREE.DirectionalLight(0xffe2c8, 2.3);
+sun.position.set(-8, 6, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -4; sun.shadow.camera.right = 4; sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -4;
+sun.shadow.bias = -0.0005;
+scene.add(sun, sun.target);
+scene.add(new THREE.HemisphereLight(0xa9b0b8, 0x2a2420, 0.9));
+
+// ---------- Robot dog (same design as robot-dog-3d.html, with jointed legs) ----------
+const shell = new THREE.MeshPhysicalMaterial({ color: 0xeef0f2, roughness: 0.38, clearcoat: 0.7, clearcoatRoughness: 0.25 });
+const accent = new THREE.MeshPhysicalMaterial({ color: 0x1a4fc2, roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2 });
+const accentDark = new THREE.MeshPhysicalMaterial({ color: 0x17428f, roughness: 0.4, clearcoat: 0.5 });
+const joint = new THREE.MeshStandardMaterial({ color: 0x2a2e35, metalness: 0.7, roughness: 0.32 });
+const limb = new THREE.MeshPhysicalMaterial({ color: 0x3a3f48, metalness: 0.35, roughness: 0.45, clearcoat: 0.3 });
+const rubber = new THREE.MeshStandardMaterial({ color: 0x15171a, roughness: 0.92 });
+const glass = new THREE.MeshPhysicalMaterial({ color: 0x0b0f17, roughness: 0.05, metalness: 0.2, clearcoat: 1 });
+const lens = new THREE.MeshPhysicalMaterial({ color: 0x5fb3ff, emissive: 0x2a7bd6, emissiveIntensity: 0.8, roughness: 0.1, clearcoat: 1 });
+const sensor = new THREE.MeshPhysicalMaterial({ color: 0xff7a12, emissive: 0xe0600a, emissiveIntensity: 0.2, roughness: 0.3, clearcoat: 0.8 });
+
+const dog = new THREE.Group();   // world placement
+const body = new THREE.Group();  // body sway on top of placement
+dog.add(body); scene.add(dog);
+const add = (parent, geo, mat, pos, rot) => {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(...pos); if (rot) m.rotation.set(...rot);
+  m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+};
+const BY = 0.62;
+add(body, new RoundedBoxGeometry(1.0, 0.22, 0.36, 6, 0.08), shell, [0, BY, 0]);
+for (const s of [-1, 1]) {
+  add(body, new RoundedBoxGeometry(0.62, 0.1, 0.02, 4, 0.01), accent, [0.02, BY + 0.01, s * 0.181]);
+  add(body, new RoundedBoxGeometry(0.16, 0.035, 0.012, 2, 0.005), accentDark, [-0.36, BY + 0.05, s * 0.183]);
+}
+add(body, new RoundedBoxGeometry(0.86, 0.05, 0.3, 4, 0.02), joint, [0, BY - 0.12, 0]);
+add(body, new RoundedBoxGeometry(0.7, 0.012, 0.08, 2, 0.005), accent, [0.02, BY + 0.112, 0]);
+add(body, new RoundedBoxGeometry(0.2, 0.17, 0.3, 5, 0.06), shell, [0.56, BY + 0.01, 0]);
+add(body, new RoundedBoxGeometry(0.03, 0.11, 0.24, 4, 0.03), glass, [0.655, BY + 0.015, 0]);
+for (const z of [-0.07, 0.07]) add(body, new THREE.CylinderGeometry(0.026, 0.026, 0.012, 32), lens, [0.672, BY + 0.02, z], [0, 0, Math.PI / 2]);
+for (const s of [-1, 1]) add(body, new THREE.CylinderGeometry(0.018, 0.018, 0.01, 24), lens, [0.52, BY + 0.03, s * 0.152], [Math.PI / 2, 0, 0]);
+add(body, new RoundedBoxGeometry(0.1, 0.14, 0.26, 4, 0.04), shell, [-0.53, BY, 0]);
+add(body, new RoundedBoxGeometry(0.012, 0.06, 0.16, 2, 0.006), glass, [-0.583, BY + 0.01, 0]);
+add(body, new RoundedBoxGeometry(0.42, 0.025, 0.14, 2, 0.008), joint, [-0.08, BY + 0.122, 0]);
+const lidar = new THREE.Group(); lidar.position.set(-0.14, BY, 0); body.add(lidar);
+add(lidar, new THREE.CylinderGeometry(0.075, 0.08, 0.06, 48), joint, [0, 0.165, 0]);
+add(lidar, new THREE.CylinderGeometry(0.078, 0.078, 0.025, 48), glass, [0, 0.205, 0]);
+add(lidar, new THREE.CylinderGeometry(0.06, 0.07, 0.022, 48), shell, [0, 0.228, 0]);
+add(lidar, new RoundedBoxGeometry(0.03, 0.02, 0.04, 2, 0.006), lens, [0.075, 0.205, 0]); // spinning window
+add(body, new RoundedBoxGeometry(0.1, 0.07, 0.09, 3, 0.02), sensor, [0.07, BY + 0.17, 0]);
+add(body, new THREE.CylinderGeometry(0.022, 0.022, 0.012, 24), glass, [0.122, BY + 0.172, 0], [0, 0, Math.PI / 2]);
+add(body, new THREE.CylinderGeometry(0.006, 0.006, 0.16, 12), joint, [-0.32, BY + 0.19, 0.09]);
+const beacon = add(body, new THREE.SphereGeometry(0.014, 16, 16), new THREE.MeshStandardMaterial({ color: 0x3a8bff, emissive: 0x3a8bff, emissiveIntensity: 2 }), [-0.32, BY + 0.275, 0.09]);
+
+// Legs: hip fixed to the body, knee from two-link IK (knees point backward), foot follows the gait.
+const L1 = 0.29, L2 = 0.3;
+const unitCyl = (r) => new THREE.CylinderGeometry(r, r, 1, 20);
+const legs = [[0.36, 0.215, 0], [0.36, -0.215, 0.5], [-0.36, 0.215, 0.5], [-0.36, -0.215, 0]].map(([x, z, phase]) => {
+  const s = Math.sign(z);
+  add(body, new THREE.CylinderGeometry(0.075, 0.075, 0.07, 40), joint, [x, BY - 0.04, z], [Math.PI / 2, 0, 0]);
+  add(body, new THREE.CylinderGeometry(0.05, 0.05, 0.072, 40), accent, [x, BY - 0.04, z + s * 0.004], [Math.PI / 2, 0, 0]);
+  const thigh = add(dog, unitCyl(0.05), shell, [0, 0, 0]);
+  const shin = add(dog, unitCyl(0.026), limb, [0, 0, 0]);
+  const knee = add(dog, new THREE.SphereGeometry(0.045, 24, 24), joint, [0, 0, 0]);
+  const foot = add(dog, new THREE.SphereGeometry(0.042, 24, 24), rubber, [0, 0, 0]);
+  return { x, z: z + s * 0.02, phase, thigh, shin, knee, foot };
+});
+const up = new THREE.Vector3(0, 1, 0);
+const placeBetween = (m, a, b) => {
+  const d = new THREE.Vector3().subVectors(b, a);
+  m.position.copy(a).addScaledVector(d, 0.5);
+  m.scale.set(1, d.length(), 1);
+  m.quaternion.setFromUnitVectors(up, d.normalize());
+};
+
+// Pose the dog. x0,z0,heading: world placement; dist: distance walked (drives the gait); bob: idle sway.
+const STRIDE = 0.26;
+function poseDog(x0, z0, heading, dist, walking, t) {
+  const cosH = Math.cos(heading), sinH = Math.sin(heading);
+  const toWorld = (lx, lz) => [x0 + lx * cosH + lz * sinH, z0 - lx * sinH + lz * cosH];
+  // body height follows the ground under the four hips
+  let gy = 0;
+  for (const L of legs) { const [wx, wz] = toWorld(L.x, L.z); gy += heightAt(wx, wz); }
+  gy /= 4;
+  dog.position.set(x0, gy, z0);
+  dog.rotation.set(0, heading, 0);
+  const cyc = dist / (2 * STRIDE);
+  body.position.y = walking ? 0.012 * Math.sin(cyc * 4 * Math.PI) : 0.006 * Math.sin(t * 2.2);
+  body.rotation.z = walking ? 0.015 * Math.sin(cyc * 2 * Math.PI) : 0.01 * Math.sin(t * 0.9);
+  body.rotation.x = walking ? 0.012 * Math.sin(cyc * 2 * Math.PI + 1) : 0;
+  for (const L of legs) {
+    let fx = L.x + 0.02, lift = 0;
+    if (walking) {
+      const p = (cyc + L.phase) % 1;
+      if (p < 0.5) fx += STRIDE / 2 - (p / 0.5) * STRIDE;               // stance: foot slides back under the body
+      else { const q = (p - 0.5) / 0.5; fx += -STRIDE / 2 + q * STRIDE; lift = 0.09 * Math.sin(q * Math.PI); }
+    }
+    const [wx, wz] = toWorld(fx, L.z);
+    const footY = heightAt(wx, wz) - gy + 0.045 + lift;
+    const hip = new THREE.Vector3(L.x, BY - 0.04 + body.position.y, L.z);
+    const foot = new THREE.Vector3(fx, footY, L.z);
+    const dx = foot.x - hip.x, dy = foot.y - hip.y;
+    const d = Math.min(Math.hypot(dx, dy), L1 + L2 - 0.005);
+    const a = Math.atan2(dy, dx), b = Math.acos((L1 * L1 + d * d - L2 * L2) / (2 * L1 * d));
+    const k1 = a + b, k2 = a - b; // pick the knee that sits behind the hip-foot line
+    const ka = Math.cos(k1) < Math.cos(k2) ? k1 : k2;
+    const knee = new THREE.Vector3(hip.x + L1 * Math.cos(ka), hip.y + L1 * Math.sin(ka), L.z);
+    placeBetween(L.thigh, hip, knee);
+    placeBetween(L.shin, knee, foot);
+    L.knee.position.copy(knee); L.foot.position.copy(foot);
+  }
+}
+
+// Scan ring shown while the dog measures.
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.9, 1, 96), new THREE.MeshBasicMaterial({ color: 0x5fb3ff, transparent: true, side: THREE.DoubleSide, depthWrite: false }));
+ring.rotation.x = -Math.PI / 2; scene.add(ring);
+
+// ---------- Shots ----------
+const camera = new THREE.PerspectiveCamera(34, W / H, 0.05, 200);
+const ease = (u) => u * u * (3 - 2 * u);
+const lerp = (a, b, u) => a + (b - a) * u;
+const SHOTS = {
+  // 1. Ready at staging, far ridge burning behind.
+  ready: { dur: 5, f(t) {
+    poseDog(0, 0, 0, 0, false, t);
+    const u = ease(t / 5);
+    camera.position.set(lerp(1.7, 1.3, u), heightAt(1.5, 2.6) + lerp(0.6, 0.5, u), lerp(3.2, 2.4, u));
+    camera.lookAt(-0.3, 0.55, -2);
+    return { x: 0, z: 0, scan: 0 };
+  } },
+  // 2. Sets off across the slope, camera tracking beside it.
+  depart: { dur: 5, f(t) {
+    const dist = 0.7 * Math.max(0, t - 0.4) ** 1.2;
+    poseDog(dist, 0, 0, dist, t > 0.4, t);
+    camera.position.set(dist + 0.6, heightAt(dist, 2.6) + 0.7, 2.6);
+    camera.lookAt(dist + 0.4, 0.45 + heightAt(dist, 0), 0);
+    return { x: dist, z: 0, scan: 0 };
+  } },
+  // 3. Walks toward the fire edge through smoke; flames and burned ground ahead.
+  scout: { dur: 5, f(t) {
+    const x = 12.5 + 0.62 * t;
+    poseDog(x, 0.2, 0, x, true, t);
+    camera.position.set(x - 1.6 + 0.2 * t, heightAt(x - 1.6, -1.3) + 0.55, -1.3);
+    camera.lookAt(x + 1.2, 0.6 + heightAt(x, 0), 0.4);
+    return { x, z: 0.2, scan: 0 };
+  } },
+  // 4. Stops at the edge and measures: lidar spins, sensor pulses, scan rings.
+  measure: { dur: 5, f(t) {
+    const x = 16.2;
+    poseDog(x, 0.2, 0, 0, false, t);
+    const a = 0.9 + 0.35 * t;
+    camera.position.set(x - 2.2 * Math.cos(a), heightAt(x, 0) + 0.6, 0.2 + 2.2 * Math.sin(a));
+    camera.lookAt(x + 0.1, heightAt(x, 0) + 0.5, 0.2);
+    return { x, z: 0.2, scan: t };
+  } },
+  // 5. Heads home to staging on the escape path; cones ahead.
+  home: { dur: 5, f(t) {
+    const x = 3.2 - 0.62 * t;
+    poseDog(x, 0, Math.PI, 3.2 - x, true, t);
+    camera.position.set(x + 3.2, heightAt(x + 3.2, 0.9) + 1.1, 0.9);
+    camera.lookAt(x - 1.2, 0.35, 0);
+    return { x, z: 0, scan: 0 };
+  } },
+};
+
+function updateWorld(t, info) {
+  for (const f of flames) {
+    const { x, z, s, ph } = f.userData;
+    const fl = 0.75 + 0.35 * noise1(t * 6 + ph) + 0.15 * Math.sin(t * 13 + ph);
+    f.scale.set(s * 0.8 * fl, s * 1.5 * fl, 1);
+    f.position.set(x, heightAt(x, z) + s * 0.6 * fl, z);
+  }
+  for (const l of fireLights) l.intensity = l.userData.k * (0.8 + 0.4 * noise1(t * 5 + l.position.x));
+  for (const m of smokes) {
+    const { x, z, s, ph } = m.userData, age = (t * 0.12 + ph) % 1;
+    m.position.set(x + age * 3, heightAt(x, z) + 1 + age * 7, z + age * 1.5);
+    m.scale.setScalar(s * (0.6 + age));
+    m.material.opacity = 0.9 * Math.sin(age * Math.PI);
+  }
+  const p = emberGeo.attributes.position;
+  for (let i = 0; i < EMBERS; i++) {
+    const [a, b, c, d] = emberSeed[i], age = (t * (0.15 + 0.2 * d) + a) % 1;
+    const bx = info.x + (b - 0.3) * 14, bz = info.z + (c - 0.5) * 10;
+    p.setXYZ(i, bx + age * 2.5 + 0.2 * Math.sin(t * 2 + i), heightAt(bx, bz) + age * 4, bz + 0.2 * Math.cos(t * 1.7 + i));
+  }
+  p.needsUpdate = true;
+  // sensor/lidar activity
+  lidar.rotation.y = t * (info.scan ? 9 : 2.5);
+  sensor.emissiveIntensity = info.scan ? 0.4 + 1.6 * (0.5 + 0.5 * Math.sin(t * 8)) : 0.2;
+  beacon.material.emissiveIntensity = (Math.floor(t * 2) % 2) ? 3 : 0.4;
+  ring.visible = info.scan > 0;
+  if (ring.visible) {
+    const r = (info.scan * 0.6) % 1;
+    ring.scale.setScalar(0.3 + r * 2.4);
+    ring.position.set(info.x, heightAt(info.x, info.z) + 0.03, info.z);
+    ring.material.opacity = 0.7 * (1 - r);
+  }
+  sun.target.position.set(info.x, 0, info.z);
+  sun.position.set(info.x - 8, 6, info.z + 6);
+}
+
+window.SHOTS = Object.fromEntries(Object.entries(SHOTS).map(([k, v]) => [k, v.dur]));
+window.renderFrame = (shot, t) => {
+  const info = SHOTS[shot].f(t);
+  updateWorld(t, info);
+  renderer.render(scene, camera);
+};
+window.renderFrame("ready", 0);
+window.__ready = true;
+</script>
+</body>
+</html>

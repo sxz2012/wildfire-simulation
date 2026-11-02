@@ -1,0 +1,38 @@
+/* "Better Poster" version (after Mike Morrison's #betterposter): the centre panel carries
+   one plain-language finding in huge type; the side panels are the "ammo bars" with the details. */
+:root {
+  --paper: #ffffff;
+  --ink: #1d2321;
+  --muted: #5d6662;
+  --field: #14513f;      /* the main-finding block: deep forest green */
+  --field-ink: #ffffff;
+  --glow: #ffb547;       /* fire, on the green block */
+  --fire: #d9481c;
+  --route: #2a63d4;
+  --escape: #2e8540;
+  --line: #d6dcd9;
+  --tint: #f2f5f3;
+}
+
+@page { margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Avenir Next", Avenir, "Helvetica Neue", Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+b, strong { font-weight: 700; }
+img { display: block; }
+
+/* Ammo bars (side panels): dense, quiet, readable up close. */
+.ammo { height: 36in; padding: 0.7in 0.6in; display: flex; flex-direction: column; gap: 0.5in; overflow: hidden; }
+.ammo section { display: flex; flex-direction: column; gap: 0.14in; }
+.ammo h2 { font-size: 50pt; font-weight: 700; color: var(--field); line-height: 1.1; }
+.ammo p, .ammo li { font-size: 30pt; line-height: 1.35; }
+.ammo .note { font-size: 22pt; line-height: 1.3; color: var(--muted); }
+.ammo figure img { width: 100%; object-fit: cover; }
+.ammo figcaption { font-size: 22pt; line-height: 1.3; color: var(--muted); margin-top: 0.06in; }

@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — right panel (journal)</title>
+<link rel="stylesheet" href="journal.css">
+<style>
+  @page { size: 12in 36in; }
+  body { width: 12in; }
+  .page { justify-content: space-between; gap: 0.3in; }
+  p { font-size: 29pt; }
+  h2 { font-size: 42pt; }
+  figcaption, table.bt caption { font-size: 23pt; }
+  table.bt { font-size: 26pt; }
+
+  .eq { font-size: 34pt; text-align: center; padding: 0.12in 0; font-style: italic; }
+  .eq .no { float: right; font-style: normal; }
+  .where { font-size: 25pt; line-height: 1.38; }
+
+  .speeds svg { width: 100%; height: auto; display: block; font-family: var(--sans); }
+
+  .foot { display: grid; grid-template-columns: 2.4in 1fr; gap: 0.25in; align-items: start; border-top: 1pt solid var(--rule); padding-top: 0.16in; }
+  .foot img { width: 2.4in; height: 2.4in; display: block; }
+  .foot p { font-size: 23pt; line-height: 1.35; text-indent: 0; hyphens: none; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <section>
+    <h2>4 Robot-dog planner</h2>
+    <p>The dog plans on the forecast's ignition time for each cell. A Dijkstra search over arrival time finds the fastest route that reaches every cell at least 30 min before it is forecast to burn. Each step between neighbouring cells costs</p>
+    <div class="eq">t = (d / v) · s(θ) / g <span class="no">(1)</span></div>
+    <p class="where">where <i>d</i> is the step length, <i>v</i> = 1.5 m s<sup>−1</sup> the walking speed, <i>s</i>(θ) = 1 + 3 tan θ uphill or 1 + 1.5 tan θ downhill, and <i>g</i> the ground factor of the two cells (Fig. 5). Slopes over 35° and water are impassable.</p>
+    <p>An escape path home is kept clear by 60 min where possible (30 min otherwise) and re-planned as the dog moves. At the fire edge the dog holds for 30 min to measure wind, temperature, humidity and the edge position, and reports them; the forecast is re-run from the corrected state.</p>
+  </section>
+
+  <figure class="speeds">
+    <svg viewBox="0 0 1000 300" role="img" aria-label="Ground factors: open 1.0, forest 0.7, brush 0.5">
+      <g font-size="32" fill="#111418">
+        <text x="0" y="62">Open / grass</text><text x="0" y="152">Forest</text><text x="0" y="242">Shrub / brush</text>
+      </g>
+      <rect x="260" y="30" width="620" height="44" fill="#0b4f8a"/>
+      <rect x="260" y="120" width="434" height="44" fill="#0b4f8a" opacity=".75"/>
+      <rect x="260" y="210" width="310" height="44" fill="#0b4f8a" opacity=".5"/>
+      <g font-size="32" font-weight="700" fill="#111418">
+        <text x="895" y="64">1.0</text><text x="709" y="154">0.7</text><text x="585" y="244">0.5</text>
+      </g>
+      <line x1="260" y1="15" x2="260" y2="275" stroke="#111418" stroke-width="2"/>
+    </svg>
+    <figcaption><b>Fig. 5 | Ground factor g in equation (1).</b> Relative walking speed by land cover; slope then slows the dog further, more uphill than downhill.</figcaption>
+  </figure>
+
+  <section>
+    <h2>5 Evaluation</h2>
+    <p>Each mission runs two fires on the same terrain: the forecast fire that the dog plans on, and a hidden true fire that is hotter, drier and has a wind shift. The dog learns about the true fire only through its simulated readings (Fig. 3, Table 2). The robot and its sensors are simulated; no physical robot was used.</p>
+  </section>
+
+  <section>
+    <h2>6 Discussion and future work</h2>
+    <p>In the mission shown, the dog's readings recovered most of the agreement lost to the wind shift (Fig. 4), and the planner kept it ahead of the fire and home safely. This is one simulated mission, not a statistical result. Next steps are running the forecast and planner on a robot's controller, feeding it real sensors, scouting planned containment lines, and field tests on robot dogs.</p>
+  </section>
+
+  <section>
+    <h2>References</h2>
+    <ol class="refs">
+      <li>Rothermel, R. C. A mathematical model for predicting fire spread in wildland fuels. USDA Forest Service INT-115 (1972).</li>
+      <li>Chen, T. &amp; Guestrin, C. XGBoost: a scalable tree boosting system. <i>Proc. KDD</i> (2016).</li>
+      <li>NASA FIRMS. VIIRS active-fire detections.</li>
+      <li>Open-Meteo. Historical weather archive.</li>
+      <li>ESA WorldCover 10 m land cover; Cesium World Terrain; Google Photorealistic 3D Tiles.</li>
+    </ol>
+  </section>
+
+  <div class="foot">
+    <img src="../../img/repo-qr.svg" alt="QR code to the GitHub repository">
+    <p><b style="font-family:var(--sans)">Code and data availability.</b> Source code, the simulator and a video of the mission: github.com/sxz2012/wildfire-simulation.</p>
+  </div>
+
+</div>
+</body>
+</html>

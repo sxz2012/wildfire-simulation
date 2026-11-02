@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — center panel (trail map)</title>
+<link rel="stylesheet" href="poster.css">
+<link rel="stylesheet" href="story.css">
+<style>
+  .map { position: relative; width: 22.8in; aspect-ratio: 1040 / 780; border-radius: 14pt; overflow: hidden; border: 5pt solid var(--ink); }
+  .map > img { width: 100%; height: 100%; display: block; }
+  .map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .stop {
+    position: absolute; width: 6.6in; background: rgba(255,255,255,0.96); border-radius: 14pt;
+    padding: 0.14in 0.2in 0.16in; font-size: 24pt; line-height: 1.27; border: 4pt solid var(--robot);
+    box-shadow: 0 6pt 16pt rgba(0,0,0,.35);
+  }
+  .stop.hot { border-color: var(--fire); }
+  .stop .hd { display: flex; align-items: center; gap: 0.12in; margin-bottom: 0.04in; font-size: 28pt; }
+  .stop .k {
+    width: 0.52in; height: 0.52in; border-radius: 50%; background: var(--robot); color: #fff;
+    font-size: 24pt; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .stop.hot .k { background: var(--fire); }
+  .stop b { color: var(--fire-dark); }
+  .pin {
+    position: absolute; width: 0.52in; height: 0.52in; margin: -0.26in 0 0 -0.26in; border-radius: 50%;
+    background: var(--robot); color: #fff; border: 4pt solid #fff; font-size: 22pt; font-weight: 800;
+    display: flex; align-items: center; justify-content: center; box-shadow: 0 3pt 8pt rgba(0,0,0,.5);
+  }
+  .pin.hot { background: var(--fire); }
+  .loop { display: flex; flex-direction: column; gap: 0.16in; }
+  .loophd { font-size: 34pt; font-weight: 800; color: var(--fire-dark); }
+  .loophd span { font-size: 25pt; font-weight: 500; color: var(--muted); }
+  .steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.2in; }
+  .st { background: #fff; border: 4pt solid var(--fire); border-radius: 14pt; padding: 0.18in 0.2in; font-size: 25pt; line-height: 1.28; position: relative; }
+  .st b { display: flex; align-items: center; gap: 0.1in; font-size: 28pt; color: var(--fire-dark); margin-bottom: 0.06in; }
+  .st b i { font-style: normal; width: 0.48in; height: 0.48in; border-radius: 50%; background: var(--fire); color: #fff; font-size: 22pt; display: inline-flex; align-items: center; justify-content: center; }
+  .st:not(:last-child)::after { content: "→"; position: absolute; right: -0.2in; top: 0.16in; font-size: 26pt; font-weight: 800; color: var(--robot); }
+  .readings { display: grid; grid-template-columns: auto 1fr; gap: 0.3in; align-items: center; background: #1b1f2a; color: #fff; border-radius: 14pt; padding: 0.24in 0.34in; }
+  .readings h3 { font-size: 30pt; font-weight: 800; color: #8db4ff; line-height: 1.15; }
+  .readings h3 span { display: block; font-size: 22pt; font-weight: 500; color: #c9c4b8; }
+  .readings table { width: 100%; border-collapse: collapse; font-size: 26pt; }
+  .readings td { padding: 0.04in 0.18in; border-left: 2pt solid #3a4050; text-align: center; }
+  .readings td.l { color: #c9c4b8; font-size: 21pt; }
+  .readings td b { color: #fff; }
+  .readings td s { color: #9aa0ad; text-decoration: none; font-size: 21pt; }
+  .readings .good { color: #6fdc8c; font-weight: 800; }
+  /* Story version B: larger type now that the loop cards live on the right panel. */
+  .stop { width: 7.1in; font-size: 26pt; }
+  .stop .hd { font-size: 31pt; }
+  .readings h3 { font-size: 32pt; }
+  .readings h3 span { font-size: 23pt; }
+  .readings table { font-size: 28pt; }
+  .readings td { white-space: nowrap; }
+  .readings td.l, .readings td s { font-size: 22pt; }
+  .loopline { font-size: 30pt; }
+  .tagline { font-size: 54pt; }
+  .benefit .ico { font-size: 62pt; }
+  .benefit p { font-size: 28pt; }
+  .benefit p b { font-size: 32pt; }
+</style>
+</head>
+<body>
+<div class="panel" style="justify-content: space-between">
+
+  <header class="titleblock">
+    <h1><span class="fire">Fire-Aware</span> <span class="robot">Robot Dogs</span></h1>
+    <div class="sub">Machine-Learning Wildfire Forecasts for Safe Navigation and Scouting</div>
+    <div class="by"><b>Shawn Zeng</b> · Monta Vista High School</div>
+  </header>
+
+  <div class="setting">
+    <h2>One afternoon at a Big Sur fire</h2>
+    <p>A simulated mission on real terrain. Follow the dog ① → ⑥.</p>
+  </div>
+
+  <div class="map">
+    <img src="../../img/step3-escape.jpg" alt="The fire, the dog's blue route to the scout target, and the green escape path home">
+    <!-- Leader lines from each story box to its place on the map (map coordinates in %). -->
+    <svg viewBox="0 0 2280 1710">
+      <g stroke="#fff" stroke-width="7" stroke-dasharray="22 14" fill="none">
+        <line x1="1008" y1="1633" x2="1614" y2="1539"/>
+        <line x1="616" y1="496" x2="456" y2="205"/>
+        <line x1="1391" y1="752" x2="1614" y2="479"/>
+        <line x1="511" y1="872" x2="342" y2="752"/>
+        <line x1="1003" y1="120" x2="1614" y2="86"/>
+        <line x1="730" y1="1300" x2="456" y2="1402"/>
+      </g>
+    </svg>
+    <div class="pin" style="left:44.2%;top:95.5%">1</div>
+    <div class="pin" style="left:27%;top:29%">2</div>
+    <div class="pin hot" style="left:61%;top:44%">3</div>
+    <div class="pin" style="left:22.4%;top:51%">4</div>
+    <div class="pin" style="left:44%;top:7%">5</div>
+    <div class="pin" style="left:32%;top:76%">6</div>
+
+    <div class="stop hot" style="right:0.25in;bottom:0.25in">
+      <div class="hd"><span class="k">1</span><span class="time hot">3:00 PM</span></div>
+      The fire has burned since midnight on steep, brushy slopes. Too dangerous to send a crew to look, so <b>the dog leaves staging</b>.
+    </div>
+    <div class="stop" style="left:0.25in;top:0.25in">
+      <div class="hd"><span class="k">2</span><span class="time">3:00 PM · Plan</span></div>
+      On its forecast, the route (<b style="color:#2D6CDF">blue</b>) passes every spot <b>30+ min before the fire</b>, slower through brush and uphill.
+    </div>
+    <div class="stop hot" style="right:0.25in;top:3.2in">
+      <div class="hd"><span class="k">3</span><span class="time hot">3:30 PM · Wind shift</span></div>
+      The real fire turns. <b>The forecast doesn't know</b>: match 82% → 61%. The escape path (<b style="color:#2E8540">green</b>) stays open.
+    </div>
+    <div class="stop" style="left:0.25in;top:5.1in">
+      <div class="hd"><span class="k">4</span><span class="time">3:45 PM · Measure</span></div>
+      Its sensors see the real fire coming: <b>40&nbsp;°C</b>, wind from <b>45°</b>, not the forecast's 35&nbsp;°C from 270°. It sends the readings back: <b>match 61% → 80%</b>.
+    </div>
+    <div class="stop" style="right:0.25in;top:0.25in">
+      <div class="hd"><span class="k">5</span><span class="time">4:45 PM · Scout</span></div>
+      On the corrected forecast it re-plans, reaches the <b>fire edge</b> and scouts it.
+    </div>
+    <div class="stop" style="left:0.25in;bottom:0.25in">
+      <div class="hd"><span class="k">6</span><span class="time">~8 PM · Home safe</span></div>
+      Back at staging before the fire arrives. The crew plans with a <b>better forecast</b>.
+    </div>
+  </div>
+
+  <div class="readings">
+    <h3>📡 Stop ④: what the dog measured<span>vs. what the forecast assumed</span></h3>
+    <table>
+      <tr><td class="l">Wind</td><td class="l">Temperature</td><td class="l">Humidity</td><td class="l">Fire edge</td><td class="l">Forecast match</td></tr>
+      <tr><td><b>45° 25 km/h</b><br><s>forecast 270° 15</s></td><td><b>40 °C</b><br><s>forecast 35 °C</s></td><td><b>5 %</b><br><s>forecast 5 %</s></td><td><b>20 m closer</b><br><s>than forecast</s></td><td><b>61%</b> → <span class="good">80%</span><br><s>next 4 h of spread</s></td></tr>
+    </table>
+  </div>
+
+  <div class="loopline">How the dog decides at each stop, and how we tested it: <b>right panel →</b></div>
+
+  <div class="tagline">Know where the fire <em>will</em> be — not just where it is.</div>
+
+  <div class="benefits">
+    <div class="benefit"><div class="ico">🧑‍🚒</div><p><b>Safer crews</b>Fewer firefighters sent into danger to look.</p></div>
+    <div class="benefit"><div class="ico">🛡️</div><p><b>Robot stays safe</b>Routes and exits keep it from getting trapped.</p></div>
+    <div class="benefit"><div class="ico">📍</div><p><b>Smarter sensing</b>Measure where it changes decisions.</p></div>
+  </div>
+</div>
+</body>
+</html>

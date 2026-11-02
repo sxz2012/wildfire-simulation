@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — left panel (journal)</title>
+<link rel="stylesheet" href="journal.css">
+<style>
+  @page { size: 12in 36in; }
+  body { width: 12in; }
+  .page { justify-content: space-between; }
+  p { font-size: 29pt; }
+  h2 { font-size: 42pt; }
+  figcaption, table.bt caption { font-size: 23pt; }
+  table.bt { font-size: 26pt; }
+
+  /* Fig. 1: pipeline schematic as plain boxes and arrows. */
+  .schem { display: flex; flex-direction: column; align-items: stretch; font-family: var(--sans); }
+  .schem .row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.12in; }
+  .schem .box { border: 1.5pt solid var(--ink); padding: 0.1in 0.16in; font-size: 23pt; line-height: 1.25; }
+  .schem .box b { display: block; font-size: 26pt; }
+  .schem .box.ml { border-color: var(--accent); border-width: 3pt; }
+  .schem .box.ml b { color: var(--accent); }
+  .schem .ar { text-align: center; font-size: 26pt; line-height: 1.1; color: var(--muted); }
+
+  .pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0.14in; }
+  .pair img { aspect-ratio: 1 / 1; object-fit: cover; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <section>
+    <h2>1 Introduction</h2>
+    <p>The edge of a wildfire is the most dangerous place for a firefighter. Legged robots can cross steep, rocky, smoky ground where vehicles stall and drones lose sight, yet a robot near a fire must know where the fire <i>will</i> be, not only where it is. We ask whether a learned spread forecast can keep a robot dog safe while it scouts, and whether the dog's own readings can improve that forecast.</p>
+  </section>
+
+  <section>
+    <h2>2 Fire-spread forecast</h2>
+    <p>We trained a gradient-boosted tree model (XGBoost<sup>2</sup>) on ~246,000 VIIRS active-fire detections<sup>3</sup> from 30 major wildfires, using 27 features per 50 m cell: weather<sup>4</sup>, terrain, land cover<sup>5</sup> and the local fire shape. The model scales the rate from a Rothermel spread equation<sup>1</sup>, giving each cell's ignition probability every 15 min (Fig. 1).</p>
+  </section>
+
+  <figure>
+    <div class="schem">
+      <div class="box"><b>Fire history</b>VIIRS detections, 30 fires (24 train, 6 test)</div>
+      <div class="ar">↓</div>
+      <div class="row">
+        <div class="box"><b>Weather</b>wind, humidity, temperature, rain</div>
+        <div class="box"><b>Terrain</b>elevation, slope</div>
+        <div class="box"><b>Land cover</b>forest, shrub, grass, urban</div>
+        <div class="box"><b>Fire shape</b>burning neighbours, fire size</div>
+      </div>
+      <div class="ar">↓</div>
+      <div class="box ml"><b>XGBoost</b>27 features per 50 m cell</div>
+      <div class="ar">↓</div>
+      <div class="box"><b>Rothermel spread</b>fuel × wind × slope × dryness, rate scaled by the model</div>
+      <div class="ar">↓</div>
+      <div class="box"><b>Output</b>ignition probability per cell, every 15 min</div>
+    </div>
+    <figcaption><b>Fig. 1 | Forecast pipeline.</b> Satellite fire history and conditions train the model; its output adjusts a physics-based spread rate.</figcaption>
+  </figure>
+
+  <figure>
+    <div class="pair">
+      <div class="panel-l"><img src="../../img/fire-early.jpg" alt="Simulated fire after about 4 hours"><span class="lt">a</span></div>
+      <div class="panel-l"><img src="../../img/fire-spread.jpg" alt="Simulated fire after about one day"><span class="lt">b</span></div>
+    </div>
+    <figcaption><b>Fig. 2 | Browser simulator on real terrain.</b> Simulated fire near Big Sur, Monterey County, after ~4 h (<b>a</b>) and ~1 day (<b>b</b>) of summer weather, rendered on Google Photorealistic 3D Tiles.</figcaption>
+  </figure>
+
+  <section>
+    <h2>3 Forecast accuracy</h2>
+    <p>On six held-out fires (USA, Bolivia, Siberia, Greece), 91% of cases are spread events, so we compare against a baseline that always predicts spread (Table 1). The model ranks at-risk cells well above chance and is better calibrated, but still over-predicts spread.</p>
+  </section>
+
+  <table class="bt">
+    <caption><b>Table 1 | Accuracy on six unseen fires.</b></caption>
+    <thead><tr><th>Metric</th><th class="num">Model</th><th class="num">Baseline</th></tr></thead>
+    <tbody>
+      <tr><td>AUC-ROC (higher is better)</td><td class="num"><b>0.75</b></td><td class="num">0.50</td></tr>
+      <tr><td>Brier score (lower is better)</td><td class="num"><b>0.076</b></td><td class="num">0.083</td></tr>
+    </tbody>
+  </table>
+
+</div>
+</body>
+</html>

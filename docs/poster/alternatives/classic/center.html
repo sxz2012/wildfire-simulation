@@ -34,7 +34,7 @@
   .loopwrap > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
   .node {
     position: absolute;
-    width: 6.6in;
+    width: 7.1in;
     transform: translate(-50%, -50%);
     background: #fff;
     border: 5pt solid var(--robot);
@@ -49,6 +49,8 @@
     display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0;
   }
   .node p { font-size: 28pt; line-height: 1.3; margin-top: 0.08in; }
+  .node .how { font-size: 22pt; line-height: 1.3; color: var(--muted); margin-top: 0.1in; padding-top: 0.08in; border-top: 2pt dashed var(--line); }
+  .node .how b { color: var(--ink); }
   .node.built { border-color: var(--fire); box-shadow: 0 6pt 0 rgba(178, 58, 26, 0.18); }
   .node.built h3 { color: var(--fire-dark); }
   .node.built h3 .k { background: var(--fire); }
@@ -59,6 +61,24 @@
   .status { position: absolute; left: 0; top: 0; }
   .legend { position: absolute; right: 0; top: 0; font-size: 23pt; line-height: 1.5; text-align: right; color: var(--muted); }
   .legend i { display: inline-block; width: 0.28in; height: 0.28in; border-radius: 5pt; vertical-align: -3pt; margin-right: 6pt; }
+
+  .mission { background: #fff; border: 2.5pt solid var(--line); border-radius: 14pt; padding: 0.22in 0.3in 0.26in; }
+  .mission h2 { font-size: 30pt; font-weight: 800; color: var(--robot-dark); margin-bottom: 0.14in; }
+  .mission h2 span { font-weight: 500; color: var(--muted); font-size: 23pt; }
+  .mission ol { list-style: none; display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.12in; counter-reset: m; }
+  .mission li { position: relative; font-size: 22pt; line-height: 1.25; padding-top: 0.48in; }
+  .mission li::before {
+    content: "";
+    position: absolute; top: 0; left: 0; width: 0.34in; height: 0.34in; border-radius: 50%;
+    background: var(--robot); color: #fff; font-size: 20pt; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mission li:not(:last-child)::after {
+    content: ""; position: absolute; top: 0.155in; left: 0.44in; right: 0.06in; height: 3pt; background: var(--line);
+  }
+  .mission li b { display: block; font-size: 24pt; color: var(--ink); }
+  .mission li.warn::before { background: var(--fire); }
+  .mission .pct { font-weight: 800; color: var(--fire-dark); }
 
   .tagline { text-align: center; font-size: 46pt; font-weight: 800; color: var(--robot-dark); letter-spacing: -0.5pt; }
 
@@ -90,30 +110,47 @@
     </div>
 
     <div class="dog">
-      <img src="img/wildfire-robot-transparent.png" alt="Rugged firefighting robot dog" style="width:100%;display:block">
+      <img src="../../img/wildfire-robot-transparent.png" alt="Rugged firefighting robot dog" style="width:100%;display:block">
       <div class="lbl">robot dog</div>
     </div>
 
     <div class="node built" data-a="-90">
       <h3><span class="k">1</span>Predict</h3>
-      <p>The model forecasts <b>when</b> each 50 m cell will catch fire. Designed to run on the dog or its controller.</p>
+      <p>The model forecasts <b>when</b> each 50&nbsp;m cell will catch fire. Designed to run on the dog or its controller.</p>
+      <div class="how">In: satellite fire map, weather, terrain, land cover. Out: <b>ignition time</b> for every cell, in 15&#8209;min steps.</div>
     </div>
     <div class="node built" data-a="-18">
       <h3><span class="k">2</span>Safe route</h3>
       <p>Plan paths that avoid cells predicted to ignite <b>before the dog gets through</b>.</p>
+      <div class="how">Fastest-path search: <b>1.5 m/s</b> on open ground, 0.7× in forest, 0.5× in brush; slower uphill than downhill; no slopes over 35°. Every cell is crossed at least <b>30 min</b> before the forecast says it ignites; the route is re-checked every step.</div>
     </div>
     <div class="node built" data-a="54">
       <h3><span class="k">3</span>Escape path</h3>
       <p>Always keep a way out that the forecast says <b>will stay clear</b>.</p>
+      <div class="how">A path home that aims for a stricter <b>60 min</b> margin (30 min if it must), re-planned from wherever the dog is. If the way forward closes, the dog retreats along it.</div>
     </div>
     <div class="node built" data-a="126">
       <h3><span class="k">4</span>Scout</h3>
-      <p>Walk to the fire edge, scout it, and <b>get home before the fire arrives</b>.</p>
+      <p>Walk to the fire edge, measure the real conditions, and <b>get home before the fire arrives</b>.</p>
+      <div class="how">Holds <b>30 min</b> at the edge (simulated sensors), and leaves early if the fire gets within 30 min of it.</div>
     </div>
     <div class="node built" data-a="198">
       <h3><span class="k">5</span>Feedback</h3>
       <p>Send back measured wind, temperature, humidity and the real fire edge so <b>the next forecast is better</b>.</p>
+      <div class="how">The forecast is re-run from the measured conditions and the true fire position; the dog re-plans on it. Demo: match <b>61% → 80%</b>.</div>
     </div>
+  </div>
+
+  <div class="mission">
+    <h2>One simulated mission <span>— from the demo video (QR code, right panel)</span></h2>
+    <ol>
+      <li><b>Launch</b>Route and escape path planned on the forecast. Match 82%.</li>
+      <li class="warn"><b>Wind shifts</b>The true fire turns; the forecast doesn't know. Match drops to <span class="pct">61%</span>.</li>
+      <li><b>Measure</b>Near the fire, the dog measures wind, temperature, humidity, fire edge.</li>
+      <li><b>Report</b>Forecast re-run on the dog's data. Match back to <span class="pct">80%</span>.</li>
+      <li><b>Re-plan</b>New route and escape path on the corrected forecast.</li>
+      <li><b>Home safe</b>Back at staging before the fire arrives.</li>
+    </ol>
   </div>
 
   <div class="tagline">Know where the fire <em>will</em> be — not just where it is.</div>

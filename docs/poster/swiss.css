@@ -1,0 +1,49 @@
+/* Swiss (International Typographic Style) version of the tri-fold poster.
+   One family, two weights, flush-left on a strict column grid; black, white and one red. */
+:root {
+  --paper: #ffffff;
+  --ink: #000000;
+  --grey: #6e6e6e;
+  --rule: #000000;
+  --red: #e2001a;
+  --blue: #0047bb;
+  --green: #00843d;
+  --g: 0.3in; /* gutter */
+}
+
+@page { margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 400;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.panel {
+  height: 36in;
+  padding: 0.8in 0.7in;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5in;
+  overflow: hidden;
+}
+
+b, strong { font-weight: 700; }
+p { font-size: 28pt; line-height: 1.3; }
+.grey { color: var(--grey); }
+.red { color: var(--red); }
+
+/* A section opens with a heavy rule and a bold head set flush left. */
+.sec { border-top: 8pt solid var(--rule); padding-top: 0.18in; display: flex; flex-direction: column; gap: 0.2in; }
+.sec > h2 { font-size: 64pt; font-weight: 700; letter-spacing: -1.5pt; line-height: 1; }
+
+.fine { font-size: 20pt; line-height: 1.3; color: var(--grey); }
+
+img.ph { display: block; width: 100%; object-fit: cover; }
+
+/* Numbers that mark a real sequence. */
+.num { font-size: 72pt; font-weight: 700; letter-spacing: -2pt; line-height: 0.85; }

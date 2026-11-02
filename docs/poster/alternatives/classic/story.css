@@ -1,0 +1,37 @@
+/* Shared styles for the story versions of the centre panel (center-comic, center-map). */
+@page { size: 24in 36in; }
+body { width: 24in; }
+.panel { gap: 0.32in; }
+
+.titleblock {
+  background: var(--ink); color: #fff; border-radius: 18pt;
+  padding: 0.45in 0.6in 0.42in; text-align: center; position: relative; overflow: hidden;
+}
+.titleblock::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 12pt;
+  background: linear-gradient(90deg, var(--fire), var(--ember), var(--robot));
+}
+.titleblock h1 { font-size: 104pt; font-weight: 800; letter-spacing: -2pt; line-height: 1; }
+.titleblock h1 .robot { color: #8db4ff; }
+.titleblock h1 .fire { color: var(--ember); }
+.titleblock .sub { font-size: 36pt; font-weight: 500; margin-top: 0.16in; color: #e8e4dc; }
+.titleblock .by { font-size: 30pt; margin-top: 0.18in; color: #c9c4b8; }
+.titleblock .by b { color: #fff; }
+
+.setting { display: flex; align-items: baseline; justify-content: space-between; gap: 0.3in; }
+.setting h2 { font-size: 46pt; font-weight: 800; color: var(--fire-dark); letter-spacing: -0.5pt; }
+.setting p { font-size: 26pt; color: var(--muted); text-align: right; }
+
+.time { font-weight: 800; color: var(--robot-dark); font-variant-numeric: tabular-nums; }
+.time.hot { color: var(--fire-dark); }
+
+.loopline { display: flex; align-items: center; justify-content: center; gap: 0.16in; font-size: 26pt; color: var(--muted); }
+.loopline b { color: var(--fire-dark); background: #fff; border: 3pt solid var(--fire); border-radius: 30pt; padding: 0.04in 0.2in; }
+.loopline .arr { color: var(--robot); font-weight: 800; }
+
+.tagline { text-align: center; font-size: 44pt; font-weight: 800; color: var(--robot-dark); letter-spacing: -0.5pt; }
+.benefits { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3in; }
+.benefit { background: #fff; border: 2.5pt solid var(--line); border-radius: 14pt; padding: 0.22in 0.3in; display: flex; gap: 0.2in; align-items: center; }
+.benefit .ico { font-size: 50pt; line-height: 1; }
+.benefit p { font-size: 24pt; line-height: 1.25; }
+.benefit p b { display: block; font-size: 27pt; }

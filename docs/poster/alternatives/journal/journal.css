@@ -1,0 +1,54 @@
+/* Journal-figure version: reads like a research-article page. Serif body (Charter),
+   sans-serif headings and figure labels, thin rules, numbered figures with "Fig. N |" captions. */
+:root {
+  --paper: #ffffff;
+  --ink: #111418;
+  --muted: #555b63;
+  --rule: #9aa0a6;
+  --accent: #0b4f8a;   /* section heads and figure labels */
+  --fire: #c8361a;
+  --route: #2a63d4;
+  --escape: #2e8540;
+  --sans: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --serif: Charter, "Iowan Old Style", Georgia, serif;
+}
+
+@page { margin: 0; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--serif);
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.page { height: 36in; padding: 0.75in 0.65in; display: flex; flex-direction: column; gap: 0.36in; overflow: hidden; }
+
+h2 { font-family: var(--sans); font-size: 36pt; font-weight: 700; color: var(--accent); line-height: 1.1; margin-bottom: 0.08in; }
+p { font-size: 25pt; line-height: 1.42; hyphens: auto; }
+p + p { text-indent: 0.35in; }
+sup { font-size: 0.62em; line-height: 0; }
+b { font-weight: 700; }
+
+/* Figures: lettered panels, caption set below in smaller serif with a bold sans lead. */
+figure { display: flex; flex-direction: column; gap: 0.12in; }
+figure img { display: block; width: 100%; }
+.panel-l { position: relative; }
+.panel-l > .lt { position: absolute; left: 0.1in; top: 0.06in; font-family: var(--sans); font-weight: 700; font-size: 34pt; color: #fff; text-shadow: 0 0 6pt rgba(0,0,0,.8); }
+.lt.dark { color: var(--ink); text-shadow: none; }
+figcaption { font-size: 20pt; line-height: 1.38; color: var(--ink); }
+figcaption b:first-child { font-family: var(--sans); }
+
+/* Booktabs-style tables: heavy top and bottom rules, light mid rule, no verticals. */
+table.bt { width: 100%; border-collapse: collapse; font-size: 22pt; }
+table.bt caption { caption-side: top; text-align: left; font-size: 20pt; line-height: 1.38; margin-bottom: 0.08in; }
+table.bt th { font-family: var(--sans); font-weight: 700; text-align: left; padding: 0.06in 0.12in; border-bottom: 1pt solid var(--ink); }
+table.bt td { padding: 0.06in 0.12in; }
+table.bt thead tr:first-child th { border-top: 2.5pt solid var(--ink); }
+table.bt tbody tr:last-child td { border-bottom: 2.5pt solid var(--ink); }
+table.bt .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+.refs { font-size: 21pt; line-height: 1.35; padding-left: 0.4in; }
+.refs li { margin-bottom: 0.04in; }

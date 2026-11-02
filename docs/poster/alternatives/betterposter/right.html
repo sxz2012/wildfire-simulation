@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — right panel (Better Poster)</title>
+<link rel="stylesheet" href="bp.css">
+<style>
+  @page { size: 12in 36in; }
+  body { width: 12in; }
+  .ammo { justify-content: space-between; gap: 0.3in; }
+
+  /* One row per step: picture on the left, what the dog does on the right. */
+  .steps { display: flex; flex-direction: column; gap: 0.16in; }
+  .step { display: grid; grid-template-columns: 3.7in 1fr; gap: 0.25in; align-items: center; }
+  .step .pic { height: 2.75in; overflow: hidden; background: #19231f; position: relative; }
+  .step .pic img { width: 100%; height: 100%; object-fit: cover; }
+  .step .pic.robot { background: var(--tint); }
+  .step .pic.robot img { object-fit: contain; }
+  .step .pic.feedback img { width: 320%; max-width: none; height: auto; position: absolute; right: 0; top: 0; transform: translateY(-50%); }
+  .step h3 { font-size: 32pt; font-weight: 700; color: var(--field); }
+  .step p { font-size: 25pt; line-height: 1.3; }
+
+  .worlds { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2in; }
+  .world { background: var(--tint); padding: 0.14in 0.2in; border-top: 7pt solid var(--route); }
+  .world.tr { border-top-color: var(--fire); }
+  .world h3 { font-size: 31pt; font-weight: 700; }
+  .world p { font-size: 26pt; line-height: 1.3; }
+
+  ul.check { list-style: none; display: flex; flex-direction: column; gap: 0.04in; }
+  ul.check li { font-size: 28pt; padding-left: 0.45in; position: relative; }
+  ul.check li::before { position: absolute; left: 0; font-weight: 700; }
+  ul.check li.done::before { content: "✓"; color: var(--escape); }
+  ul.check li.next::before { content: "○"; color: var(--muted); }
+
+  .refs p { font-size: 19pt; line-height: 1.35; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="ammo">
+
+  <section>
+    <h2>How the dog decides</h2>
+    <div class="steps">
+      <div class="step"><div class="pic"><img src="../../img/fire-spread.jpg" alt="Simulated fire on Big Sur terrain"></div>
+        <div><h3>1. Predict</h3><p>Forecast when each 50 m cell will burn, in 15-minute steps.</p></div></div>
+      <div class="step"><div class="pic"><img style="object-fit:contain" src="../../img/step2-route.jpg" alt="Blue route around the forecast fire"></div>
+        <div><h3>2. Plan a safe route</h3><p>Pass every spot 30+ min before the fire. Brush (0.5×) and forest (0.7×) are slower; uphill is slowest. No water or slopes over 35°.</p></div></div>
+      <div class="step"><div class="pic"><img style="object-fit:contain" src="../../img/step3-escape.jpg" alt="Green escape path back to staging"></div>
+        <div><h3>3. Keep an escape path</h3><p>Aim for a way home that stays clear for 60 min, re-planned as the dog moves.</p></div></div>
+      <div class="step"><div class="pic robot"><img src="../../img/wildfire-robot-transparent.png" alt="Design concept of a rugged quadruped robot"></div>
+        <div><h3>4. Scout</h3><p>Walk to the fire edge and measure wind, temperature, humidity and where the edge really is.</p></div></div>
+      <div class="step"><div class="pic feedback"><img src="../../img/step5-feedback.jpg" alt="Readings card: forecast match improves from 61% to 80%"></div>
+        <div><h3>5. Feed back</h3><p>The readings correct the forecast, and the loop starts again.</p></div></div>
+    </div>
+    <p class="note">Simulator views on real terrain. Robot image: design concept; sensors are simulated.</p>
+  </section>
+
+  <section>
+    <h2>How we tested it</h2>
+    <p>Two fires run at once on the same terrain:</p>
+    <div class="worlds">
+      <div class="world"><h3>Forecast fire</h3><p>What the dog plans on.</p></div>
+      <div class="world tr"><h3>True fire (hidden)</h3><p>Hotter, drier, with a wind shift. The dog only learns about it through its readings.</p></div>
+    </div>
+    <p class="note">Mock simulation; no physical robot yet.</p>
+  </section>
+
+  <section>
+    <h2>Status and next steps</h2>
+    <ul class="check">
+      <li class="done">ML fire forecast trained and tested</li>
+      <li class="done">3D browser simulator on real terrain</li>
+      <li class="done">Robot-dog loop in mock simulation</li>
+      <li class="next">Forecast + planner on the dog's controller</li>
+      <li class="next">Real sensors feeding the forecast</li>
+      <li class="next">Tests on real robot dogs</li>
+    </ul>
+  </section>
+
+  <section class="refs">
+    <h2>References</h2>
+    <p>Code: github.com/sxz2012/wildfire-simulation</p>
+    <p>NASA FIRMS (VIIRS active-fire detections); Open-Meteo weather archive; ESA WorldCover 10 m land cover; Cesium World Terrain; Google Photorealistic 3D Tiles</p>
+    <p>Rothermel, R. C. (1972). <em>A mathematical model for predicting fire spread in wildland fuels.</em> USDA Forest Service INT-115.</p>
+    <p>Chen, T. &amp; Guestrin, C. (2016). XGBoost: A scalable tree boosting system. <em>KDD '16.</em></p>
+  </section>
+
+</div>
+</body>
+</html>

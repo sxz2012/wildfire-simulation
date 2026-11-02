@@ -8,7 +8,13 @@ OUT="$DIR/out"
 CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 mkdir -p "$OUT"
 
-for panel in left center right; do
+# The poster (Swiss style), then the alternative styles kept under alternatives/ (PDFs go to out/alternatives/...).
+for panel in left center right \
+             alternatives/classic/left alternatives/classic/center alternatives/classic/right \
+             alternatives/classic/center-comic alternatives/classic/center-map \
+             alternatives/betterposter/left alternatives/betterposter/center alternatives/betterposter/right \
+             alternatives/journal/left alternatives/journal/center alternatives/journal/right; do
+  mkdir -p "$(dirname "$OUT/$panel.pdf")"
   "$CHROME" --headless=new --disable-gpu --no-pdf-header-footer \
     --virtual-time-budget=5000 \
     --print-to-pdf="$OUT/$panel.pdf" "file://$DIR/$panel.html" 2>/dev/null

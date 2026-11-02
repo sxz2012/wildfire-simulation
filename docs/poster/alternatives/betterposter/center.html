@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — center panel (Better Poster)</title>
+<link rel="stylesheet" href="bp.css">
+<style>
+  @page { size: 24in 36in; }
+  body { width: 24in; }
+  .panel { height: 36in; display: flex; flex-direction: column; overflow: hidden; }
+
+  .head { padding: 0.6in 0.8in 0.5in; display: flex; justify-content: space-between; align-items: end; gap: 0.6in; }
+  .head h1 { font-size: 46pt; font-weight: 700; line-height: 1.15; }
+  .head h1 span { display: block; font-size: 32pt; font-weight: 500; color: var(--muted); margin-top: 0.06in; }
+  .head .by { font-size: 30pt; text-align: right; line-height: 1.3; flex-shrink: 0; }
+
+  /* The one thing to remember. */
+  .finding { flex: 1; background: var(--field); color: var(--field-ink); padding: 1.1in 0.9in 0.8in; display: flex; flex-direction: column; justify-content: space-between; }
+  .finding h2 { font-size: 166pt; font-weight: 600; line-height: 1.08; letter-spacing: -2pt; }
+  .finding h2 em { font-style: normal; color: var(--glow); font-weight: 700; }
+
+  /* Evidence row: the forecast-match numbers, then the map they came from. */
+  .evidence { display: grid; grid-template-columns: 1fr 13.4in; gap: 0.7in; align-items: end; }
+  .match { display: flex; flex-direction: column; gap: 0.3in; }
+  .match .lbl { font-size: 32pt; line-height: 1.3; color: #cfe2da; }
+  .bars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.3in; align-items: end; height: 7.4in; }
+  .bars div { display: flex; flex-direction: column; justify-content: end; height: 100%; }
+  .bars .v { font-size: 84pt; font-weight: 700; line-height: 1; margin-bottom: 0.1in; }
+  .bars .b { background: rgba(255,255,255,.28); }
+  .bars .after .b { background: var(--glow); }
+  .bars .after .v { color: var(--glow); }
+  .bars .t { font-size: 28pt; line-height: 1.2; margin-top: 0.12in; color: #cfe2da; }
+  .map img { width: 100%; }
+  .map p { font-size: 26pt; line-height: 1.3; color: #cfe2da; margin-top: 0.12in; }
+  .map b { color: #fff; }
+
+  .foot { padding: 0.45in 0.8in 0.55in; display: grid; grid-template-columns: 2.6in 1fr; gap: 0.5in; align-items: center; }
+  .foot img { width: 2.6in; height: 2.6in; }
+  .foot p { font-size: 32pt; line-height: 1.3; }
+  .foot p span { display: block; font-size: 24pt; color: var(--muted); margin-top: 0.1in; }
+</style>
+</head>
+<body>
+<div class="panel">
+
+  <header class="head">
+    <h1>Fire-Aware Robot Dogs<span>Machine-learning wildfire forecasts for safe navigation and scouting</span></h1>
+    <div class="by"><b>Shawn Zeng</b><br>Monta Vista High School</div>
+  </header>
+
+  <div class="finding">
+    <h2>A robot dog that <em>measures the fire</em> while it scouts can <em>fix the wildfire forecast</em>, and still get home safe.</h2>
+
+    <div class="evidence">
+      <div class="match">
+        <div class="lbl">How well the forecast matched the real fire over the next 4 hours, in one simulated mission:</div>
+        <div class="bars">
+          <div><span class="v">82%</span><span class="b" style="height:82%"></span><span class="t">At launch</span></div>
+          <div><span class="v">61%</span><span class="b" style="height:61%"></span><span class="t">Wind shifts</span></div>
+          <div class="after"><span class="v">80%</span><span class="b" style="height:80%"></span><span class="t">After the dog's report</span></div>
+        </div>
+      </div>
+      <div class="map">
+        <img src="../../img/step3-escape.jpg" alt="Simulated Big Sur fire with the dog's blue route and green escape path home">
+        <p>The mission on real Big Sur terrain: the dog's <b>route</b> stays 30+ minutes ahead of the fire and an <b>escape path</b> home stays open.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <img src="../../img/repo-qr.svg" alt="QR code to the GitHub repository and demo video">
+    <p>Scan for the open-source code and a video of the mission.<span>Details: how we forecast the fire (left), how the dog decides and how we tested it (right).</span></p>
+  </div>
+
+</div>
+</body>
+</html>

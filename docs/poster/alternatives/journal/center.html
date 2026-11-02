@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Poster — center panel (journal)</title>
+<link rel="stylesheet" href="journal.css">
+<style>
+  @page { size: 24in 36in; }
+  body { width: 24in; }
+  .page { justify-content: space-between; }
+
+  .mast { display: flex; justify-content: space-between; font-family: var(--sans); font-size: 22pt; color: var(--muted); border-bottom: 1pt solid var(--rule); padding-bottom: 0.1in; }
+  .head h1 { font-family: var(--sans); font-size: 88pt; font-weight: 700; line-height: 1.04; letter-spacing: -1.5pt; }
+  .head .au { font-size: 32pt; margin-top: 0.22in; }
+  .head .af { font-size: 24pt; color: var(--muted); margin-top: 0.04in; }
+  .abstract { font-size: 28pt; line-height: 1.4; font-weight: 700; border-top: 1pt solid var(--rule); border-bottom: 1pt solid var(--rule); padding: 0.22in 0; }
+
+  .fig1 .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.16in; }
+  .fig1 .grid img { aspect-ratio: 1040 / 715; object-fit: cover; object-position: 50% 30%; }
+  .fig1 .grid img.crop { object-position: 100% 50%; }
+
+  .lower { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5in; align-items: start; }
+  .chart svg { width: 100%; height: auto; display: block; font-family: var(--sans); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <div class="mast"><span>IEEE CIC NextGen, November 2026</span><span>Poster article</span></div>
+
+  <header class="head">
+    <h1>Fire-aware robot dogs: machine-learning wildfire forecasts for safe navigation and scouting</h1>
+    <div class="au">Shawn Zeng</div>
+    <div class="af">Monta Vista High School, Cupertino, California</div>
+  </header>
+
+  <p class="abstract">Legged robots could scout a wildfire edge in place of firefighters, but only if they know where the fire will be. We combine a machine-learning spread forecast with a terrain-aware route planner that keeps a robot dog ahead of the predicted fire and holds an escape path home. In a simulated mission on real Big Sur terrain, an unforecast wind shift cut forecast agreement from 82% to 61%; the dog's field readings restored it to 80%, and the dog returned safely.</p>
+
+  <figure class="fig1">
+    <div class="grid">
+      <div class="panel-l"><img src="../../img/step2-route.jpg" alt="Planned blue route around the forecast fire"><span class="lt">a</span></div>
+      <div class="panel-l"><img src="../../img/step3-escape.jpg" alt="Green escape path home as the true fire turns"><span class="lt">b</span></div>
+      <div class="panel-l"><img src="../../img/step4-scout.jpg" alt="Dog at the fire edge with its escape path"><span class="lt">c</span></div>
+      <div class="panel-l"><img class="crop" src="../../img/step5-feedback.jpg" alt="Readings card: measured versus forecast conditions"><span class="lt">d</span></div>
+    </div>
+    <figcaption><b>Fig. 3 | A simulated scouting mission on real terrain (Big Sur, California).</b> <b>a</b>, At 15:00 the dog plans a route (blue) that reaches every cell at least 30 min before its forecast ignition time. <b>b</b>, At 15:30 the wind shifts; the hidden true fire (red) departs from the forecast edge (yellow dots) while the escape path (green) stays clear. <b>c</b>, The dog re-plans on the corrected forecast and scouts the fire edge. <b>d</b>, Readings sent at 15:45 compared with the forecast's assumptions. Simulator screenshots; the robot and its sensors are simulated.</figcaption>
+  </figure>
+
+  <div class="lower">
+    <figure class="chart">
+      <svg viewBox="0 0 1000 620" role="img" aria-label="Forecast agreement: 82 percent at launch, 61 percent after the wind shift, 80 percent after the dog's report">
+        <!-- axes: x = sim time 15:00..16:00 -> 120..940; y = 50..90 % -> 520..60 -->
+        <g stroke="#9aa0a6" stroke-width="2">
+          <line x1="120" y1="520" x2="940" y2="520"/>
+          <line x1="120" y1="60" x2="120" y2="520"/>
+        </g>
+        <g stroke="#e3e5e8" stroke-width="2">
+          <line x1="120" y1="405" x2="940" y2="405"/><line x1="120" y1="290" x2="940" y2="290"/>
+          <line x1="120" y1="175" x2="940" y2="175"/><line x1="120" y1="60" x2="940" y2="60"/>
+        </g>
+        <g font-size="30" fill="#555b63" text-anchor="end">
+          <text x="105" y="530">50%</text><text x="105" y="415">60%</text><text x="105" y="300">70%</text><text x="105" y="185">80%</text><text x="105" y="70">90%</text>
+        </g>
+        <g font-size="30" fill="#555b63" text-anchor="middle">
+          <text x="120" y="568">15:00</text><text x="530" y="568">15:30</text><text x="735" y="568">15:45</text><text x="940" y="568">16:00</text>
+          <text x="530" y="612">Simulated time</text>
+        </g>
+        <line x1="530" y1="60" x2="530" y2="520" stroke="#c8361a" stroke-width="2.5" stroke-dasharray="10 8"/>
+        <text x="540" y="92" font-size="28" fill="#c8361a">wind shift</text>
+        <line x1="735" y1="60" x2="735" y2="520" stroke="#0b4f8a" stroke-width="2.5" stroke-dasharray="10 8"/>
+        <text x="745" y="92" font-size="28" fill="#0b4f8a">dog's report</text>
+        <polyline points="120,152 530,393.5 735,175" fill="none" stroke="#111418" stroke-width="5"/>
+        <g fill="#111418"><circle cx="120" cy="152" r="12"/><circle cx="530" cy="393.5" r="12"/></g>
+        <circle cx="735" cy="175" r="13" fill="#0b4f8a"/>
+        <g font-size="34" font-weight="700">
+          <text x="140" y="140">82%</text><text x="548" y="440">61%</text><text x="755" y="220" fill="#0b4f8a">80%</text>
+        </g>
+      </svg>
+      <figcaption><b>Fig. 4 | Forecast agreement with the true fire.</b> Agreement between the forecast and the hidden true fire over the next 4 h of spread, at launch, after the wind shift, and after the dog's report (one mission).</figcaption>
+    </figure>
+
+    <div>
+      <table class="bt">
+        <caption><b>Table 2 | Field readings versus forecast assumptions</b> at the dog's report (15:45).</caption>
+        <thead><tr><th>Quantity</th><th class="num">Measured</th><th class="num">Forecast</th></tr></thead>
+        <tbody>
+          <tr><td>Wind direction</td><td class="num">45°</td><td class="num">270°</td></tr>
+          <tr><td>Wind speed</td><td class="num">25 km/h</td><td class="num">15 km/h</td></tr>
+          <tr><td>Temperature</td><td class="num">40 °C</td><td class="num">35 °C</td></tr>
+          <tr><td>Relative humidity</td><td class="num">5%</td><td class="num">5%</td></tr>
+          <tr><td>Fire-edge position</td><td class="num" colspan="2">20 m closer than forecast</td></tr>
+        </tbody>
+      </table>
+      <p style="margin-top:0.3in">The correction raised agreement from 61% to 80% (Fig. 4). The dog then re-planned, scouted the edge and returned to staging at about 20:00, before the fire arrived.</p>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

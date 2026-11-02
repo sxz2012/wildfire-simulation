@@ -5,24 +5,60 @@
 <title>Poster — right panel</title>
 <link rel="stylesheet" href="poster.css">
 <style>
+
   @page { size: 12in 36in; }
   body { width: 12in; }
-  .panel { gap: 0.4in; }
+  .panel { gap: 0.3in; }
+  .section { gap: 0.14in; }
+  .visual-note { font-size: 21pt; line-height: 1.25; color: var(--muted); }
 
-  ul.check { list-style: none; display: flex; flex-direction: column; gap: 0.1in; }
-  ul.check li { padding-left: 0.55in; position: relative; font-size: 29pt; }
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.22in; }
+  .card { min-width: 0; background: #fff; border: 3pt solid var(--line); border-radius: 14pt; padding: 0.16in 0.18in 0.18in; display: flex; flex-direction: column; gap: 0.08in; }
+  .card .hd { display: flex; align-items: center; gap: 0.12in; font-size: 30pt; font-weight: 800; color: var(--fire-dark); }
+  .card .k { flex-shrink: 0; width: 0.5in; height: 0.5in; border-radius: 50%; background: var(--fire); color: #fff; font-size: 23pt; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; }
+  .card .k.terrain { font-size: 18pt; background: var(--robot); }
+  .card p { font-size: 24pt; line-height: 1.22; }
+  .media { position: relative; height: 3.1in; border-radius: 8pt; overflow: hidden; background: #19231f; }
+  .media > img { width: 100%; height: 100%; object-fit: contain; display: block; }
+  .media .tag { position: absolute; left: 0.1in; top: 0.1in; padding: 0.04in 0.1in; border-radius: 4pt; background: rgba(15,22,24,.9); color: #fff; font-size: 16pt; font-weight: 700; line-height: 1.2; }
+  .media .tag.bottom { top: auto; bottom: 0.1in; }
+  .media .tag.blue { background: #17428f; }
+  .media .tag.green { background: #236e35; }
+  .media.predict > img { object-fit: cover; object-position: 50% 40%; }
+  .media.terrain > img { height: auto; min-height: 100%; object-fit: cover; transform: scale(1.75); transform-origin: 50% 0; }
+  .media.robot { background: #f2eee6; }
+  .media.robot > img { object-fit: contain; padding: 0.06in; }
+  .media.robot .tag { font-size: 14pt; }
+  .media.feedback { background: #141515; }
+  .media.feedback > img { width: 320%; max-width: none; height: auto; position: absolute; right: 0; top: 0; transform: translateY(-50%); }
+  .facts { display: flex; justify-content: space-between; align-items: center; gap: 0.04in; font-size: 17pt; line-height: 1.18; color: var(--muted); }
+  .facts b { color: var(--ink); }
+  .facts .route { color: var(--robot-dark); }
+  .facts .escape { color: #236e35; }
+  .facts .after { color: #236e35; }
+  .sensors { font-size: 17pt; line-height: 1.2; color: var(--muted); }
+
+  .test-image { position: relative; height: 2.4in; overflow: hidden; border-radius: 10pt; border: 2pt solid var(--line); background: #19231f; }
+  .test-image > img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: 50% 38%; }
+  .test-key { position: absolute; left: 0.12in; bottom: 0.12in; right: 0.12in; display: flex; flex-wrap: wrap; gap: 0.08in 0.2in; background: rgba(15,22,24,.93); color: #fff; border-radius: 5pt; padding: 0.08in 0.12in; font-size: 19pt; font-weight: 700; }
+  .test-key span { display: inline-flex; align-items: center; gap: 0.08in; }
+  .test-key i { display: inline-block; width: 0.14in; height: 0.14in; border-radius: 50%; background: #ffe28b; }
+  .test-key i.true { background: #f34a16; }
+  .worlds { display: grid; grid-template-columns: 1fr 1.2in 1fr; align-items: center; }
+  .world { border-radius: 10pt; padding: 0.12in 0.16in; text-align: center; font-size: 21pt; line-height: 1.22; }
+  .world h4 { font-size: 26pt; font-weight: 800; margin-bottom: 0.05in; }
+  .world.fc { background: var(--robot-tint); border: 3pt solid var(--robot); }
+  .world.fc h4 { color: var(--robot-dark); }
+  .world.tr { background: #fdebe4; border: 3pt dashed var(--fire); }
+  .world.tr h4 { color: var(--fire-dark); }
+  .bridge { text-align: center; font-size: 18pt; font-weight: 700; color: var(--robot-dark); line-height: 1.15; }
+  .bridge .ar { display: block; font-size: 36pt; line-height: 1; }
+
+  ul.check { list-style: none; display: flex; flex-direction: column; gap: 0.08in; }
+  ul.check li { padding-left: 0.55in; position: relative; font-size: 28pt; }
   ul.check li::before { position: absolute; left: 0; font-weight: 800; }
   ul.check li.done::before { content: "✔"; color: #2e8540; }
   ul.check li.next::before { content: "→"; color: var(--robot); }
-
-
-  figure.step { margin: 0; }
-  figure.step .caption { font-size: 22pt; margin-top: 0.06in; }
-  figure.step .caption b.k { color: var(--fire-dark); }
-  figure.step.wide { display: grid; grid-template-columns: 8in 1fr; gap: 0.22in; align-items: center; }
-  figure.step.wide .caption { margin-top: 0; font-size: 23pt; }
-  .pair2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.2in; align-items: start; }
-  .lead { font-size: 26pt; }
 
   .foot { margin-top: auto; display: grid; grid-template-columns: 2.3in 1fr; gap: 0.3in; align-items: start; }
   .qrimg { width: 2.3in; height: 2.3in; display: block; }
@@ -34,30 +70,77 @@
 <body>
 <div class="panel">
 
+
   <section class="section">
-    <h2>Robot dog in simulation</h2>
-    <p class="lead">Mock simulation on the real forecast — no physical robot. A hidden "true" fire runs on the real local weather; the dog only knows the forecast until it reports.</p>
-
-    <figure class="step wide">
-      <img class="shot" src="img/step2-route.jpg" alt="The robot dog's blue route bends around the forecast fire from staging to the scout target">
-      <figcaption class="caption"><b class="k">② Safe route.</b> The route (<b style="color:#2D6CDF">blue</b>) bends around cells the forecast says will ignite before the dog gets through. Yellow dots: the forecast's fire edge.</figcaption>
-    </figure>
-
-    <figure class="step wide">
-      <img class="shot" src="img/step3-escape.jpg" alt="Green escape path with arrows pointing back to staging behind the dog">
-      <figcaption class="caption"><b class="k">③ Escape path.</b> A wind shift turns the true fire toward the dog — the forecast doesn't know yet. The escape path (<b style="color:#2E8540">green</b>, arrows pointing home) always stays open.</figcaption>
-    </figure>
-
-    <div class="pair2">
-      <figure class="step">
-        <img class="shot" src="img/step4-scout.jpg" alt="The dog at the fire edge with its escape path home">
-        <figcaption class="caption"><b class="k">④ Scout.</b> The dog reaches the fire edge, scouts it, and walks home before the fire arrives.</figcaption>
-      </figure>
-      <figure class="step">
-        <img class="shot" src="img/step5-feedback.jpg" alt="Readings card: measured versus forecast wind, temperature, humidity and fire edge; forecast match 64% to 81%">
-        <figcaption class="caption"><b class="k">⑤ Feedback.</b> The dog sends measured wind, temperature, humidity and the real fire edge. Forecast match for the next 4 h of spread: <b>64% → 81%</b>; the dog re-plans.</figcaption>
-      </figure>
+    <h2>How the dog decides</h2>
+    <p class="visual-note">Simulator views on real terrain. Robot image: design concept.</p>
+    <div class="cards">
+      <div class="card">
+        <div class="hd"><span class="k">1</span>Predict</div>
+        <div class="media predict">
+          <img src="../../img/fire-spread.jpg" alt="Simulated wildfire spreading across satellite imagery of rugged Big Sur terrain">
+          <span class="tag">Fire model on real terrain</span>
+        </div>
+        <div class="facts"><span><b>50 m</b> cells</span><span><b>15 min</b> forecast steps</span></div>
+        <p>Forecasts when each 50&nbsp;m cell will burn.</p>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="k">2</span>Safe route</div>
+        <div class="media">
+          <img src="../../img/step2-route.jpg" alt="Simulator view of the blue robot route around the fire, from staging at the bottom to the scout target at the top">
+        </div>
+        <div class="facts"><span class="route"><b>Blue:</b> route to scout target</span></div>
+        <p>Stays 30+ min ahead of the forecast fire.</p>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="k terrain">3D</span>On real ground</div>
+        <div class="media terrain">
+          <img src="../../img/fire-early.jpg" alt="Satellite terrain imagery showing steep ridges, open slopes and wooded valleys in Big Sur">
+          <span class="tag bottom">Slopes + land cover affect speed</span>
+        </div>
+        <div class="facts"><span>Open <b>1.0×</b></span><span>Forest <b>0.7×</b></span><span>Brush <b>0.5×</b></span></div>
+        <p>Uphill is slower. No water or slopes over 35°.</p>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="k">3</span>Escape path</div>
+        <div class="media">
+          <img src="../../img/step3-escape.jpg" alt="Simulator view showing the robot's green escape path with arrows pointing back to staging, alongside the blue outward route">
+        </div>
+        <div class="facts"><span class="escape"><b>Green:</b> escape path home</span></div>
+        <p>Aims for a 60 min clear way home.</p>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="k">4</span>Scout</div>
+        <div class="media robot">
+          <img src="../../img/wildfire-robot-transparent.png" alt="Realistic design concept of a rugged orange and metal quadruped robot with cameras, lidar and equipment storage">
+          <span class="tag bottom">Robot concept · sensors simulated</span>
+        </div>
+        <div class="sensors">Wind · temperature · humidity · fire edge</div>
+        <p>Measures what the forecast only guessed.</p>
+      </div>
+      <div class="card">
+        <div class="hd"><span class="k">5</span>Feedback</div>
+        <div class="media feedback">
+          <img src="../../img/step5-feedback.jpg" alt="Actual simulator interface displaying the robot's measured wind, temperature, humidity and fire-edge readings; forecast match improves from 61% to 80%">
+        </div>
+        <div class="facts"><span>Launch <b>82%</b></span><span>Shift <b>61%</b></span><span class="after">Report <b>80%</b></span></div>
+        <p>The dog's readings improve the next forecast.</p>
+      </div>
     </div>
+  </section>
+
+  <section class="section">
+    <h2>How we tested it</h2>
+    <div class="test-image">
+      <img src="../../img/step3-escape.jpg" alt="One simulator snapshot showing both the yellow forecast perimeter and the red hidden true fire on the same terrain">
+      <div class="test-key"><span><i></i>Yellow: forecast edge</span><span><i class="true"></i>Red: hidden true fire</span></div>
+    </div>
+    <div class="worlds">
+      <div class="world fc"><h4>Forecast fire</h4>What the dog plans on</div>
+      <div class="bridge"><span class="ar">⇠</span>dog's<br>readings</div>
+      <div class="world tr"><h4>True fire (hidden)</h4>Hotter, drier, wind shift</div>
+    </div>
+    <p class="visual-note">Mock simulation; no physical robot. The dog learns about the hidden true fire through simulated sensor reports.</p>
   </section>
 
   <section class="section">
@@ -75,7 +158,7 @@
   </section>
 
   <div class="foot">
-    <div><img class="qrimg" src="img/repo-qr.svg" alt="QR code to the GitHub repository"><div class="qrcap">Open-source code + demo video</div></div>
+    <div><img class="qrimg" src="../../img/repo-qr.svg" alt="QR code to the GitHub repository"><div class="qrcap">Open-source code + demo video</div></div>
     <div class="refs">
       <h4>Data &amp; references</h4>
       <p><b>Code:</b> github.com/sxz2012/wildfire-simulation</p>
