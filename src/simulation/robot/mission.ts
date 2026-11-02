@@ -1,4 +1,4 @@
-import { planPath, planStillSafe, remainingMarginMin } from "./planner";
+import { planPath, planStillSafe, planToNearest, remainingMarginMin } from "./planner";
 import type { Plan, PlannerGrid, RobotConfig } from "./types";
 
 export type MissionPhase = "outbound" | "scouting" | "returning" | "retreating" | "holding" | "done";
@@ -49,6 +49,41 @@ function planEscape(cell: number, m: Mission, nowMin: number, grid: PlannerGrid,
   );
 }
 
+/**
+ * When no way home keeps the entry margin: the way with the most time to
+ * spare (half the margin, then none) rather than standing still while the fire
+ * arrives. With a keep-away grid, each looser map in turn (half the distance,
+ * then the fire itself). Null only when no path at all gets ahead of the forecast fire.
+ */
+function planLastResort(cell: number, m: Mission, nowMin: number, grid: PlannerGrid, robot: RobotConfig) {
+  robot = { ...robot, marginPerLeadMin: 0 };
+  for (const ignitionMin of grid.lastResortMin ?? [grid.ignitionMin]) {
+    const g = { ...grid, ignitionMin };
+    const plan =
+      planPath(g, cell, m.stagingIdx, nowMin, robot.entryMarginMin / 2, robot) ??
+      planPath(g, cell, m.stagingIdx, nowMin, 0, robot);
+    if (plan) return plan;
+  }
+  return null;
+}
+
+const LAST_RESORT = "Last resort — leaving by the least dangerous way";
+
+/**
+ * Where to scout from: the spot closest to the target that the dog can reach under
+ * the entry margin, hold for the scouting time, and still walk home from. Null when none.
+ */
+export function scoutSpot(
+  grid: PlannerGrid,
+  stagingIdx: number,
+  targetIdx: number,
+  startMin: number,
+  robot: RobotConfig
+): number | null {
+  const plan = planToNearest(grid, stagingIdx, targetIdx, startMin, robot.entryMarginMin, robot, robot.scoutHoldMin, stagingIdx);
+  return plan ? plan.cells.at(-1)! : null;
+}
+
 export function createMission(
   stagingIdx: number,
   targetIdx: number,
@@ -94,8 +129,19 @@ export function advanceMission(
   const ign = grid.ignitionMin;
   const next: Mission = { ...m, event: null };
   const cur = currentCell(m, nowMin);
+  const lead = (t: number) => (robot.marginPerLeadMin ?? 0) * (t - (grid.forecastMin ?? nowMin));
+  const stillSafe = (plan: Plan) =>
+    planStillSafe(plan, nowMin, ign, robot.entryMarginMin, robot.marginPerLeadMin ?? 0, grid.forecastMin ?? nowMin);
 
-  const toHolding = () => {
+  // Holding is the last option: first any way out that still beats the forecast fire.
+  const toHolding = (phase: "returning" | "retreating" = "retreating") => {
+    const out = planLastResort(cur, m, nowMin, grid, robot);
+    if (out) {
+      next.phase = phase;
+      next.route = out;
+      next.event = LAST_RESORT;
+      return;
+    }
     next.phase = "holding";
     next.route = stay(cur, nowMin, grid);
     next.event = "No safe path — holding";
@@ -105,7 +151,7 @@ export function advanceMission(
     if (home) {
       next.phase = phase;
       next.route = home;
-    } else toHolding();
+    } else toHolding(phase);
   };
 
   switch (m.phase) {
@@ -115,8 +161,8 @@ export function advanceMission(
         next.phase = "scouting";
         next.route = stay(m.targetIdx, nowMin, grid);
         next.holdUntilMin = nowMin + robot.scoutHoldMin;
-        next.event = "Reached the fire edge — scouting";
-      } else if (!planStillSafe(route, nowMin, ign, robot.entryMarginMin)) {
+        next.event = "Reached the scout spot — scouting";
+      } else if (!stillSafe(route)) {
         const replanned = planPath(grid, cur, m.targetIdx, nowMin, robot.entryMarginMin, robot);
         if (replanned) {
           next.route = replanned;
@@ -135,7 +181,7 @@ export function advanceMission(
       break;
     }
     case "scouting": {
-      const fireClose = !(nowMin + robot.entryMarginMin < ign[m.targetIdx]);
+      const fireClose = !(nowMin + robot.entryMarginMin + lead(nowMin) < ign[m.targetIdx]);
       if (fireClose || nowMin >= (m.holdUntilMin ?? nowMin)) {
         homeOrHold("returning");
         if (next.phase === "returning" && fireClose) next.event = "Fire approaching — heading back";
@@ -149,7 +195,7 @@ export function advanceMission(
         next.phase = "done";
         next.route = stay(m.stagingIdx, nowMin, grid);
         next.event = "Safe at staging";
-      } else if (!planStillSafe(route, nowMin, ign, robot.entryMarginMin)) {
+      } else if (!stillSafe(route)) {
         homeOrHold(m.phase);
       }
       break;
@@ -161,8 +207,8 @@ export function advanceMission(
         next.route = escape;
         next.event = "Path opened — retreating";
       } else {
-        next.route = stay(cur, nowMin, grid);
-        next.event = m.event;
+        toHolding();
+        if (next.phase === "holding") next.event = m.event;
       }
       break;
     }
@@ -177,7 +223,7 @@ export function advanceMission(
     // Re-plan when the dog moved, time moved (a stale plan's past arrivals would
     // skip every safety check), or the fire now crosses it.
     if (!e || e.cells[0] !== here || e.arrivalMin[0] !== nowMin ||
-        !planStillSafe(e, nowMin, ign, robot.entryMarginMin)) {
+        !stillSafe(e)) {
       next.escape = planEscape(here, next, nowMin, grid, robot);
     }
   }

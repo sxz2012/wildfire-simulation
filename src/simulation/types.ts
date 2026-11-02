@@ -33,6 +33,8 @@ export interface SimulationConfig {
   timestepMinutes: number;
   recentPrecip3Day?: number; // mm of rain in last 3 days
   landCoverCode?: number;    // numeric land-cover code (preset per scenario)
+  spreadScale?: number;      // multiplies every spread chance; fitted per fire from observed spread (default 1)
+  spreadCorrection?: number[]; // per-fire correction weights learned from observed spread (see spread.ts); unset = none
 }
 
 export interface SimulationState {

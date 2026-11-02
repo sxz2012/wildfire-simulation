@@ -4,7 +4,10 @@ import type { MissionPhase } from "../simulation/robot/mission";
 interface RobotDogHUDProps {
   phase: MissionPhase | null;
   event: string | null;
-  marginMin: number;
+  /** Distance from the dog to the predicted fire now, metres (Infinity = none within reach). */
+  fireDistanceM: number;
+  /** The distance the dog keeps from the predicted fire, if any. */
+  keepAwayM?: number;
   windLabel: string;
   windShifted: boolean;
   shiftPending: boolean;
@@ -26,24 +29,25 @@ export const MOCK_LABEL = "Mock simulation — planning on the model's fire fore
 
 const PHASE_LABEL: Record<MissionPhase, string> = {
   outbound: "Scouting route",
-  scouting: "At fire edge",
+  scouting: "Scouting",
   returning: "Returning",
   retreating: "Retreating",
   holding: "No safe path — holding",
   done: "Safe at staging",
 };
 
-function formatMargin(min: number): string {
-  if (!Number.isFinite(min)) return "clear";
-  if (min < 0) return "in fire";
-  if (min < 120) return `${Math.round(min)} min`;
-  return `${(min / 60).toFixed(1)} h`;
+function formatDistance(m: number): string {
+  if (!Number.isFinite(m)) return "over 3 km away";
+  if (m <= 0) return "here";
+  if (m < 1000) return `${Math.round(m / 10) * 10} m away`;
+  return `${(m / 1000).toFixed(1)} km away`;
 }
 
 export default function RobotDogHUD({
   phase,
   event,
-  marginMin,
+  fireDistanceM,
+  keepAwayM,
   windLabel,
   windShifted,
   shiftPending,
@@ -79,7 +83,8 @@ export default function RobotDogHUD({
           >
             {PHASE_LABEL[phase]}
           </div>
-          <div className="text-gray-300 tabular-nums">Fire margin: {formatMargin(marginMin)}</div>
+          <div className="text-gray-300 tabular-nums">Predicted fire: {formatDistance(fireDistanceM)}</div>
+          {keepAwayM !== undefined && <div className="text-gray-500">Keeps {keepAwayM} m from it</div>}
           <div className="text-gray-400">{windLabel}</div>
           {matchPct !== null && <div className="text-gray-200 tabular-nums">Forecast match: {matchPct}%</div>}
           {lastReport && (

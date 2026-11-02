@@ -45,7 +45,7 @@ import RobotDogHUD from "./components/RobotDogHUD";
 import RobotPlacementTool from "./components/RobotPlacementTool";
 import { ROBOT_DEFAULTS, type PlannerGrid, type RobotConfig } from "./simulation/robot/types";
 import type { SimulationState } from "./simulation/types";
-import { computeIgnitionMinutes, passableFromFuel } from "./simulation/robot/hazard";
+import { computeIgnitionMinutes, distanceToFireM, fireOf, groundSpeedFromFuel, passableFromFuel, withKeepAway } from "./simulation/robot/hazard";
 import ForecastOutlineLayer from "./components/ForecastOutlineLayer";
 import ReadingsCard from "./components/ReadingsCard";
 import {
@@ -67,8 +67,8 @@ import { latLngToCell, snapToSafeCell } from "./simulation/robot/geo";
 import { burningCentroid, shiftedWind, tailReplaceCommits } from "./simulation/robot/windShift";
 import {
   createMission,
+  scoutSpot,
   missionFitsForecast,
-  missionMarginMin,
   missionPose,
   syncMission,
   type Mission,
@@ -108,7 +108,7 @@ const WIND_SHIFT_WINDOW_STEPS = 96;
 
 const ROBOT_PROMPT = {
   staging: "Click a staging point (safe start)",
-  target: "Click the scout target near the fire edge",
+  target: "Click the scout target near the fire edge (the dog stops 100 m from the predicted fire)",
 } as const;
 
 interface RobotDemoInfo {
@@ -129,10 +129,23 @@ declare global {
     __robotDemo?: {
       start(staging: { lat: number; lng: number }, target: { lat: number; lng: number }): Promise<string | null>;
       shiftWind(): Promise<void>;
-      state(): { phase: MissionPhase | null; replanCount: number; event: string | null; reports: number; match: number | null };
+      state(): { phase: MissionPhase | null; replanCount: number; event: string | null; reports: number; reporting: boolean; lastReport: [number, number] | null; match: number | null };
       info(): RobotDemoInfo | null;
+      /** Plan staging→target twice from now: on the fire as it is now (no margin) and on the forecast. */
+      compare(staging: { lat: number; lng: number }, target: { lat: number; lng: number }): RobotCompare | string;
+      /** Show one of the compared routes at a timeline step (no true-fire fork, no reports). */
+      show(which: "now" | "predicted", step: number): void;
     };
   }
+}
+
+interface RobotCompare {
+  nowStep: number;
+  /** First step at which the forecast fire reaches a cell of the route planned on the fire now, before the dog gets there. */
+  crossStep: number | null;
+  /** Step at which the dog would reach the first such cell along that route (the fire is already there). */
+  dogMeetsFireStep: number | null;
+  predictedMarginMin: number | null;
 }
 
 type AppMode =
@@ -715,14 +728,16 @@ function App() {
   const ts = activeConfig.timestepMinutes;
 
   const makePlannerGrid = useCallback(
-    (states: SimulationState[]): PlannerGrid => ({
+    // The dog keeps robotConfig.keepAwayM from the predicted fire (see withKeepAway).
+    (states: SimulationState[]): PlannerGrid => withKeepAway({
       gridSize: activeConfig.gridSize,
       cellSizeMeters: activeConfig.cellSizeMeters,
       ignitionMin: computeIgnitionMinutes(states, activeConfig.timestepMinutes),
       elevation: elevationMap ?? undefined,
       passable: passableFromFuel(activeFuelMap, activeConfig.gridSize),
-    }),
-    [elevationMap, activeFuelMap, activeConfig.gridSize, activeConfig.cellSizeMeters, activeConfig.timestepMinutes],
+      groundSpeed: groundSpeedFromFuel(activeFuelMap, activeConfig.gridSize, robotConfig.groundSpeed),
+    }, robotConfig.keepAwayM),
+    [elevationMap, activeFuelMap, robotConfig.groundSpeed, robotConfig.keepAwayM, activeConfig.gridSize, activeConfig.cellSizeMeters, activeConfig.timestepMinutes],
   );
 
   const robotNowMin = currentStep * ts;
@@ -827,8 +842,12 @@ function App() {
   const launchMission = useCallback(
     async (stagingIdx: number, targetIdx: number, notice: string | null): Promise<string | null> => {
       if (!plannerGrid || !archiveConditions || history.baseline.length === 0) return "Simulation not ready";
-      const mission = createMission(stagingIdx, targetIdx, robotNowMin, plannerGrid, robotConfig);
+      // Scout from the closest spot to the target that keeps the distance and still has a way home.
+      const spot = scoutSpot(plannerGrid, stagingIdx, targetIdx, robotNowMin, robotConfig);
+      if (spot === null) return "No safe spot to scout that target from — pick another";
+      const mission = createMission(stagingIdx, spot, robotNowMin, plannerGrid, robotConfig);
       if (!mission.route) return "No safe route to that target — pick another";
+      targetIdx = spot;
       // The timeline stops at its last frame (and the true fire runs one day ahead);
       // a mission that outlasts it would freeze.
       const frames = activeFire ? activeFire.frames.length - 1 : 0;
@@ -989,10 +1008,10 @@ function App() {
     if (!r?.mission || !trueIgn || r.reportPending || r.shiftPending || r.launching || r.forecasts.length === 0) return;
     if (r.mission.phase === "done") return;
     // "Near" = the true fire is due at the dog's cell, or on the route it walks in the
-    // next step, within half the entry margin: a safety trigger, not something that
-    // fires all along a route hugging the flank.
+    // next step, within robotConfig.sensingWithinMin: a safety trigger, not something
+    // that fires all along a route hugging the flank.
     const trueFireNear = trueFireThreat(
-      r.mission.route, dogCellAt(r.mission, robotNowMin), robotNowMin, ts, trueIgn, robotConfig.entryMarginMin / 2,
+      r.mission.route, dogCellAt(r.mission, robotNowMin), robotNowMin, ts, trueIgn, robotConfig.sensingWithinMin,
     );
     if (shouldReport({
       phase: r.mission.phase, trueFireNear, nowMin: robotNowMin, reports: r.reports, shiftMin: r.shiftMin,
@@ -1007,6 +1026,7 @@ function App() {
   robotRef.current = robot;
   const matchRef = useRef(matchPct);
   matchRef.current = matchPct;
+  const compareRef = useRef<{ now: Mission; predicted: Mission } | null>(null);
   useEffect(() => {
     if (!import.meta.env.DEV) return;
     window.__robotDemo = {
@@ -1020,11 +1040,53 @@ function App() {
         return launchMission(s.idx, t.idx, s.notice ?? t.notice);
       },
       shiftWind: handleWindShift,
+      compare(staging, target) {
+        if (!plannerGrid) return "robot mode is not active";
+        const s = resolveRobotPick(staging.lat, staging.lng).idx, picked = resolveRobotPick(target.lat, target.lng).idx;
+        if (s === null || picked === null) return "staging or target is not a safe spot";
+        // Both dogs head for the predicted dog's scout spot, so only the routes differ.
+        const t = scoutSpot(plannerGrid, s, picked, robotNowMin, robotConfig);
+        if (t === null) return "no safe spot to scout from";
+        // The fire as it is now: every cell already reached is off limits, the rest is open.
+        const fireNow = history.baseline[robotStep].grid;
+        const nowGrid: PlannerGrid = {
+          ...plannerGrid, lastResortMin: undefined,
+          ignitionMin: Float32Array.from(fireNow, (c) => (c === 0 ? Infinity : robotNowMin)),
+        };
+        const fire = fireOf(plannerGrid);
+        const now = createMission(s, t, robotNowMin, nowGrid, { ...robotConfig, entryMarginMin: 0, escapeMarginMin: 0 });
+        const predicted = createMission(s, t, robotNowMin, plannerGrid, robotConfig);
+        compareRef.current = { now, predicted };
+        let crossMin: number | null = null, meetMin: number | null = null;
+        if (now.route) {
+          now.route.cells.forEach((cell, i) => {
+            const ign = fire[cell];
+            if (ign > now.route!.arrivalMin[i]) return;
+            if (crossMin === null || ign < crossMin) crossMin = ign;
+            if (meetMin === null) meetMin = now.route!.arrivalMin[i];
+          });
+        }
+        return {
+          nowStep: robotStep,
+          crossStep: crossMin === null ? null : Math.ceil(crossMin / ts),
+          dogMeetsFireStep: meetMin === null ? null : Math.ceil(meetMin / ts),
+          predictedMarginMin: predicted.route ? predicted.route.minMarginMin : null,
+        };
+      },
+      show(which, step) {
+        const m = compareRef.current?.[which];
+        if (!m) return;
+        setRobot((r) => r && { ...r, placing: null, stagingIdx: m.stagingIdx, targetIdx: m.targetIdx, mission: m, log: [], forecasts: [] });
+        setCurrentStep(step);
+      },
       state: () => {
         const m = robotRef.current?.mission ?? null;
+        const last = robotRef.current?.reports.at(-1);
         return {
           phase: m?.phase ?? null, replanCount: m?.replanCount ?? 0, event: robotRef.current?.lastEvent ?? null,
-          reports: robotRef.current?.reports.length ?? 0, match: matchRef.current,
+          reports: robotRef.current?.reports.length ?? 0, reporting: robotRef.current?.reportPending ?? false,
+          lastReport: last ? [last.matchBefore, last.matchAfter] : null,
+          match: matchRef.current,
         };
       },
       info: () => {
@@ -1058,7 +1120,7 @@ function App() {
         };
       },
     };
-  }, [resolveRobotPick, launchMission, handleWindShift, ignitionPoint, history.baseline, currentStep, activeConfig]);
+  }, [resolveRobotPick, launchMission, handleWindShift, ignitionPoint, history.baseline, currentStep, activeConfig, plannerGrid, robotStep, robotNowMin, robotConfig, ts]);
 
   // Bridges the ControlPanel's existing onStart prop into the new flow:
   // - If a pin is placed, this is the "Start the Wildfire" action and we
@@ -1450,7 +1512,10 @@ function App() {
             <RobotDogHUD
               phase={robot.mission?.phase ?? null}
               event={robot.lastEvent}
-              marginMin={robot.mission && plannerGrid ? missionMarginMin(robot.mission, robotNowMin, plannerGrid) : Infinity}
+              fireDistanceM={robot.mission && plannerGrid
+                ? distanceToFireM(fireOf(plannerGrid), n, activeConfig.cellSizeMeters, dogCellAt(robot.mission, robotNowMin), robotNowMin, 3000)
+                : Infinity}
+              keepAwayM={robotConfig.keepAwayM}
               windLabel={`Forecast wind: from ${Math.round(forecastWind.windDirection)}° at ${Math.round(forecastWind.windSpeed)} km/h`}
               windShifted={robot.windShifted}
               shiftPending={robot.shiftPending}

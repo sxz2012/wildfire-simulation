@@ -4,6 +4,9 @@ import {
   computeSpreadRate,
   computeScenarioFeatures,
   computeStepAggregates,
+  correctedRate,
+  forEachSpreadAttempt,
+  CORRECTION_SIZE,
 } from "../spread";
 import { createGrid, igniteCell, getCell } from "../grid";
 import { CellState, FuelType, DEFAULT_CONFIG, type GridCell } from "../types";
@@ -150,5 +153,85 @@ describe("computeStepAggregates", () => {
     expect(agg.currAreaKm2).toBeCloseTo(0.02, 5);
     expect(agg.currExtentNsKm).toBeCloseTo(1.11, 1);
     expect(agg.currExtentEwKm).toBeGreaterThan(1.0);
+  });
+});
+
+describe("spreadScale", () => {
+  const burnedAfter = (spreadScale: number | undefined, seed: number) => {
+    const config = { ...DEFAULT_CONFIG, gridSize: 40, spreadScale };
+    let grid = createGrid(config, 36.27, -121.8, () => 100);
+    igniteCell(grid, 20, 20, 40);
+    let a = seed >>> 0;
+    const saved = Math.random;
+    Math.random = () => ((a = (a * 1664525 + 1013904223) >>> 0) / 4294967296);
+    try {
+      for (let s = 1; s <= 12; s++) grid = simulateStep(grid, config, s, false);
+    } finally {
+      Math.random = saved;
+    }
+    return grid.filter((c) => c.state !== CellState.Unburned).length;
+  };
+
+  it("0 stops the fire from spreading", () => {
+    expect(burnedAfter(0, 1)).toBe(1);
+  });
+
+  it("a larger value spreads the fire faster; the default is 1", () => {
+    let fast = 0, base = 0, dflt = 0;
+    for (let seed = 1; seed <= 5; seed++) {
+      fast += burnedAfter(2, seed); base += burnedAfter(1, seed); dflt += burnedAfter(undefined, seed);
+    }
+    expect(fast).toBeGreaterThan(base);
+    expect(dflt).toBe(base);
+  });
+});
+
+describe("spread attempts and learned correction", () => {
+  const attempt = { cell: 0, rate: 0.1, align: 1, slope: 0, fuel: FuelType.Grass, north: 0, east: 1 };
+
+  it("an all-zero correction leaves the chance unchanged", () => {
+    expect(correctedRate(0.1, attempt, new Array(CORRECTION_SIZE).fill(0))).toBeCloseTo(0.1, 10);
+  });
+
+  it("a positive bias raises the chance, a negative one lowers it", () => {
+    const w = new Array(CORRECTION_SIZE).fill(0);
+    w[0] = 1;
+    expect(correctedRate(0.1, attempt, w)).toBeGreaterThan(0.2);
+    w[0] = -1;
+    expect(correctedRate(0.1, attempt, w)).toBeLessThan(0.05);
+  });
+
+  it("lists each burning cell's unburned neighbours with the spread direction", () => {
+    const config = { ...DEFAULT_CONFIG, gridSize: 9 };
+    const grid = createGrid(config, 36.27, -121.8, () => 100);
+    igniteCell(grid, 4, 4, 9);
+    const seen: { cell: number; north: number; east: number }[] = [];
+    forEachSpreadAttempt(grid, config, 1, false, (a) => seen.push(a));
+    expect(seen).toHaveLength(8);
+    const east = seen.find((a) => a.cell === 4 * 9 + 5)!;
+    expect(east.east).toBeCloseTo(1);
+    expect(east.north).toBeCloseTo(0);
+    const north = seen.find((a) => a.cell === 3 * 9 + 4)!;
+    expect(north.north).toBeCloseTo(1);
+  });
+
+  it("a correction in the config speeds up a simulated fire", () => {
+    const run = (spreadCorrection?: number[]) => {
+      const config = { ...DEFAULT_CONFIG, gridSize: 40, spreadCorrection };
+      let grid = createGrid(config, 36.27, -121.8, () => 100);
+      igniteCell(grid, 20, 20, 40);
+      let a = 7;
+      const saved = Math.random;
+      Math.random = () => ((a = (a * 1664525 + 1013904223) >>> 0) / 4294967296);
+      try {
+        for (let s = 1; s <= 10; s++) grid = simulateStep(grid, config, s, false);
+      } finally {
+        Math.random = saved;
+      }
+      return grid.filter((c) => c.state !== CellState.Unburned).length;
+    };
+    const w = new Array(CORRECTION_SIZE).fill(0);
+    w[0] = 1;
+    expect(run(w)).toBeGreaterThan(run());
   });
 });

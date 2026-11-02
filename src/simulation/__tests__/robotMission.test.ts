@@ -6,7 +6,9 @@ import {
   missionMarginMin,
   missionFitsForecast,
   syncMission,
+  scoutSpot,
 } from "../robot/mission";
+import { keepAwayIgnition } from "../robot/hazard";
 import { ROBOT_DEFAULTS } from "../robot/types";
 import type { PlannerGrid } from "../robot/types";
 
@@ -82,15 +84,54 @@ describe("mission", () => {
     assertNeverInFire(m, shifted, now);
   });
 
-  it("no escape: holds when surrounded by fire", () => {
+  it("no escape: holds only when no path at all beats the fire", () => {
     let m = createMission(STAGING, TARGET, 0, openGrid(), ROBOT_DEFAULTS);
     const now = 2;
     const shifted = openGrid();
-    shifted.ignitionMin.fill(now + 5);
+    shifted.ignitionMin.fill(now + 0.2); // every neighbour ignites before the dog can step onto it
     m = advanceMission(m, now, shifted, ROBOT_DEFAULTS);
     expect(m.phase).toBe("holding");
     expect(m.event).toBe("No safe path — holding");
     expect(m.escape).toBeNull();
+  });
+
+  it("last resort: with no path that keeps the margin, takes the way out with the most time to spare", () => {
+    let m = createMission(STAGING, TARGET, 0, openGrid(), ROBOT_DEFAULTS);
+    const now = 2;
+    const shifted = openGrid();
+    shifted.ignitionMin.fill(now + 5); // too soon for a 30-min margin, but the dog can still get out ahead of it
+    m = advanceMission(m, now, shifted, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("retreating");
+    expect(m.event).toBe("Last resort — leaving by the least dangerous way");
+    expect(m.route!.cells.at(-1)).toBe(STAGING);
+    assertNeverInFire(m, shifted, now);
+  });
+
+  it("last resort: a dog already holding moves out once a tight path exists", () => {
+    let m = createMission(STAGING, TARGET, 0, openGrid(), ROBOT_DEFAULTS);
+    const g = openGrid();
+    g.ignitionMin.fill(2.2);
+    m = advanceMission(m, 2, g, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("holding");
+    const later = openGrid();
+    later.ignitionMin.fill(12); // the fire slows: 10 min to get out, under the 30-min margin
+    m = advanceMission(m, 2, later, ROBOT_DEFAULTS);
+    expect(m.phase).toBe("retreating");
+    expect(m.route!.cells.at(-1)).toBe(STAGING);
+    assertNeverInFire(m, later, 2);
+  });
+
+  it("scouting: when the fire closes in too fast for the margin, still heads home rather than holding", () => {
+    const g = openGrid();
+    let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
+    const end = m.route!.arrivalMin.at(-1)!;
+    m = advanceMission(m, end, g, ROBOT_DEFAULTS);
+    const shifted = openGrid();
+    shifted.ignitionMin.fill(end + 40); // the whole area burns at end+40; the walk home takes ~15 min
+    m = advanceMission(m, end + 11, shifted, ROBOT_DEFAULTS); // fire 29 min away: too close to stay, too close for a 30-min margin home
+    expect(m.phase).toBe("returning");
+    expect(m.route!.cells.at(-1)).toBe(STAGING);
+    assertNeverInFire(m, shifted, end + 11);
   });
 
   it("paused time: advancing twice at the same minute is idempotent", () => {
@@ -114,10 +155,10 @@ describe("mission", () => {
   });
 
   it("keeps an escape path under the entry margin when the stricter escape margin fails", () => {
-    // Fire reaches every cell at minute 50: 60-min escape margin is already
-    // impossible at t=0, but a 30-min margin still leaves a way home.
+    // Fire reaches every cell at minute 80: the 90-min escape margin is already
+    // impossible at t=0, but the 60-min entry margin still leaves a way home.
     const g = openGrid();
-    g.ignitionMin.fill(50);
+    g.ignitionMin.fill(80);
     let m = createMission(STAGING, TARGET, 0, g, ROBOT_DEFAULTS);
     expect(m.phase).toBe("outbound");
     expect(m.escape).not.toBeNull();
@@ -246,5 +287,74 @@ describe("mission", () => {
       const log = start();
       expect(syncMission(log, 30, STEP, () => g, ROBOT_DEFAULTS)).toBe(log);
     });
+  });
+});
+
+describe("mission with a margin that grows with look-ahead", () => {
+  const growing = { ...ROBOT_DEFAULTS, entryMarginMin: 15, escapeMarginMin: 45, marginPerLeadMin: 0.25 };
+  const late = (forecastMin?: number): PlannerGrid => ({ ...openGrid(), ignitionMin: new Float32Array(N * N).fill(80), forecastMin });
+
+  it("goes when the forecast is fresh", () => {
+    expect(createMission(STAGING, TARGET, 0, late(0), growing).phase).toBe("outbound");
+  });
+
+  it("turns back when the same forecast is 200 min old: the route's far end no longer clears it", () => {
+    const m = createMission(STAGING, TARGET, 0, late(0), growing);
+    expect(advanceMission(m, 0, late(-200), { ...growing, marginPerLeadMin: 0 }).phase).toBe("outbound");
+    expect(advanceMission(m, 0, late(-200), growing).phase).not.toBe("outbound");
+  });
+});
+
+describe("mission keeping a distance from the forecast fire", () => {
+  const noTime = { ...ROBOT_DEFAULTS, entryMarginMin: 0, escapeMarginMin: 0 };
+
+  it("a dog already closer than the distance still leaves, by the least dangerous way on the fire itself", () => {
+    // The fire is forecast 100 m north of the dog's path; the keep-away map has already closed over it.
+    const fire = new Float32Array(N * N).fill(Infinity);
+    for (let c = 0; c < N; c++) fire[idx(13, c)] = 30;
+    const keepAway = new Float32Array(N * N).fill(Infinity);
+    for (let r = 10; r <= 16; r++) for (let c = 0; c < N; c++) keepAway[idx(r, c)] = 0;
+    const m = createMission(STAGING, TARGET, 0, openGrid(), noTime);
+    const halfway = m.route!.arrivalMin[12];
+    const next = advanceMission(m, halfway, { ...openGrid(), ignitionMin: keepAway, lastResortMin: [fire] }, noTime);
+    expect(next.phase).toBe("retreating");
+    expect(next.route!.cells.at(-1)).toBe(STAGING);
+    const withoutFire = advanceMission(m, halfway, { ...openGrid(), ignitionMin: keepAway }, noTime);
+    expect(withoutFire.phase).toBe("holding");
+  });
+
+  it("the last resort steps down: half the distance before none", () => {
+    // Fire 100 m north of the way home; the dog stands 224 m from it, inside 300 m but outside 150 m.
+    const fire = new Float32Array(N * N).fill(Infinity);
+    for (let c = 5; c <= 12; c++) fire[idx(13, c)] = 0;
+    const half = keepAwayIgnition(fire, N, 50, 150);
+    const m = createMission(STAGING, TARGET, 0, openGrid(), noTime);
+    const now = m.route!.arrivalMin[14];
+    expect(m.route!.cells[14]).toBe(idx(15, 16));
+    const grid = { ...openGrid(), ignitionMin: keepAwayIgnition(fire, N, 50, 300), lastResortMin: [half, fire] };
+    const next = advanceMission(m, now, grid, noTime);
+    expect(next.route!.cells.at(-1)).toBe(STAGING);
+    expect(next.route!.cells.every((c) => half[c] === Infinity)).toBe(true);
+    // Straight home along the fire was the fastest way.
+    const raw = advanceMission(m, now, { ...grid, lastResortMin: [fire] }, noTime);
+    expect(raw.route!.cells.some((c) => half[c] !== Infinity)).toBe(true);
+  });
+});
+
+describe("scoutSpot", () => {
+  it("the target itself when it is clear", () => {
+    expect(scoutSpot(openGrid(), STAGING, TARGET, 0, ROBOT_DEFAULTS)).toBe(TARGET);
+  });
+
+  it("the closest spot short of a target in the fire", () => {
+    const g = openGrid();
+    for (let r = 0; r < N; r++) for (let c = 24; c < N; c++) g.ignitionMin[idx(r, c)] = 0;
+    expect(scoutSpot(g, STAGING, TARGET, 0, ROBOT_DEFAULTS)).toBe(idx(15, 23));
+  });
+
+  it("null when there is nowhere to go", () => {
+    const g = openGrid();
+    g.ignitionMin.fill(0);
+    expect(scoutSpot(g, STAGING, TARGET, 5, ROBOT_DEFAULTS)).toBeNull();
   });
 });

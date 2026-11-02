@@ -158,19 +158,60 @@ function countBurningNeighbors(
   return count;
 }
 
+/** One chance for a burning cell to ignite an unburned neighbour, with what a learned correction can use. */
+export interface SpreadAttempt {
+  /** Neighbour being ignited. */
+  cell: number;
+  /** Chance from the model for this 15-min step (before spreadScale and correction). */
+  rate: number;
+  /** Wind alignment of the spread direction: +1 downwind, −1 upwind. */
+  align: number;
+  /** Rise over run from the burning cell to the neighbour (clamped to ±1). */
+  slope: number;
+  fuel: FuelType;
+  /** Spread direction as unit north / east components. */
+  north: number;
+  east: number;
+}
+
 /**
- * ML-enhanced simulation step.
- * Uses XGBoost model to predict spread probability when available,
- * falls back to Rothermel-based calculation otherwise.
+ * Weights of a per-fire correction learned from observed spread, applied on the
+ * logit scale: logit(p) = (1 + w[7])·logit(p0) + w[0] + w[1]·align + w[2]·slope
+ * + w[3]·shrub + w[4]·forest + w[5]·north + w[6]·east. All zeros = no change.
  */
-export function simulateStep(
+export type SpreadCorrection = number[];
+export const CORRECTION_SIZE = 8;
+
+const logit = (p: number) => Math.log(p / (1 - p));
+
+/** Correction inputs of an attempt, in weight order (w[0..6]); w[7] scales the model's own logit. */
+export function correctionInputs(a: SpreadAttempt): number[] {
+  return [1, a.align, a.slope, a.fuel === "shrub" ? 1 : 0, a.fuel === "forest" ? 1 : 0, a.north, a.east];
+}
+
+/** The attempt's chance after a learned correction. */
+export function correctedRate(p0: number, a: SpreadAttempt, w: SpreadCorrection): number {
+  const p = Math.min(Math.max(p0, 1e-6), 1 - 1e-6);
+  const x = correctionInputs(a);
+  let z = (1 + w[7]) * logit(p);
+  for (let i = 0; i < x.length; i++) z += w[i] * x[i];
+  return 1 / (1 + Math.exp(-z));
+}
+
+/**
+ * Visit every spread attempt of one step: each burning cell × each unburned,
+ * non-water neighbour, with the model's chance for it. `skip` lets the caller
+ * drop neighbours (e.g. already ignited this step) before the model runs.
+ */
+export function forEachSpreadAttempt(
   grid: GridCell[],
   config: SimulationConfig,
-  stepNumber = 0,
-  useML = true
-): GridCell[] {
+  stepNumber: number,
+  useML: boolean,
+  visit: (a: SpreadAttempt) => void,
+  skip?: (cell: number) => boolean
+): void {
   const { gridSize, windSpeed, windDirection, humidity, cellSizeMeters, timestepMinutes } = config;
-  const newGrid: GridCell[] = grid.map((cell) => ({ ...cell }));
   const windStrength = Math.min(windSpeed / 40, 1.0);
 
   // Compute scenario- and step-static features once per step (not per cell).
@@ -184,104 +225,119 @@ export function simulateStep(
 
   for (let row = 0; row < gridSize; row++) {
     for (let col = 0; col < gridSize; col++) {
-      const idx = row * gridSize + col;
-      const cell = grid[idx];
+      const cell = grid[row * gridSize + col];
+      if (cell.state !== CellState.Burning) continue;
+      for (const [dr, dc] of NEIGHBOR_OFFSETS) {
+        const nr = row + dr;
+        const nc = col + dc;
+        if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) continue;
 
-      // Suppressed cells (firelines) neither continue burning nor spread
-      // — they're permanent firebreaks for the rest of the simulation.
-      if (cell.state === CellState.Suppressed) continue;
+        const nIdx = nr * gridSize + nc;
+        const neighbor = grid[nIdx];
+        if (neighbor.state !== CellState.Unburned) continue;
+        if (skip?.(nIdx)) continue;
+        if (neighbor.fuel === "water") continue;
 
-      if (cell.state === CellState.Burning) {
-        newGrid[idx].burnTimer = cell.burnTimer - 1;
-        if (newGrid[idx].burnTimer <= 0) {
-          newGrid[idx].state = CellState.Burned;
+        const wAlign = windAlignmentFactor(dr, dc, windDirection);
+        const len = Math.sqrt(dr * dr + dc * dc);
+        const rise = (neighbor.elevation - cell.elevation) / (len * cellSizeMeters);
+        let rate: number;
+
+        if (useML) {
+          // ML model prediction
+          const n1km = countBurningNeighbors(grid, nr, nc, gridSize, 2);
+          const n5km = countBurningNeighbors(grid, nr, nc, gridSize, 5);
+          const n10km = countBurningNeighbors(grid, nr, nc, gridSize, 10);
+
+          const features = [
+            hoursElapsed,                    // 0  hours_since_start
+            neighbor.lat,                    // 1  latitude
+            neighbor.lng,                    // 2  longitude
+            isDaytime,                       // 3  is_daytime
+            encodeFuelType(neighbor.fuel),   // 4  fuel_type_enc
+            (config as any).tempMean ?? 25,  // 5  temp_mean_c
+            (config as any).tempMax ?? 35,   // 6  temp_max_c
+            humidity,                        // 7  humidity_pct
+            windSpeed,                       // 8  wind_speed_kmh
+            windDirection,                   // 9  wind_direction_deg
+            (config as any).precipitation ?? 0,      // 10 precipitation_mm
+            (config as any).cumulativePrecip ?? 0,   // 11 cumulative_precip_mm
+            n1km,                            // 12 neighbors_1km
+            n5km,                            // 13 neighbors_5km
+            n10km,                           // 14 neighbors_10km
+            neighbor.elevation,              // 15 elevation_m
+            scenarioFeatures.pctForest,      // 16 pct_forest
+            scenarioFeatures.pctShrub,       // 17 pct_shrub
+            scenarioFeatures.pctGrass,       // 18 pct_grass
+            scenarioFeatures.pctUrban,       // 19 pct_urban
+            scenarioFeatures.dominantFuelEnc, // 20 dominant_fuel_enc
+            landCoverCode,                   // 21 land_cover_code
+            stepAgg.currHotspotCount,        // 22 curr_hotspot_count
+            stepAgg.currAreaKm2,             // 23 curr_area_km2
+            stepAgg.currExtentNsKm,          // 24 curr_extent_ns_km
+            stepAgg.currExtentEwKm,          // 25 curr_extent_ew_km
+            recentPrecip3Day,                // 26 recent_precip_3day_mm
+          ];
+
+          const mlProb = predictSpreadProbability(features);
+
+          // Apply directional wind modifier (ML model knows wind speed but not
+          // the direction relative to this specific neighbor)
+          const directionModifier = windStrength > 0.1
+            ? 0.3 + 0.7 * Math.max(0, (wAlign + 1) / 2)  // 0.3 upwind, 1.0 downwind
+            : 1.0;
+
+          rate = mlProb * directionModifier * 0.25; // Scale for per-step probability
+        } else {
+          // Fallback: Rothermel-based
+          const slopeAngle = (Math.atan(rise) * 180) / Math.PI;
+          rate = computeSpreadRate({
+            slopeAngle,
+            windAlignment: wAlign,
+            windStrength,
+            humidity,
+            fuel: neighbor.fuel,
+          });
         }
-      }
 
-      if (cell.state === CellState.Burning) {
-        for (const [dr, dc] of NEIGHBOR_OFFSETS) {
-          const nr = row + dr;
-          const nc = col + dc;
-          if (nr < 0 || nr >= gridSize || nc < 0 || nc >= gridSize) continue;
-
-          const nIdx = nr * gridSize + nc;
-          const neighbor = grid[nIdx];
-          if (neighbor.state !== CellState.Unburned) continue;
-          if (newGrid[nIdx].state === CellState.Burning) continue;
-          if (neighbor.fuel === "water") continue;
-
-          let rate: number;
-
-          if (useML) {
-            // ML model prediction
-            const n1km = countBurningNeighbors(grid, nr, nc, gridSize, 2);
-            const n5km = countBurningNeighbors(grid, nr, nc, gridSize, 5);
-            const n10km = countBurningNeighbors(grid, nr, nc, gridSize, 10);
-
-            const features = [
-              hoursElapsed,                    // 0  hours_since_start
-              neighbor.lat,                    // 1  latitude
-              neighbor.lng,                    // 2  longitude
-              isDaytime,                       // 3  is_daytime
-              encodeFuelType(neighbor.fuel),   // 4  fuel_type_enc
-              (config as any).tempMean ?? 25,  // 5  temp_mean_c
-              (config as any).tempMax ?? 35,   // 6  temp_max_c
-              humidity,                        // 7  humidity_pct
-              windSpeed,                       // 8  wind_speed_kmh
-              windDirection,                   // 9  wind_direction_deg
-              (config as any).precipitation ?? 0,      // 10 precipitation_mm
-              (config as any).cumulativePrecip ?? 0,   // 11 cumulative_precip_mm
-              n1km,                            // 12 neighbors_1km
-              n5km,                            // 13 neighbors_5km
-              n10km,                           // 14 neighbors_10km
-              neighbor.elevation,              // 15 elevation_m
-              scenarioFeatures.pctForest,      // 16 pct_forest
-              scenarioFeatures.pctShrub,       // 17 pct_shrub
-              scenarioFeatures.pctGrass,       // 18 pct_grass
-              scenarioFeatures.pctUrban,       // 19 pct_urban
-              scenarioFeatures.dominantFuelEnc, // 20 dominant_fuel_enc
-              landCoverCode,                   // 21 land_cover_code
-              stepAgg.currHotspotCount,        // 22 curr_hotspot_count
-              stepAgg.currAreaKm2,             // 23 curr_area_km2
-              stepAgg.currExtentNsKm,          // 24 curr_extent_ns_km
-              stepAgg.currExtentEwKm,          // 25 curr_extent_ew_km
-              recentPrecip3Day,                // 26 recent_precip_3day_mm
-            ];
-
-            const mlProb = predictSpreadProbability(features);
-
-            // Apply directional wind modifier (ML model knows wind speed but not
-            // the direction relative to this specific neighbor)
-            const wAlign = windAlignmentFactor(dr, dc, windDirection);
-            const directionModifier = windStrength > 0.1
-              ? 0.3 + 0.7 * Math.max(0, (wAlign + 1) / 2)  // 0.3 upwind, 1.0 downwind
-              : 1.0;
-
-            rate = mlProb * directionModifier * 0.25; // Scale for per-step probability
-          } else {
-            // Fallback: Rothermel-based
-            const elevDiff = neighbor.elevation - cell.elevation;
-            const dist = Math.sqrt(dr * dr + dc * dc) * cellSizeMeters;
-            const slopeAngle = (Math.atan2(elevDiff, dist) * 180) / Math.PI;
-            const wAlign = windAlignmentFactor(dr, dc, windDirection);
-
-            rate = computeSpreadRate({
-              slopeAngle,
-              windAlignment: wAlign,
-              windStrength,
-              humidity,
-              fuel: neighbor.fuel,
-            });
-          }
-
-          if (Math.random() < rate) {
-            newGrid[nIdx].state = CellState.Burning;
-            newGrid[nIdx].burnTimer = FUEL_PROPERTIES[neighbor.fuel].burnDuration;
-          }
-        }
+        visit({
+          cell: nIdx, rate, align: wAlign, slope: Math.max(-1, Math.min(1, rise)), fuel: neighbor.fuel,
+          north: -dr / len, east: dc / len,
+        });
       }
     }
   }
+}
+
+/**
+ * ML-enhanced simulation step.
+ * Uses XGBoost model to predict spread probability when available,
+ * falls back to Rothermel-based calculation otherwise.
+ */
+export function simulateStep(
+  grid: GridCell[],
+  config: SimulationConfig,
+  stepNumber = 0,
+  useML = true
+): GridCell[] {
+  const newGrid: GridCell[] = grid.map((cell) => ({ ...cell }));
+  const spreadScale = config.spreadScale ?? 1;
+  const correction = config.spreadCorrection;
+
+  // Burning cells burn down; suppressed cells (firelines) are permanent firebreaks.
+  for (let idx = 0; idx < grid.length; idx++) {
+    if (grid[idx].state !== CellState.Burning) continue;
+    newGrid[idx].burnTimer = grid[idx].burnTimer - 1;
+    if (newGrid[idx].burnTimer <= 0) newGrid[idx].state = CellState.Burned;
+  }
+
+  forEachSpreadAttempt(grid, config, stepNumber, useML, (a) => {
+    const p = correction ? correctedRate(a.rate * spreadScale, a, correction) : a.rate * spreadScale;
+    if (Math.random() < p) {
+      newGrid[a.cell].state = CellState.Burning;
+      newGrid[a.cell].burnTimer = FUEL_PROPERTIES[grid[a.cell].fuel].burnDuration;
+    }
+  }, (cell) => newGrid[cell].state === CellState.Burning);
 
   return newGrid;
 }

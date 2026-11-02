@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   planPath,
+  planToNearest,
   planStillSafe,
   remainingMarginMin,
   cellSlopeDeg,
@@ -67,6 +68,36 @@ describe("planPath", () => {
     expect(crossings).toEqual([idx(0, 10)]);
   });
 
+  it("brush slows the dog: half speed doubles the walk", () => {
+    const g = openGrid();
+    g.groundSpeed = new Float32Array(N * N).fill(0.5);
+    const plan = planPath(g, idx(10, 2), idx(10, 17), 0, 30, ROBOT_DEFAULTS)!;
+    expect(plan.arrivalMin.at(-1)!).toBeCloseTo((2 * 15 * 50) / 1.5 / 60, 2);
+  });
+
+  it("goes around slow brush when the detour is faster", () => {
+    const g = openGrid();
+    g.groundSpeed = new Float32Array(N * N).fill(1);
+    const brush: number[] = [];
+    for (let r = 0; r <= 15; r++) for (let c = 6; c <= 13; c++) brush.push(idx(r, c));
+    brush.forEach((i) => (g.groundSpeed![i] = 0.5));
+    const plan = planPath(g, idx(10, 2), idx(10, 17), 0, 30, ROBOT_DEFAULTS)!;
+    expect(plan.cells.filter((c) => brush.includes(c))).toEqual([]);
+  });
+
+  it("uphill is slower than downhill, and downhill slower than flat", () => {
+    const flat = openGrid();
+    const ramp = openGrid();
+    ramp.elevation = new Float32Array(N * N);
+    for (let i = 0; i < N * N; i++) ramp.elevation[i] = (i % N) * 10; // 10 m per cell ≈ 11.3°
+    const t = (g: PlannerGrid, a: number, b: number) => planPath(g, a, b, 0, 30, ROBOT_DEFAULTS)!.arrivalMin.at(-1)!;
+    const up = t(ramp, idx(10, 2), idx(10, 17));
+    const down = t(ramp, idx(10, 17), idx(10, 2));
+    const level = t(flat, idx(10, 2), idx(10, 17));
+    expect(up).toBeGreaterThan(down);
+    expect(down).toBeGreaterThan(level);
+  });
+
   it("unsafe start: a burning start cell has no path", () => {
     const g = openGrid();
     g.ignitionMin[idx(10, 2)] = 0;
@@ -129,6 +160,33 @@ describe("planStillSafe / remainingMarginMin", () => {
   });
 });
 
+describe("margin that grows with look-ahead", () => {
+  // Everything ignites at minute 50; the walk takes about 8 minutes.
+  const late = () => {
+    const g = openGrid();
+    g.ignitionMin.fill(50);
+    return g;
+  };
+  const growing = { ...ROBOT_DEFAULTS, marginPerLeadMin: 0.25 };
+
+  it("a fresh forecast needs little more than the base margin", () => {
+    expect(planPath(late(), idx(10, 2), idx(10, 17), 0, 15, growing)).not.toBeNull();
+  });
+
+  it("an old forecast needs a bigger margin: 15 + 25% of 200+ min ahead is more than the 50 min to spare", () => {
+    const g = { ...late(), forecastMin: -200 };
+    expect(planPath(g, idx(10, 2), idx(10, 17), 0, 15, growing)).toBeNull();
+    expect(planPath(g, idx(10, 2), idx(10, 17), 0, 15, ROBOT_DEFAULTS)).not.toBeNull();
+  });
+
+  it("planStillSafe applies the same growing margin", () => {
+    const g = late();
+    const plan = planPath(g, idx(10, 2), idx(10, 17), 0, 15, growing)!;
+    expect(planStillSafe(plan, 0, g.ignitionMin, 15, 0.25, 0)).toBe(true);
+    expect(planStillSafe(plan, 0, g.ignitionMin, 15, 0.25, -200)).toBe(false);
+  });
+});
+
 describe("samePath", () => {
   const plan = (cells: number[], t0 = 0) => ({ cells, arrivalMin: cells.map((_, i) => t0 + i), minMarginMin: 10 });
   it("same cells are the same path even if re-timed", () => expect(samePath(plan([1, 2, 3]), plan([1, 2, 3], 15))).toBe(true));
@@ -136,5 +194,44 @@ describe("samePath", () => {
   it("null handling", () => {
     expect(samePath(null, null)).toBe(true);
     expect(samePath(plan([1]), null)).toBe(false);
+  });
+});
+
+describe("planToNearest", () => {
+  // The fire holds every column from 14 east; the target sits inside it.
+  const fireEast = () => {
+    const g = openGrid();
+    for (let r = 0; r < N; r++) for (let c = 14; c < N; c++) g.ignitionMin[idx(r, c)] = 0;
+    return g;
+  };
+
+  it("walks to the reachable spot closest to an unreachable target", () => {
+    const plan = planToNearest(fireEast(), idx(10, 2), idx(10, 17), 0, 0, ROBOT_DEFAULTS, 30)!;
+    expect(plan.cells[0]).toBe(idx(10, 2));
+    expect(plan.cells.at(-1)).toBe(idx(10, 13));
+  });
+
+  it("the spot must stay clear for the whole hold, not just on arrival", () => {
+    const g = fireEast();
+    for (let r = 0; r < N; r++) g.ignitionMin[idx(r, 13)] = 30; // reached at ~6 min, burns before 9 + 30
+    expect(planToNearest(g, idx(10, 2), idx(10, 17), 0, 0, ROBOT_DEFAULTS, 30)!.cells.at(-1)).toBe(idx(10, 12));
+  });
+
+  it("goes to the target itself when it can", () => {
+    const plan = planToNearest(openGrid(), idx(10, 2), idx(10, 16), 0, 0, ROBOT_DEFAULTS, 30)!;
+    expect(plan.cells.at(-1)).toBe(idx(10, 16));
+  });
+
+  it("with a home, only a spot it can still walk home from after the hold", () => {
+    const g = openGrid();
+    for (let r = 0; r < N; r++) g.ignitionMin[idx(r, 8)] = 12; // passable on the way out (~3 min), shut by the way back
+    expect(planToNearest(g, idx(10, 2), idx(10, 16), 0, 0, ROBOT_DEFAULTS, 30)!.cells.at(-1)).toBe(idx(10, 16));
+    expect(planToNearest(g, idx(10, 2), idx(10, 16), 0, 0, ROBOT_DEFAULTS, 30, idx(10, 2))!.cells.at(-1)).toBe(idx(10, 7));
+  });
+
+  it("null when the dog cannot even stay where it is", () => {
+    const g = openGrid();
+    g.ignitionMin.fill(0);
+    expect(planToNearest(g, idx(10, 2), idx(10, 17), 5, 0, ROBOT_DEFAULTS, 30)).toBeNull();
   });
 });
