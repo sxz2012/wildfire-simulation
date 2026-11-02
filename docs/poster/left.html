@@ -50,8 +50,8 @@
 
   <section class="sec">
     <h2>Why</h2>
-    <p class="lead">The edge of a wildfire is the most dangerous place for a firefighter.</p>
-    <p>Robot dogs (four-legged robots) can climb steep, rocky, smoky ground where trucks get stuck and drones can't see.</p>
+    <p class="lead">The edge of a wildfire is one of the most dangerous places for a firefighter.</p>
+    <p>Robot dogs (four-legged robots) can climb steep, rocky ground where trucks get stuck, and measure conditions on the ground under smoke and trees.</p>
     <p class="lead"><span>But a dog that steers by where the fire is now can walk into where it will be.</span></p>
   </section>
 
@@ -59,19 +59,19 @@
     <h2>Plan on the predicted fire</h2>
     <div class="compare">
       <div class="pair">
-        <figure><h3>Planned on the fire now</h3><img src="img/plan-fire-now-later-zoom.jpg" alt="Simulator close-up an hour after launch: the dog on the route planned on the fire now has reached the flames"></figure>
+        <figure><h3>Planned on the fire now</h3><img src="img/plan-fire-now-later-zoom.jpg" alt="Simulator close-up 75 minutes after launch: the dog on the route planned on the fire now has reached the flames"></figure>
         <figure><h3>Planned on the prediction</h3><img src="img/plan-predicted-later-zoom.jpg" alt="Same moment: the dog on the route planned on the predicted fire walks clear of the flames"></figure>
       </div>
       <div class="caps">
-        <p class="bad"><b>In the flames</b>An hour in, the fire has reached the route.</p>
+        <p class="bad"><b>In the flames</b>75&nbsp;min in, the fire has reached the route.</p>
         <p class="good"><b>Still clear</b>Same moment: this route keeps 100&nbsp;m from the predicted fire.</p>
       </div>
     </div>
     <div class="rule">
-      <p class="lead">The dog stays at least 100&nbsp;m from where the fire is predicted to be, with 30&nbsp;min in hand.</p>
-      <p>It scouts from the closest spot that keeps that distance and still has a way home. When its sensors show the real fire differs, the prediction reruns and the dog re-plans.</p>
+      <p class="lead">The dog plans to stay at least 100&nbsp;m from where the fire is predicted to be, with 30&nbsp;min in hand.</p>
+      <p>It scouts from the closest spot that keeps that distance and still has a way home. When its sensors show the real fire differs, the prediction reruns and the dog re-plans. If it is cut off, an emergency retreat may come closer.</p>
     </div>
-    <p class="fine">Simulator screenshots, Big Sur: same fire, same start and target, one hour after the dog sets out.</p>
+    <p class="fine">Simulator screenshots, Big Sur: same fire, same start and target, 75&nbsp;minutes after the dog sets out.</p>
   </section>
 
   <section class="sec">
@@ -79,46 +79,48 @@
     <div class="flow">
       <div><h3>Fire history + conditions</h3><p>246,000 NASA satellite fire detections from 30 wildfires; weather, terrain, land cover</p></div>
       <div class="arrow">→</div>
-      <div class="model"><h3>Machine learning + fire physics</h3><p>XGBoost adjusts a Rothermel spread model</p></div>
+      <div class="model"><h3>Machine learning + fire simulator</h3><p>XGBoost gives each spot's chance of catching fire; the simulator spreads it with the wind</p></div>
       <div class="arrow">→</div>
       <div><h3>When each spot burns</h3><p>Every 50&nbsp;m spot, in 15&nbsp;min steps</p></div>
     </div>
     <p class="lead">Small and fast, so the dog can re-plan on the spot.</p>
     <div class="facts">
       <div class="fact"><b class="red">31&nbsp;KB</b><span>The whole model. Smaller than one photo on this poster.</span></div>
-      <div class="fact"><b>0.1&nbsp;s</b><span>To predict all 360,000 spots on the map (desktop computer).</span></div>
-      <div class="fact"><b>Anywhere</b><span>Small edge computers like a Raspberry&nbsp;Pi. No internet or GPU.</span></div>
+      <div class="fact"><b>0.1&nbsp;s</b><span>One model pass over all 360,000 spots on the map (desktop CPU).</span></div>
+      <div class="fact"><b>No GPU</b><span>No internet needed once loaded. Built for small edge computers; Raspberry&nbsp;Pi tests are next.</span></div>
     </div>
+    <p class="fine">Model trained to predict whether a fire keeps spreading on 24 fires, tested on 6 others (AUC 0.75). The 50&nbsp;m, 15&nbsp;min spread is a simulation, not checked against real fires.</p>
   </section>
 
   <section class="sec">
     <h2>Close enough to help, safe enough to return</h2>
     <div class="result">
       <h3>430 simulated missions per dog</h3>
-      <svg viewBox="0 0 1060 358" role="img" aria-label="Reached a spot to scout, and caught by the fire, per dog: reacts keeping 500 m away 0% and 0%; reacts keeping 200 m away 36% and 0.9%; predicts with no margin 100% and 44%; predicts and keeps 100 m with 30 min in hand, with sensing, 95% and 0%">
+      <svg viewBox="0 0 1060 358" role="img" aria-label="Reached a spot to scout, and caught by the fire, per dog: reacts keeping 500 m away 0% and 0%; reacts keeping 200 m away 27% and 0.2%; predicts with no margin 100% and 46%; predicts and keeps 100 m with 30 min in hand, with sensing, 91% and 0.5%">
         <g font-size="26" font-weight="700"><text x="560" y="26" fill="#0047bb">Reached a</text><text x="560" y="56" fill="#0047bb">spot to scout</text><text x="840" y="26" fill="#e2001a">Caught by</text><text x="840" y="56" fill="#e2001a">the fire</text></g>
         <text x="0" y="112" font-size="27">Reacts, keeps 500 m away</text>
         <text x="570" y="114" font-size="27" font-weight="700">0%</text>
         <text x="850" y="114" font-size="27" font-weight="700">0%</text>
         <text x="0" y="182" font-size="27">Reacts, keeps 200 m away</text>
-        <rect x="560" y="158" width="65" height="34" fill="#bdbdbd"/>
-        <text x="635" y="184" font-size="27" font-weight="700">36%</text>
+        <rect x="560" y="158" width="48" height="34" fill="#bdbdbd"/>
+        <text x="618" y="184" font-size="27" font-weight="700">27%</text>
         <rect x="840" y="158" width="4" height="34" fill="#bdbdbd"/>
-        <text x="854" y="184" font-size="27" font-weight="700">0.9%</text>
+        <text x="854" y="184" font-size="27" font-weight="700">0.2%</text>
         <line x1="0" y1="210" x2="1060" y2="210" stroke="#000" stroke-width="1.5"/>
         <text x="0" y="252" font-size="27">Predicts, no margin</text>
         <rect x="560" y="228" width="180" height="34" fill="#bdbdbd"/>
         <text x="750" y="254" font-size="27" font-weight="700">100%</text>
-        <rect x="840" y="228" width="79" height="34" fill="#bdbdbd"/>
-        <text x="929" y="254" font-size="27" font-weight="700">44%</text>
+        <rect x="840" y="228" width="82" height="34" fill="#bdbdbd"/>
+        <text x="932" y="254" font-size="27" font-weight="700">46%</text>
         <text x="0" y="322" font-size="27" font-weight="700">Predicts, 100 m + 30 min + sensing</text>
-        <rect x="560" y="298" width="171" height="34" fill="#0047bb"/>
-        <text x="741" y="324" font-size="27" font-weight="700">95%</text>
-        <text x="850" y="324" font-size="27" font-weight="700">0%</text>
+        <rect x="560" y="298" width="164" height="34" fill="#0047bb"/>
+        <text x="734" y="324" font-size="27" font-weight="700">91%</text>
+        <rect x="840" y="298" width="4" height="34" fill="#e2001a"/>
+        <text x="854" y="324" font-size="27" font-weight="700">0.5%</text>
       </svg>
     </div>
-    <p class="lead">Reacting gets close only when it's lucky. Predicting knows when it's safe to go.</p>
-    <p class="fine">Each mission: walk from staging toward a target at the fire's edge, scout, come home. The predicting dog scouts from the closest spot that keeps 100&nbsp;m from the predicted fire. Simulated on made-up terrain; the real fire runs hotter and drier than forecast, sometimes with a wind shift. No physical robot.</p>
+    <p class="lead">Reacting stays safe by staying back. Planning on the prediction reached a scout spot 91% of the time.</p>
+    <p class="fine">Each mission: walk from staging toward a target at the fire's edge, scout, come home. Reacting dogs aim for the target itself; the predicting dog scouts from the closest spot that keeps its 100&nbsp;m rule (typically 50&nbsp;m short of the target). Synthetic test on made-up terrain: the real fire runs hotter and drier than forecast, sometimes with a wind shift. Sensing is idealised: the dog's report gives the exact weather and the whole real fire. No physical robot.</p>
   </section>
 
 </div>

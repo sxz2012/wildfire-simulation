@@ -47,10 +47,10 @@ SHOTS = [
     (MEDIA / "real/charred-ground.mp4", 0.5, 4, REAL, "3 · Measure", "Near the fire edge, the ground is still smouldering.", BLUE),
     (MEDIA / "anim/scout.mp4", 0.5, 4, ANIM, "3 · Measure", "The dog walks closer to the real fire.", BLUE),
     (MEDIA / "anim/measure.mp4", 0.5, 4.5, ANIM, "3 · Measure", "It measures wind, temperature, humidity and where the edge really is.", BLUE),
-    (SIM_SRC, 20.8, 6.5, SIM, None, None, None),
-    (SIM_SRC, 27.3, 5, SIM, None, None, None),
+    (SIM_SRC, 24.0, 6.5, SIM, None, None, None),
+    (SIM_SRC, 30.6, 4.5, SIM, None, None, None),
     (MEDIA / "anim/home.mp4", 0.5, 4.5, ANIM, "6 · Home safe", "It walks home on its escape path, ahead of the fire.", BLUE),
-    (SIM_SRC, 32.5, 3.2, SIM, None, None, None),
+    (SIM_SRC, 37.6, 3.7, SIM, None, None, None),
     ("card:credits", 0, 6, None, None, None, None),
 ]
 if LONG:
@@ -64,12 +64,12 @@ if LONG:
         ("card:rule", 0, 6, None, None, None, None),
         (SIM_SRC, 1.5, 8.3, SIM, None, None, None),
         (MEDIA / "real/smoke-plume.mp4", 0, 6, REAL, "2 · Wind shifts", "The real wind changes and pushes the fire a new way.", ORANGE),
-        (SIM_SRC, 10.3, 10.5, SIM, None, None, None),
+        (SIM_SRC, 10.3, 9, SIM, None, None, None),
         (MEDIA / "real/charred-ground.mp4", 0, 5, REAL, "3 · Measure", "Near the fire edge, the ground is still smouldering.", BLUE),
         (("still:robot", 1.45, 1160, 330), 0, 5.5, CONCEPT, "3 · Measure", "It measures wind, temperature, humidity and where the edge really is.", BLUE),
-        (SIM_SRC, 20.8, 6.5, SIM, None, None, None),
-        (SIM_SRC, 27.3, 5, SIM, None, None, None),
-        (SIM_SRC, 32.3, 3.4, SIM, None, None, None),
+        (SIM_SRC, 24.0, 6.5, SIM, None, None, None),
+        (SIM_SRC, 30.6, 4.5, SIM, None, None, None),
+        (SIM_SRC, 36.7, 4.6, SIM, None, None, None),
         ("card:results", 0, 7, None, None, None, None),
         ("card:credits", 0, 5.3, None, None, None, None),
     ]
@@ -135,11 +135,11 @@ def card(kind):
         d.text((140, 240), "430 simulated missions", font=font(80, BOLD), fill=(0, 0, 0))
         d.text((140, 350), "The real fire ran hotter and drier than forecast, often with a wind shift.",
                font=font(40), fill=(60, 60, 60))
-        cols = [(140, "95%", "reached its scout spot", (0, 71, 187)), (900, "0%", "caught by the fire", RED)]
+        cols = [(140, "91%", "reached its scout spot", (0, 71, 187)), (900, "0.5%", "caught by the fire", RED)]
         for x, big, label, colour in cols:
             d.text((x, 450), big, font=font(200, BOLD), fill=colour)
             d.text((x, 690), label, font=font(48, BOLD), fill=(0, 0, 0))
-        d.text((140, 840), "A dog that only reacts to the flames it sees, keeping 200 m away: 36% reached, 0.9% caught.",
+        d.text((140, 840), "A dog that only reacts to the flames it sees, keeping 200 m away: 27% reached, 0.2% caught.",
                font=font(40), fill=(60, 60, 60))
         d.text((140, 940), "Simulated on made-up terrain. No physical robot.", font=font(36), fill=(60, 60, 60))
     else:

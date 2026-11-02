@@ -49,44 +49,44 @@ Hi, I'm Shawn. My project is fire-aware robot dogs: four-legged robots that can 
 
 \talkpart{2. Why}{0:20 · 40 s}
 \cue{Left panel, ``Why''}
-The edge of a wildfire is the most dangerous place for a firefighter, but it is also where crews most need information: which way the fire is moving, how hot and windy it is. A robot dog can climb steep, rocky, smoky ground where trucks get stuck and drones can't see the ground well.
+The edge of a wildfire is one of the most dangerous places for a firefighter, but it is also where crews most need information: which way the fire is moving, how hot and windy it is. A robot dog can climb steep, rocky ground where trucks get stuck, and measure conditions on the ground under smoke and trees.
 But there is a catch. A dog that steers by where the fire is right now can walk into where the fire will be an hour later.
 
 \talkpart{3. The idea: plan on the predicted fire}{1:00 · 50 s}
 \cue{Left panel, the two screenshots}
-These are two real screenshots from my simulator, the same fire near Big Sur, the same start and the same target, one hour after the dog sets out.
-On the left, the dog planned its route on the fire as it is now. The route looked clear, but an hour later the dog is in the flames.
+These are two real screenshots from my simulator, the same fire near Big Sur, the same start and the same target, 75 minutes after the dog sets out.
+On the left, the dog planned its route on the fire as it is now. The route looked clear, but 75 minutes later the dog is in the flames.
 On the right, the dog planned on the predicted fire. At the same moment it is still clear, keeping its distance from the fire.
 \cue{The rule underneath}
-The rule is simple: the dog stays at least 100 metres from where the fire is predicted to be, with 30 minutes in hand. It scouts from the closest spot that keeps that distance and still has a way home.
+The rule is simple: the dog plans to stay at least 100 metres from where the fire is predicted to be, with 30 minutes in hand. It scouts from the closest spot that keeps that distance and still has a way home. Only if it is cut off may an emergency retreat come closer.
 
 \talkpart{4. How we predict the fire}{1:50 · 40 s}
 \cue{Left panel, ``How we predict the fire''}
 To predict the fire, I trained a machine-learning model, XGBoost, on about 246,000 NASA satellite fire detections from 30 major wildfires, together with weather, terrain and land cover. In the simulator it drives how the fire spreads across the map, and the output is when each 50-metre spot will burn, in 15-minute steps.
 \cue{The three numbers}
-The model is tiny: 31 kilobytes, smaller than one photo on this poster. It predicts all 360,000 spots on the map in about a tenth of a second, so the dog can re-plan on the spot, without the internet.
+The model is tiny: 31 kilobytes, smaller than one photo on this poster. One pass of the model over all 360,000 spots on the map takes about a tenth of a second on a desktop, and it needs no internet once loaded, so the dog can re-plan on the spot.
 
 \talkpart{5. One afternoon at a Big Sur fire}{2:30 · 60 s}
 \cue{Centre panel, follow pins 1 to 6}
 Here is one mission in the simulator, on real terrain.
 At 2:45 PM the dog leaves staging. \cue{pin 1} The blue route keeps 100 metres from the forecast fire, with 30 minutes in hand, and goes slower through brush and uphill. \cue{pin 2}
 At 3:15 the real wind shifts. The real fire turns, but the forecast doesn't know. \cue{pin 3}
-At 4:30 the dog reaches its scout spot, as close as the 100-metre rule allows. \cue{pin 4}
-Its sensors find wind from the northwest instead of the west, and 40 degrees instead of 35. It sends the readings back and the prediction reruns: the fire is coming, so the dog cuts scouting short and heads home another way. \cue{pin 5}
-It is home by about 6:45, before the fire arrives. \cue{pin 6}
+At 4:45 the dog reaches its scout spot, as close as the 100-metre rule allows. \cue{pin 4}
+Its sensors find wind from the northwest instead of the west, and 40 degrees instead of 35. It sends the readings back and the prediction reruns: the fire is coming, so the dog cuts scouting short and heads home. \cue{pin 5}
+It is home by about 7:15, before the fire arrives. \cue{pin 6}
 \cue{Bottom of centre panel}
 The point is in the tagline: know where the fire will be, not just where it is.
 
 \talkpart{6. How the dog decides (optional)}{+30 s}
 \cue{Right panel, cards 1 to 5}
-The right panel shows each decision. It predicts when each cell burns, plans the safe blue route, times it with real walking speeds on each kind of ground and slope, and keeps a green escape path home. At its scout spot it measures what the forecast only guessed, and those readings make the next forecast better: the forecast's match with the real fire went from 74\% after the wind shift back up to 82\%.
+The right panel shows each decision. It predicts when each cell burns, plans the safe blue route, times it with real walking speeds on each kind of ground and slope, and keeps a green escape path home. At its scout spot it measures what the forecast only guessed, and those readings make the next forecast better: the forecast's match with the real fire went from 78\% just before the report up to 81\%.
 
 \talkpart{7. Results}{3:30 · 60 s}
 \cue{Left panel, bottom chart}
 To test this fairly I ran 430 simulated missions for each kind of dog, where the real fire was hotter and drier than forecast and often had a surprise wind shift.
-A dog that only reacts to the flames it can see is safe, but only by staying away: keeping 500 metres back, it never reached a spot to scout, and at 200 metres it reached one 36\% of the time.
-My dog, planning on the prediction with the 100-metre rule and its sensors, reached its scout spot in 95\% of missions and was never caught by the fire.
-Without any margin, the same planner was caught 44\% of the time, so the margin matters as much as the prediction.
+A dog that only reacts to the flames it can see is safe, but only by staying away: keeping 500 metres back, it never reached a spot to scout, and at 200 metres it reached one only 27\% of the time.
+My dog, planning on the prediction with the 100-metre rule and its sensors, reached its scout spot in 91\% of missions and was caught by the fire in 2 of 430, half a percent.
+Without any margin, the same planner was caught 46\% of the time, so the margin matters as much as the prediction.
 
 \talkpart{8. Limits and next steps}{4:30 · 20 s}
 \cue{Right panel, ``Status and next''}
@@ -98,11 +98,11 @@ The code and a demo video are on GitHub through this QR code. Thank you, I'm hap
 
 \section{The 1-minute version}
 
-Firefighters most need information from the fire's edge, which is the most dangerous place to be. A robot dog could go instead, but if it steers by where the fire is now it can walk into where the fire will be.
-\cue{left screenshots} My dog plans on a predicted fire: it stays at least 100 metres from where the fire is predicted to be, with 30 minutes in hand, and it always keeps a way home.
-The prediction comes from a small machine-learning model trained on NASA satellite data from 30 wildfires; it is only 31 KB and runs in a tenth of a second, so the dog can re-plan in the field.
+Firefighters most need information from the fire's edge, one of the most dangerous places to be. A robot dog could go instead, but if it steers by where the fire is now it can walk into where the fire will be.
+\cue{left screenshots} My dog plans on a predicted fire: it plans to stay at least 100 metres from where the fire is predicted to be, with 30 minutes in hand, and to keep a way home.
+The prediction comes from a small machine-learning model trained on NASA satellite data from 30 wildfires; it is only 31 KB and one pass takes a tenth of a second, so the dog can re-plan in the field.
 \cue{centre panel} When the real fire surprises it, the dog's sensors send back real readings, the forecast reruns, and the dog re-plans.
-\cue{left chart} In 430 simulated missions it reached its scout spot 95\% of the time and was never caught. A dog that only reacts to the flames stays safe only by staying away.
+\cue{left chart} In 430 simulated missions it reached its scout spot 91\% of the time and was caught in only 2. A dog that only reacts to the flames stays safe only by staying away.
 
 \section{Key numbers}
 
@@ -118,13 +118,13 @@ The prediction comes from a small machine-learning model trained on NASA satelli
 50 m, 15 min & size of each map spot; length of each simulation step \\
 5.4 km/h & the dog's walking speed on open ground (1.5 m/s); slower in forest, brush and uphill \\
 100 m + 30 min & the dog's rule: distance kept from the predicted fire, and time in hand \\
-83\% $\rightarrow$ 74\% $\rightarrow$ 82\% & forecast match with the real fire: at launch, after the wind shift, after the dog's report \\
+84\% $\rightarrow$ 78\% $\rightarrow$ 81\% & forecast match with the real fire: at launch, just before the dog's report, after it \\
 430 & simulated missions per kind of dog in the test \\
-95\% / 0\% & our dog: reached its scout spot / caught by the fire \\
+91\% / 0.5\% & our dog: reached its scout spot / caught by the fire (2 of 430) \\
 100 m & how close our dog typically came to the real flames (median) \\
-36\% / 0.9\% & dog that reacts and keeps 200 m away: reached / caught \\
+27\% / 0.2\% & dog that reacts and keeps 200 m away: reached / caught \\
 0\% & dog that reacts and keeps 500 m away: reached a spot to scout \\
-44\% & caught, for the same planner with no safety margin \\
+46\% & caught, for the same planner with no safety margin \\
 \bottomrule
 \end{tabularx}
 
@@ -133,7 +133,7 @@ The prediction comes from a small machine-learning model trained on NASA satelli
 \subsection{The problem}
 
 \q{Why a robot dog and not a drone?}
-They do different jobs. Drones are great for the big picture, but smoke blocks their view of the ground, their flight time is short, and they can't easily measure the wind and temperature right at ground level where the fire is spreading. A four-legged robot can walk steep, rocky, smoky ground for longer and measure conditions at the fire edge. In practice they would work together.
+They do different jobs. Drones are great for the big picture, and infrared cameras can see through some smoke, but thick smoke and tree cover can still hide the ground, their flight time is short, and they can't easily measure the wind and temperature right at ground level where the fire is spreading. A four-legged robot can walk steep, rocky, smoky ground for longer and measure conditions at the fire edge. In practice they would work together.
 
 \q{Who would use this?}
 A fire crew or incident team. They would send the dog to look at a part of the fire edge that is too dangerous for people, and get back both observations and a corrected forecast.
@@ -147,7 +147,7 @@ Not yet. The robot image is a design concept and the dog's sensors are simulated
 \subsection{The prediction model}
 
 \q{How accurate is the fire prediction?}
-I tested it on 6 real fires it never saw during training, including Caldor, Kincade, Maui, Greece, Bolivia and Siberia. Shown a place the fire reached and a place it did not, it ranks the right one as riskier about 3 times out of 4 (an AUC score of 0.75); guessing would get 1 in 2. It is better at telling which fires and days will keep growing than at saying exactly which spot inside one fire burns next; for some test fires that part was close to a coin flip. That is why the dog does not rely on the forecast alone: it keeps a safety margin and checks the real fire with its sensors.
+I tested it on 6 real fires it never saw during training, including Caldor, Kincade, Maui, Greece, Bolivia and Siberia. Shown a place the fire reached and a place it did not, it ranks the right one as riskier about 3 times out of 4 (an AUC score of 0.75); guessing would get 1 in 2. It is better at telling which fires and days will keep growing than at saying exactly which spot inside one fire burns next; for some test fires that part was close to a coin flip. Also, the model predicts whether a fire keeps spreading, not exactly when each 50 m spot burns; the 50 m, 15-minute spread is my simulator's, and it has not been checked against real fires. That is why the dog does not rely on the forecast alone: it keeps a safety margin and checks the real fire with its sensors.
 
 \q{Why is the accuracy not higher?}
 I tried hard to raise it: seven kinds of model, extra physics-style inputs such as distance from the fire and whether a spot is downwind, averaging several models, and blending models, using ideas from top WiDS 2026 datathon solutions. None beat the current model by more than random noise, and the model stops improving after about 10 trees. That points to the data, not the model: satellite fire maps are coarse (about 375 m squares, a few passes a day), and we don't have inputs like how dry the plants are. More fires and fuel-moisture data are the next things to try.
@@ -170,16 +170,19 @@ Fire detections from NASA FIRMS (the VIIRS satellite instrument), historical wea
 It searches the map for the earliest way to reach the target, step by step through 50 m spots. It walks at 5.4 km/h on open ground, slower in forest and brush, and slower on slopes, especially uphill. It never crosses water or slopes steeper than 35 degrees. A spot is off limits if the forecast fire will come within 100 m of it less than 30 minutes after the dog gets there. If the target itself is too close to the fire, the dog scouts from the closest spot that keeps that rule and still has a way home.
 
 \q{Why 100 metres and 30 minutes?}
-I tested many versions on the same 430 missions. My first rule was time only, ``stay 60 minutes ahead of the forecast fire'': it was caught in 1.6\% of missions and typically came about 70 m from the real flames. A distance is easier to understand, but distance alone doesn't know how fast the fire runs: keeping 100 m with no time buffer was caught in 2.8\%. 100 m plus 30 minutes was never caught and reached its scout spot 95\% of the time; 200 m plus 30 minutes was also never caught, but scouts from further back.
+I tested many versions on the same 430 missions. My first rule was time only, ``stay 60 minutes ahead of the forecast fire'': it was caught in 3.5\% of missions and typically came about 70 m from the real flames. A distance is easier to understand, but distance alone doesn't know how fast the fire runs: keeping 100 m with no time buffer was caught in 1.2\%. 100 m plus 30 minutes was caught in 0.5\% (2 of 430) and reached its scout spot 91\% of the time. 200 m plus 30 minutes was never caught and reached its spot 99.8\% of the time, but it scouts from further back, typically about 190 m from the flames instead of 100 m. A crew could choose either.
 
 \q{Does it need its sensors?}
-For the 100 m rule, yes. Without sensing, the same dog was caught in 6\% of missions, because 100 m is not enough room when the real fire runs faster than predicted and the dog never finds out. With sensing it was never caught. A 200 m rule held up without sensing (0.5\% caught), so a crew could choose more distance if the sensors or radio might fail.
+For the 100 m rule, yes. Without sensing, the same dog was caught in 9.5\% of missions, because 100 m is not enough room when the real fire runs faster than predicted and the dog never finds out. With sensing that fell to 0.5\%. A 200 m rule held up without sensing (1 of 430 caught), so a crew could choose more distance if the sensors or radio might fail.
 
 \q{What does the dog do if the forecast is wrong?}
 When the real fire comes within 30 minutes of the dog or its route, or when it reaches its scout spot, it sends back what it measured: wind, temperature, humidity and where the edge really is. The forecast reruns from the real fire with those readings, and the dog re-plans its route and its way home. If no way home keeps 100 m, it tries 50 m, then the way out with the most time to spare, instead of standing still.
 
 \q{What is ``forecast match''?}
-How much the forecast's new burned area over the next 4 hours overlaps the real fire's. In the Big Sur run it was 83\% at launch, dropped to 74\% after the wind shift, and recovered to 82\% after the dog's report.
+How much the forecast's new burned area over the next 4 hours overlaps the real fire's (intersection over union). Both are simulated, so it shows the forecast getting closer to my simulated real fire, not accuracy on a real one. In the Big Sur run it was 84\% at launch, dropped to 78\% by the time of the dog's report, and recovered to 81\% after it.
+
+\q{How realistic is the sensing?}
+Not very, yet: it is idealised. In the test, the dog reports when the real fire is due within 30 minutes of it or the next stretch of its route, and its report gives the exact weather and the whole real fire. Real sensors would see only nearby, with noise and delays, so the real-world risk would be higher than in my test. Modelling that is a next step.
 
 \q{How does the dog send its readings back?}
 In the simulation the report arrives instantly. A real dog would need a radio link, for example to a crew vehicle or a mesh network; that is part of the next steps.
@@ -196,10 +199,13 @@ To test hundreds of different landscapes instead of one. The Big Sur terrain is 
 The real fire reached a spot while the dog was standing on it. It is measured on the simulator's 50 m map in 15-minute steps.
 
 \q{Your dog stops 100 m short. Isn't that the same as the dog that reacts and keeps 200 m?}
-No. The reacting dog keeps its distance from the flames it can see now, on every side, because it doesn't know which way the fire is heading; it reached a spot to scout in only 36\% of missions and was caught in 0.9\%. My dog keeps its distance from where the fire \emph{will} be, so it can go close on the sides the fire is not moving toward: it reached its scout spot in 95\% and was never caught. Both typically came about 100 m from the real flames.
+No. The reacting dog keeps its distance from the flames it can see now, on every side, because it doesn't know which way the fire is heading; it reached a spot to scout in only 27\% of missions and was caught in 0.2\%. My dog keeps its distance from where the fire \emph{will} be, so it can go close on the sides the fire is not moving toward: it reached its scout spot in 91\% and was caught in 0.5\%. Both typically came about 100 m from the real flames.
 
-\q{Zero out of 430. Is it perfectly safe?}
-No. Zero catches in 430 missions means the risk is probably below about 1\% in these tests, not that it is zero. The catches I saw in other versions came from the forecast being off by more than the margin, because fire spread is partly random. Two fixes mattered: the scout spot must still have a way home after scouting, and when the way home is cut off, the dog first keeps half the distance instead of taking the fastest way past the fire.
+\q{What went wrong in the 2 missions where the dog was caught?}
+Both were the same made-up world, once in each kind of weather. The real fire ran faster than even the corrected forecast: when the dog reached its scout spot, the fire was only 15 minutes away. When it turned back, every way out was already cut off, so it held its position and the fire reached it. Two lessons: fire spread is partly random, so no margin makes the risk zero; and a dog that is cut off should try to break out rather than stand still, which is a next step. Two earlier fixes also mattered: the scout spot must still have a way home after scouting, and when the way home is cut off, the dog first keeps half the distance instead of taking the fastest way past the fire.
+
+\q{Did you find any bugs?}
+Yes. A review found that my simulator gave the model its ``nearby fire'' inputs on the wrong scale: it counted burning 50 m cells within a few hundred metres, while the model was trained on satellite detections (375 m pixels) within 1, 5 and 10 km. I fixed it to count fire the way the satellite does and reran every test. The fires spread about the same, because the model treats any spot on a busy fire front alike, but the results moved a little: my dog went from 0 to 2 catches in 430.
 
 \q{Isn't the test biased because the ``real'' fire comes from your own simulator?}
 Partly, yes, and I say so on the poster. The real fire is deliberately different (hotter, drier, wind shifts), but a real fire could surprise the dog in ways my simulator can't. Testing against recorded fire perimeters from aircraft would be a stronger next test.
