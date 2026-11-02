@@ -20,3 +20,6 @@ for panel in left center right \
     --print-to-pdf="$OUT/$panel.pdf" "file://$DIR/$panel.html" 2>/dev/null
   echo "wrote $OUT/$panel.pdf"
 done
+
+# All three panels on one 48 x 36 in page, for printing as a single poster.
+python3 -I "$DIR/scripts/combine_panels.py"
