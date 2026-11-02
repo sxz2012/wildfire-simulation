@@ -69,7 +69,7 @@ The model is tiny: 31 kilobytes, smaller than one photo on this poster. One pass
 \talkpart{5. One afternoon at a Big Sur fire}{2:30 · 60 s}
 \cue{Centre panel, follow pins 1 to 6}
 Here is one mission in the simulator, on real terrain.
-At 2:45 PM the dog leaves staging. \cue{pin 1} The blue route keeps 100 metres from the forecast fire, with 30 minutes in hand, and goes slower through brush and uphill. \cue{pin 2}
+At 2:45 PM the dog leaves staging. \cue{pin 1} The blue route is planned to keep 100 metres from the forecast fire, with 30 minutes in hand, and goes slower through brush and uphill. \cue{pin 2}
 At 3:15 the real wind shifts. The real fire turns, but the forecast doesn't know. \cue{pin 3}
 At 4:45 the dog reaches its scout spot, as close as the 100-metre rule allows. \cue{pin 4}
 Its sensors find wind from the northwest instead of the west, and 40 degrees instead of 35. It sends the readings back and the prediction reruns: the fire is coming, so the dog cuts scouting short and heads home. \cue{pin 5}
@@ -114,7 +114,7 @@ The prediction comes from a small machine-learning model trained on NASA satelli
 30 fires & 24 to train the model, 6 held back to test it \\
 27 & inputs per prediction (weather, terrain, land cover, nearby fire, fire size) \\
 31 KB & size of the whole model file (11 small decision trees) \\
-0.1 s & to predict all 360,000 spots on a 30 km map (desktop computer) \\
+0.1 s & one model pass over all 360,000 spots on the 30 km map (desktop CPU) \\
 50 m, 15 min & size of each map spot; length of each simulation step \\
 5.4 km/h & the dog's walking speed on open ground (1.5 m/s); slower in forest, brush and uphill \\
 100 m + 30 min & the dog's rule: distance kept from the predicted fire, and time in hand \\
@@ -198,7 +198,7 @@ To test hundreds of different landscapes instead of one. The Big Sur terrain is 
 \q{What does ``caught by the fire'' mean?}
 The real fire reached a spot while the dog was standing on it. It is measured on the simulator's 50 m map in 15-minute steps.
 
-\q{Your dog stops 100 m short. Isn't that the same as the dog that reacts and keeps 200 m?}
+\q{Your dog keeps 100 m back. Isn't that the same as the dog that reacts and keeps 200 m?}
 No. The reacting dog keeps its distance from the flames it can see now, on every side, because it doesn't know which way the fire is heading; it reached a spot to scout in only 27\% of missions and was caught in 0.2\%. My dog keeps its distance from where the fire \emph{will} be, so it can go close on the sides the fire is not moving toward: it reached its scout spot in 91\% and was caught in 0.5\%. Both typically came about 100 m from the real flames.
 
 \q{What went wrong in the 2 missions where the dog was caught?}

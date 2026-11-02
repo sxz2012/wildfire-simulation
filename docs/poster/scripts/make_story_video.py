@@ -126,7 +126,7 @@ def card(kind):
     elif kind == "rule":
         d.rectangle([140, 300, W - 140, 312], fill=(0, 0, 0))
         d.text((140, 340), "The dog's rule", font=font(80, BOLD), fill=(0, 0, 0))
-        d.text((140, 480), "Stay at least 100 m from where the fire", font=font(72, BOLD), fill=RED)
+        d.text((140, 480), "Plan to stay at least 100 m from where the fire", font=font(72, BOLD), fill=RED)
         d.text((140, 570), "is predicted to be, with 30 minutes in hand.", font=font(72, BOLD), fill=RED)
         d.text((140, 720), "It scouts from the closest spot that keeps this rule and still has a way home.",
                font=font(40), fill=(0, 0, 0))
